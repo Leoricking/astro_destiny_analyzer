@@ -147,6 +147,8 @@ class WesternChart(BaseModel):
     mc: ZodiacSign          # 天頂 Midheaven
     ic: ZodiacSign          # 天底 Imum Coeli
     is_mock: bool = True
+    calculation_mode: str = "mock_fallback"   # swiss_ephemeris | partial_real | mock_fallback
+    accuracy_note: str = ""
 
 
 # ── BaZi (Eight Characters) Models ───────────────────────────────────────────

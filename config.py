@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.3.0"
 APP_SUBTITLE = "命盤整合分析系統"
 
 DISCLAIMER_ZH = """
@@ -28,5 +28,8 @@ REPORT_FULL_WORD_TARGET = 10000
 # Supported languages
 SUPPORTED_LANGUAGES = ["繁體中文", "簡體中文", "English"]
 
-# Swiss Ephemeris data path (optional; leave empty to use mock engine)
-SWISSEPH_DATA_PATH = os.environ.get("SWISSEPH_DATA_PATH", "")
+# Swiss Ephemeris settings
+USE_SWISS_EPHEMERIS: bool = True          # set False to force mock
+SWISSEPH_DATA_PATH: str = os.environ.get("SWISSEPH_DATA_PATH", "")
+DEFAULT_TIMEZONE: str = "Asia/Taipei"
+DEFAULT_TIMEZONE_OFFSET: int = 8          # hours ahead of UTC (Asia/Taipei = UTC+8)
