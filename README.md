@@ -73,36 +73,58 @@ python -m venv .venv
 
 ### 4.3 啟動虛擬環境
 
-Windows：
-
-```powershell
-.venv\Scripts\activate
-```
-
 macOS / Linux：
 
 ```bash
 source .venv/bin/activate
 ```
 
+Windows CMD：
+
+```cmd
+.venv\Scripts\activate.bat
+```
+
+Windows PowerShell（若 Execution Policy 未限制）：
+
+```powershell
+.venv\Scripts\activate
+```
+
+> **PowerShell Execution Policy 問題**  
+> 若出現「因為這個系統上已停用指令碼執行，所以無法載入 Activate.ps1」，  
+> **不需要修改系統 Execution Policy**，改用第 4.4 節的直接路徑方式即可。
+
 ### 4.4 安裝依賴套件
+
+activate 成功後：
 
 ```bash
 pip install -r requirements.txt
 ```
 
+**PowerShell / 未 activate 時**，改用完整路徑：
+
+```powershell
+.venv\Scripts\python -m pip install -r requirements.txt
+```
+
 ### 4.5 啟動應用程式
 
-方式 A：直接啟動 Streamlit
+activate 成功後，任選一種方式：
 
 ```bash
 streamlit run ui/streamlit_app.py
 ```
 
-方式 B：透過 app.py 啟動
-
 ```bash
 python app.py
+```
+
+**PowerShell / 未 activate 時**（推薦，不需要 activate）：
+
+```powershell
+.venv\Scripts\python -m streamlit run ui\streamlit_app.py
 ```
 
 啟動後，瀏覽器會開啟：
