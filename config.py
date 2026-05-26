@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.5"
 APP_SUBTITLE = "命盤整合分析系統"
 
 DISCLAIMER_ZH = """
@@ -33,3 +33,59 @@ USE_SWISS_EPHEMERIS: bool = True          # set False to force mock
 SWISSEPH_DATA_PATH: str = os.environ.get("SWISSEPH_DATA_PATH", "")
 DEFAULT_TIMEZONE: str = "Asia/Taipei"
 DEFAULT_TIMEZONE_OFFSET: int = 8          # hours ahead of UTC (Asia/Taipei = UTC+8)
+HOUSE_SYSTEM: bytes = b"P"               # P=Placidus; W=Whole Sign; K=Koch
+
+# Built-in Taiwan city location map
+# Keys are lowercase aliases; values: lat, lon, tz, utc_offset
+_RAW_LOCATIONS = [
+    (["台北", "臺北", "taipei", "taipei city"], 25.0330, 121.5654),
+    (["新北", "new taipei", "新北市"],           25.0169, 121.4628),
+    (["桃園", "taoyuan"],                        24.9937, 121.3010),
+    (["新竹", "hsinchu"],                        24.8138, 120.9675),
+    (["苗栗", "miaoli"],                         24.5602, 120.8214),
+    (["頭份", "toufen"],                         24.6879, 120.9027),
+    (["台中", "臺中", "taichung"],               24.1477, 120.6736),
+    (["台南", "臺南", "tainan"],                 22.9999, 120.2269),
+    (["高雄", "kaohsiung"],                      22.6273, 120.3014),
+    (["宜蘭", "yilan"],                          24.7021, 121.7378),
+    (["花蓮", "hualien"],                        23.9872, 121.6015),
+    (["台東", "臺東", "taitung"],                22.7972, 121.0714),
+    (["嘉義", "chiayi"],                         23.4801, 120.4491),
+    (["彰化", "changhua"],                       24.0518, 120.5161),
+    (["南投", "nantou"],                         23.9609, 120.9719),
+    (["屏東", "pingtung"],                       22.5519, 120.5487),
+]
+
+LOCATION_MAP: dict[str, dict] = {}
+for _aliases, _lat, _lon in _RAW_LOCATIONS:
+    for _alias in _aliases:
+        LOCATION_MAP[_alias.lower()] = {
+            "lat": _lat, "lon": _lon,
+            "tz": "Asia/Taipei", "utc_offset": 8,
+        }
+
+# Display names for UI dropdown (primary Chinese name per city)
+TAIWAN_CITY_DISPLAY_NAMES: list[str] = [
+    "台北", "新北", "桃園", "新竹", "苗栗", "頭份",
+    "台中", "台南", "高雄", "宜蘭", "花蓮", "台東",
+    "嘉義", "彰化", "南投", "屏東",
+]
+
+
+def lookup_location(city: str) -> dict | None:
+    """
+    Look up lat/lon/timezone for a city name.
+    Returns dict with keys: lat, lon, tz, utc_offset, or None if not found.
+    Case-insensitive. Matches Chinese or English city names.
+    """
+    if not city:
+        return None
+    key = city.strip().lower()
+    # Exact key match
+    if key in LOCATION_MAP:
+        return LOCATION_MAP[key]
+    # Prefix match (e.g. "台北市" → "台北")
+    for k, v in LOCATION_MAP.items():
+        if key.startswith(k) or k.startswith(key):
+            return v
+    return None

@@ -48,6 +48,9 @@ class ReportGenerator:
             birth_time=birth_time,
             birth_city=profile.birth_city,
             birth_country=profile.birth_country,
+            birth_latitude=profile.birth_latitude,
+            birth_longitude=profile.birth_longitude,
+            birth_timezone_offset=profile.birth_timezone_offset,
         )
 
         bazi_chart = self._bazi.calculate(

@@ -63,6 +63,12 @@ class BirthProfile(BaseModel):
     themes: List[AnalysisTheme] = Field(default_factory=list)
     report_language: ReportLanguage = ReportLanguage.TRADITIONAL_CHINESE
     report_length: ReportLength = ReportLength.STANDARD
+    # V1.3.5: location & timezone precision fields
+    birth_latitude: Optional[float] = None
+    birth_longitude: Optional[float] = None
+    birth_timezone: Optional[str] = None
+    birth_timezone_offset: Optional[float] = None
+    birth_time_is_known: bool = False
 
 
 # ── Western Astrology Models ──────────────────────────────────────────────────
@@ -149,6 +155,10 @@ class WesternChart(BaseModel):
     is_mock: bool = True
     calculation_mode: str = "mock_fallback"   # swiss_ephemeris | partial_real | mock_fallback
     accuracy_note: str = ""
+    ascendant_accuracy: str = "unknown"       # "precise" | "unknown"
+    mc_accuracy: str = "unknown"              # "precise" | "unknown"
+    location_source: str = "not_provided"     # "provided" | "city_lookup" | "not_provided"
+    timezone_source: str = "default_utc8"     # "provided" | "default_utc8"
 
 
 # ── BaZi (Eight Characters) Models ───────────────────────────────────────────

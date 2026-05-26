@@ -1,13 +1,15 @@
 """
 Astro Destiny Analyzer — Western Astrology Engine
-V1.3: Swiss Ephemeris real calculation path with graceful mock fallback.
+V1.3.5: Accurate ASC/MC via swe.houses() when birth time + lat/lon are known.
 
-Priority:
-  1. If pyswisseph is importable and USE_SWISS_EPHEMERIS is True → real calculation.
-  2. If pyswisseph not available or calculation fails → mock fallback (never crash).
+Calculation modes:
+  swiss_ephemeris : all planets + ASC/MC from real ephemeris (needs time + lat/lon)
+  partial_real    : planets from swisseph; ASC/MC placeholder (missing time or location)
+  mock_fallback   : swisseph unavailable or calculation failed entirely
 
-Moshier ephemeris is built into pyswisseph and requires no .se1 data files.
-Set SWISSEPH_DATA_PATH in environment only if you have Swiss Ephemeris data files.
+ASC/MC accuracy:
+  "precise" : computed with swe.houses() (requires time + lat/lon)
+  "unknown" : placeholder only — do NOT display as a real result to the user
 """
 import hashlib
 from datetime import date, time, datetime, timedelta
@@ -17,7 +19,10 @@ from core.models import (
     WesternChart, PlanetPosition, HousePosition, Aspect,
     Planet, ZodiacSign, AspectType,
 )
-from config import SWISSEPH_DATA_PATH, USE_SWISS_EPHEMERIS, DEFAULT_TIMEZONE_OFFSET
+from config import (
+    SWISSEPH_DATA_PATH, USE_SWISS_EPHEMERIS,
+    DEFAULT_TIMEZONE_OFFSET, HOUSE_SYSTEM,
+)
 
 # ── Optional Swiss Ephemeris import ──────────────────────────────────────────
 
@@ -47,7 +52,7 @@ _SWE_PLANET_IDS = {
     Planet.NORTH_NODE: 11,
     Planet.CHIRON:     15,
     # SOUTH_NODE: derived from NORTH_NODE + 180°
-    # LILITH and PART_OF_FORTUNE: not in SWE ids used here → mock
+    # LILITH and PART_OF_FORTUNE: not mapped → mock
 }
 
 _ASPECT_ORBS = {
@@ -91,10 +96,7 @@ def _degree_to_sign(deg: float) -> ZodiacSign:
 
 
 def _sun_longitude(d: date) -> float:
-    """
-    Approximate solar longitude (Jean Meeus simplified, error ≈ ±1°).
-    Used only in the mock layer.
-    """
+    """Approximate solar longitude (Jean Meeus, error ≈ ±1°). Mock layer only."""
     import math
     n = (d - date(2000, 1, 1)).days
     L = (280.460 + 0.9856474 * n) % 360
@@ -103,31 +105,50 @@ def _sun_longitude(d: date) -> float:
     return lam % 360
 
 
+def _planet_house_from_cusps(planet_lon: float, cusps: tuple) -> int:
+    """
+    Determine house number 1-12 for a planet longitude given Placidus house cusps.
+    pyswisseph swe.houses() returns cusps as a 12-element tuple: cusps[0]=house1, cusps[11]=house12.
+    """
+    lon = planet_lon % 360
+    for h in range(12):
+        start = cusps[h] % 360
+        end = cusps[(h + 1) % 12] % 360
+        if start <= end:
+            if start <= lon < end:
+                return h + 1
+        else:  # cusp crosses 0°/360°
+            if lon >= start or lon < end:
+                return h + 1
+    return 1
+
+
 # ── Engine ────────────────────────────────────────────────────────────────────
 
 class WesternAstrologyEngine:
     """
     Western astrology engine.
 
-    V1.3 calculation path:
-      - If pyswisseph is available and USE_SWISS_EPHEMERIS is True → _calculate_real()
-      - If swisseph unavailable or real calculation raises an exception → _calculate_mock()
-        with calculation_mode = "mock_fallback"
-
-    calculation_mode values in returned WesternChart:
-      - "swiss_ephemeris"  : full real calculation (requires lat/lon for ASC/MC)
-      - "partial_real"     : planets from swisseph, ASC/MC require birth location
-      - "mock_fallback"    : swisseph unavailable or import failed
+    V1.3.5 rules:
+    - ASC/MC are computed ONLY when birth_time AND lat/lon are all provided.
+    - When any is missing, ASC/MC fields contain placeholder values and are
+      marked ascendant_accuracy="unknown" / mc_accuracy="unknown".
+    - Never show unknown ASC/MC as if they were real results.
     """
 
     def calculate(self, birth_date: date,
                   birth_time: Optional[time] = None,
                   birth_city: str = "",
-                  birth_country: str = "") -> WesternChart:
+                  birth_country: str = "",
+                  birth_latitude: Optional[float] = None,
+                  birth_longitude: Optional[float] = None,
+                  birth_timezone_offset: Optional[float] = None) -> WesternChart:
         if _SWE_AVAILABLE and USE_SWISS_EPHEMERIS:
             try:
-                return self._calculate_real(birth_date, birth_time,
-                                            birth_city, birth_country)
+                return self._calculate_real(
+                    birth_date, birth_time,
+                    birth_latitude, birth_longitude, birth_timezone_offset,
+                )
             except Exception:
                 pass  # fall through to mock
         return self._calculate_mock(birth_date, birth_time)
@@ -179,41 +200,44 @@ class WesternAstrologyEngine:
             planet_positions=planet_positions,
             houses=houses,
             aspects=aspects,
-            ascendant=asc,
-            descendant=desc,
-            mc=mc,
-            ic=ic,
+            ascendant=asc, descendant=desc, mc=mc, ic=ic,
             is_mock=True,
             calculation_mode="mock_fallback",
             accuracy_note="",
+            ascendant_accuracy="unknown",
+            mc_accuracy="unknown",
+            location_source="not_provided",
+            timezone_source="default_utc8",
         )
 
     # ── Real Layer (Swiss Ephemeris) ──────────────────────────────────────────
 
     def _calculate_real(self, birth_date: date,
                         birth_time: Optional[time],
-                        birth_city: str,
-                        birth_country: str) -> WesternChart:
+                        birth_latitude: Optional[float],
+                        birth_longitude: Optional[float],
+                        birth_timezone_offset: Optional[float]) -> WesternChart:
         """
-        Calculate planet positions using pyswisseph (Moshier ephemeris, no data files needed).
-        Default timezone: UTC+8 (Asia/Taipei).
-        ASC/MC require birth latitude/longitude; without them, marked as partial_real.
+        Real Swiss Ephemeris calculation.
+        - All 10 main planets always calculated.
+        - ASC/MC only when birth_time AND lat/lon are all provided.
         """
         accuracy_notes: List[str] = []
+        tz_offset = birth_timezone_offset if birth_timezone_offset is not None else DEFAULT_TIMEZONE_OFFSET
+        timezone_source = "provided" if birth_timezone_offset is not None else "default_utc8"
 
-        # Determine local hour and handle unknown birth time
-        if birth_time is None:
+        # Time handling
+        time_is_known = birth_time is not None
+        if not time_is_known:
             hour_local = 12.0
             accuracy_notes.append(
-                "出生時間未知，月亮可能有誤差，上升與宮位不可視為精準結果。"
+                "出生時間未知，月亮可能有些微誤差；上升、天頂與宮位不可精準計算。"
             )
         else:
             hour_local = birth_time.hour + birth_time.minute / 60.0
 
-        # Convert local time (UTC+8) to Universal Time
-        hour_ut = hour_local - DEFAULT_TIMEZONE_OFFSET
-
-        # Adjust date if UT crosses midnight backwards
+        # Local → UT conversion
+        hour_ut = hour_local - tz_offset
         calc_date = birth_date
         if hour_ut < 0:
             calc_date = (datetime(birth_date.year, birth_date.month, birth_date.day)
@@ -224,37 +248,116 @@ class WesternAstrologyEngine:
                          + timedelta(days=1)).date()
             hour_ut -= 24.0
 
-        # Set ephemeris path if provided (Moshier works without this)
         if SWISSEPH_DATA_PATH:
             swe.set_ephe_path(SWISSEPH_DATA_PATH)
 
-        jd = swe.julday(calc_date.year, calc_date.month, calc_date.day, hour_ut)
+        jd_ut = swe.julday(calc_date.year, calc_date.month, calc_date.day, hour_ut)
         flags = swe.FLG_SWIEPH | swe.FLG_SPEED
 
-        # Calculate planet positions
+        # ── Planet positions ──────────────────────────────────────────────────
         planet_positions: List[PlanetPosition] = []
-        north_node_lon: Optional[float] = None
-
         for i, planet in enumerate(_PLANETS):
-            lon, retro = self._get_planet_lon(jd, flags, planet, i,
+            lon, retro = self._get_planet_lon(jd_ut, flags, planet, i,
                                               birth_date, birth_time)
-            if planet == Planet.NORTH_NODE:
-                north_node_lon = lon
-
-            sign = _degree_to_sign(lon)
-            sign_deg = lon % 30
             planet_positions.append(PlanetPosition(
                 planet=planet,
-                sign=sign,
+                sign=_degree_to_sign(lon),
                 degree=round(lon, 4),
-                sign_degree=round(sign_deg, 4),
-                house=1,        # house requires lat/lon; placeholder
+                sign_degree=round(lon % 30, 4),
+                house=1,      # updated below if lat/lon known
                 retrograde=retro,
             ))
 
-        # Placeholder houses: derived from Sun longitude (no lat/lon)
+        # ── ASC/MC & houses ───────────────────────────────────────────────────
+        has_location = birth_latitude is not None and birth_longitude is not None
+        location_source = "provided" if has_location else "not_provided"
+
+        if time_is_known and has_location:
+            # Full calculation with swe.houses()
+            try:
+                cusps, ascmc = swe.houses(
+                    jd_ut, birth_latitude, birth_longitude, HOUSE_SYSTEM
+                )
+                asc_lon = ascmc[0]
+                mc_lon  = ascmc[1]
+
+                # Assign planets to houses
+                house_planets: dict[int, List[Planet]] = {i: [] for i in range(1, 13)}
+                for pp in planet_positions:
+                    h = _planet_house_from_cusps(pp.degree, cusps)
+                    pp.house = h
+                    house_planets[h].append(pp.planet)
+
+                houses: List[HousePosition] = [
+                    HousePosition(
+                        house_number=i + 1,
+                        sign=_degree_to_sign(cusps[i]),
+                        cusp_degree=round(cusps[i], 4),
+                        planets=house_planets.get(i + 1, []),
+                    )
+                    for i in range(12)
+                ]
+
+                asc  = _degree_to_sign(asc_lon)
+                desc = _degree_to_sign((asc_lon + 180) % 360)
+                mc   = _degree_to_sign(mc_lon)
+                ic   = _degree_to_sign((mc_lon + 180) % 360)
+
+                ascendant_accuracy = "precise"
+                mc_accuracy = "precise"
+                calculation_mode = "swiss_ephemeris"
+
+            except Exception:
+                # swe.houses() failed — fall back to placeholder ASC/MC
+                asc_lon, houses, asc, desc, mc, ic = self._placeholder_houses(planet_positions)
+                ascendant_accuracy = "unknown"
+                mc_accuracy = "unknown"
+                calculation_mode = "partial_real"
+                accuracy_notes.append(
+                    "宮位計算失敗，上升與天頂為佔位值，不代表真實結果。"
+                )
+        else:
+            # Missing time or location — placeholder only
+            if not time_is_known and has_location:
+                accuracy_notes.append(
+                    "出生地已知，但出生時間未知，上升與天頂無法精確計算。"
+                )
+            elif time_is_known and not has_location:
+                accuracy_notes.append(
+                    "主要行星已使用 Swiss Ephemeris 計算；"
+                    "上升與天頂需要精確出生時間與出生地經緯度，目前不可視為精準結果。"
+                )
+            else:
+                accuracy_notes.append(
+                    "主要行星已使用 Swiss Ephemeris 計算；"
+                    "上升與天頂需要精確出生時間與出生地經緯度，目前不可視為精準結果。"
+                )
+
+            _, houses, asc, desc, mc, ic = self._placeholder_houses(planet_positions)
+            ascendant_accuracy = "unknown"
+            mc_accuracy = "unknown"
+            calculation_mode = "partial_real"
+
+        aspects = self._compute_aspects(planet_positions[:10])
+
+        return WesternChart(
+            planet_positions=planet_positions,
+            houses=houses,
+            aspects=aspects,
+            ascendant=asc, descendant=desc, mc=mc, ic=ic,
+            is_mock=False,
+            calculation_mode=calculation_mode,
+            accuracy_note=" | ".join(accuracy_notes),
+            ascendant_accuracy=ascendant_accuracy,
+            mc_accuracy=mc_accuracy,
+            location_source=location_source,
+            timezone_source=timezone_source,
+        )
+
+    def _placeholder_houses(self, planet_positions: List[PlanetPosition]):
+        """Generate placeholder houses based on Sun longitude. Used when ASC/MC cannot be real."""
         sun_pos = next(p for p in planet_positions if p.planet == Planet.SUN)
-        asc_lon = sun_pos.degree  # placeholder only — NOT a real ascendant
+        asc_lon = sun_pos.degree
         houses: List[HousePosition] = []
         for i in range(12):
             cusp = (asc_lon + i * 30) % 360
@@ -264,44 +367,19 @@ class WesternAstrologyEngine:
                 cusp_degree=round(cusp, 2),
                 planets=[],
             ))
-
         asc  = _degree_to_sign(asc_lon)
         desc = _degree_to_sign((asc_lon + 180) % 360)
         mc   = _degree_to_sign((asc_lon + 270) % 360)
         ic   = _degree_to_sign((asc_lon +  90) % 360)
-
-        accuracy_notes.append(
-            "上升（ASC）與天頂（MC）需要出生地精確經緯度，"
-            "目前欄位為佔位值，不代表真實上升星座。"
-            " accuracy_note: requires_birth_time_and_location"
-        )
-
-        aspects = self._compute_aspects(planet_positions[:10])
-
-        return WesternChart(
-            planet_positions=planet_positions,
-            houses=houses,
-            aspects=aspects,
-            ascendant=asc,
-            descendant=desc,
-            mc=mc,
-            ic=ic,
-            is_mock=False,
-            calculation_mode="partial_real",
-            accuracy_note=" | ".join(accuracy_notes),
-        )
+        return asc_lon, houses, asc, desc, mc, ic
 
     def _get_planet_lon(self, jd: float, flags: int, planet: Planet,
                         idx: int, birth_date: date,
                         birth_time: Optional[time]) -> tuple[float, bool]:
-        """
-        Return (ecliptic_longitude, is_retrograde) for a planet.
-        Falls back to deterministic mock for planets not in SWE or on error.
-        """
+        """Return (ecliptic_longitude, is_retrograde). Falls back to mock on error."""
         swe_id = _SWE_PLANET_IDS.get(planet)
 
         if planet == Planet.SOUTH_NODE:
-            # South Node = North Node + 180°
             north_id = _SWE_PLANET_IDS[Planet.NORTH_NODE]
             try:
                 xx, _ = swe.calc_ut(jd, north_id, flags)
@@ -319,7 +397,7 @@ class WesternAstrologyEngine:
             except Exception:
                 pass
 
-        # Fallback: deterministic mock for this planet
+        # Deterministic mock fallback for this planet
         seed = self._seed(birth_date, birth_time)
         sun_lon = _sun_longitude(birth_date)
         lon = (sun_lon + (seed * (idx + 1) * 37 + idx * 53)) % 360
@@ -339,11 +417,8 @@ class WesternAstrologyEngine:
                     orb = abs(diff - exact)
                     if orb <= _ASPECT_ORBS[atype]:
                         aspects.append(Aspect(
-                            planet1=p1.planet,
-                            planet2=p2.planet,
-                            aspect_type=atype,
-                            orb=round(orb, 2),
-                            applying=False,
+                            planet1=p1.planet, planet2=p2.planet,
+                            aspect_type=atype, orb=round(orb, 2), applying=False,
                         ))
                         break
         return aspects

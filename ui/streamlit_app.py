@@ -13,7 +13,7 @@ from datetime import date, time
 from core.database import init_db
 init_db()
 
-from config import APP_NAME, APP_SUBTITLE, APP_VERSION
+from config import APP_NAME, APP_SUBTITLE, APP_VERSION, TAIWAN_CITY_DISPLAY_NAMES, lookup_location
 from core.models import (
     BirthProfile, Gender, BloodType, AnalysisTheme,
     ReportLanguage, ReportLength,
@@ -139,9 +139,32 @@ elif page == "📝 輸入資料":
         st.subheader("出生地")
         col1, col2 = st.columns(2)
         with col1:
-            birth_city = st.text_input("城市 *", placeholder="例：台北市")
+            tw_city_options = ["其他 / 手動輸入"] + TAIWAN_CITY_DISPLAY_NAMES
+            tw_city_sel = st.selectbox("台灣城市（快速選擇）", tw_city_options)
         with col2:
-            birth_country = st.text_input("國家 *", placeholder="例：台灣")
+            birth_country = st.text_input("國家 *", placeholder="例：台灣", value="台灣")
+
+        if tw_city_sel == "其他 / 手動輸入":
+            birth_city = st.text_input("城市（手動輸入）*", placeholder="例：東京、首爾、Paris")
+        else:
+            birth_city = tw_city_sel
+            st.caption(f"已選擇：{birth_city}（將自動帶入經緯度）")
+
+        with st.expander("進階：手動輸入經緯度（可選）"):
+            st.caption("若城市可從上方下拉選單自動取得，可不填。若出生地非台灣，請在此補充經緯度以精確計算上升星座與天頂。")
+            adv_col1, adv_col2 = st.columns(2)
+            with adv_col1:
+                manual_lat = st.number_input("出生地緯度（南為負）", min_value=-90.0,
+                                             max_value=90.0, value=0.0, step=0.0001,
+                                             format="%.4f", key="manual_lat")
+            with adv_col2:
+                manual_lon = st.number_input("出生地經度（西為負）", min_value=-180.0,
+                                             max_value=180.0, value=0.0, step=0.0001,
+                                             format="%.4f", key="manual_lon")
+            manual_tz_offset = st.number_input("時區偏移（UTC+？，台灣=8）",
+                                               min_value=-12.0, max_value=14.0,
+                                               value=8.0, step=0.5, key="manual_tz")
+            use_manual_latlon = st.checkbox("使用以上手動經緯度覆蓋自動查詢")
 
         st.subheader("居住地（可選填）")
         col1, col2 = st.columns(2)
@@ -199,6 +222,21 @@ elif page == "📝 輸入資料":
             lang_map  = {l.value: l for l in ReportLanguage}
             len_map   = {l.value: l for l in ReportLength}
 
+            # Resolve lat/lon: manual override > city lookup
+            resolved_lat = resolved_lon = resolved_tz_offset = None
+            resolved_tz = None
+            if use_manual_latlon and (manual_lat != 0.0 or manual_lon != 0.0):
+                resolved_lat = float(manual_lat)
+                resolved_lon = float(manual_lon)
+                resolved_tz_offset = float(manual_tz_offset)
+            else:
+                loc = lookup_location(birth_city.strip())
+                if loc:
+                    resolved_lat = loc["lat"]
+                    resolved_lon = loc["lon"]
+                    resolved_tz = loc["tz"]
+                    resolved_tz_offset = float(loc["utc_offset"])
+
             profile = BirthProfile(
                 name=name.strip(),
                 gender=gender_map.get(gender),
@@ -212,9 +250,24 @@ elif page == "📝 輸入資料":
                 themes=[theme_map[t] for t in selected_themes if t in theme_map],
                 report_language=lang_map.get(report_lang, ReportLanguage.TRADITIONAL_CHINESE),
                 report_length=len_map.get(report_len, ReportLength.STANDARD),
+                birth_latitude=resolved_lat,
+                birth_longitude=resolved_lon,
+                birth_timezone=resolved_tz,
+                birth_timezone_offset=resolved_tz_offset,
+                birth_time_is_known=time_known,
             )
             st.session_state["profile"] = profile
             st.session_state["report"] = None
+
+            # Location hint
+            if resolved_lat is not None:
+                st.info(f"📍 已取得出生地座標：緯度 {resolved_lat:.4f}，經度 {resolved_lon:.4f}")
+            else:
+                st.warning("⚠️ 未取得出生地經緯度，上升與天頂將無法精確計算。")
+            if not time_known:
+                st.warning("⚠️ 未填寫出生時間，上升與天頂將無法精確計算。")
+            if time_known and resolved_lat is not None:
+                st.success("✅ 出生時間與地點完整，可精準計算上升星座（ASC）與天頂（MC）。")
             st.success(f"✅ 資料已儲存！{name} 的出生資料登錄完成。請前往「🔮 計算命盤」。")
 
 
@@ -264,11 +317,30 @@ elif page == "🔮 計算命盤":
                     moon_pos = next((p for p in wc.planet_positions if p.planet.value == "月亮"), None)
                     st.metric("月亮星座", moon_pos.sign.value if moon_pos else "─")
                 with col3:
-                    st.metric("上升星座", wc.ascendant.value)
+                    if wc.ascendant_accuracy == "precise":
+                        st.metric("上升星座", wc.ascendant.value)
+                    else:
+                        st.metric("上升星座", "─ 需補充資料")
                 with col4:
-                    st.metric("天頂 MC", wc.mc.value)
-                if wc.is_mock:
-                    st.caption("⚠️ 西洋占星目前使用近似計算（太陽使用真實演算法；其餘行星為Mock）。配置 Swiss Ephemeris 可獲得完整精確星曆。")
+                    if wc.mc_accuracy == "precise":
+                        st.metric("天頂 MC", wc.mc.value)
+                    else:
+                        st.metric("天頂 MC", "─ 需補充資料")
+
+                # Calculation mode badge
+                mode = wc.calculation_mode
+                if mode == "swiss_ephemeris":
+                    st.success("🔭 Swiss Ephemeris 精確計算（行星 + 上升 + 天頂）")
+                elif mode == "partial_real":
+                    st.info("🔭 Swiss Ephemeris 行星計算；上升與天頂需要出生時間與經緯度。")
+                else:
+                    st.warning("⚠️ Mock 計算層（pyswisseph 不可用）。")
+
+                if wc.accuracy_note:
+                    st.caption(wc.accuracy_note)
+                if wc.ascendant_accuracy != "precise":
+                    st.caption("ℹ️ 上升與天頂：請在「輸入資料」頁補填精確出生時間與出生地經緯度。")
+
                 with st.expander("行星位置詳表"):
                     render_planet_table(wc.planet_positions)
                 with st.expander("宮位分析"):
