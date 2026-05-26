@@ -1,9 +1,13 @@
 """
-Astro Destiny Analyzer — Synthesis Engine
+Astro Destiny Analyzer — Synthesis Engine V1.2
 Integrates Western astrology, BaZi, Zi Wei, blood type, and numerology
-into a coherent narrative. Each sub-engine's output feeds into a shared
-interpretation framework. Contradictions between systems are surfaced
-explicitly rather than glossed over.
+into a coherent narrative.
+
+V1.2 changes (relative to V1.0):
+  - Delegates love / career / stress narrative construction to narrative_rules.py
+  - Richer paragraph-form text for all major sections
+  - Expanded contradiction detection with integration suggestions
+  - Fixed kwarg syntax: intimacy_boundary= / communication_advice= (not ':')
 """
 from typing import Optional, List, Tuple
 from core.models import (
@@ -11,9 +15,16 @@ from core.models import (
     BloodTypeAnalysis, NumerologyChart, SynthesisResult,
     ZodiacSign, FiveElement, TenGod,
 )
+from engines.narrative_rules import (
+    get_sign_profile,
+    build_love_narrative,
+    build_career_narrative,
+    build_stress_narrative,
+    build_contradiction_analysis,
+)
 
 
-# ── Zodiac descriptors ────────────────────────────────────────────────────────
+# ── Zodiac quick-access descriptors (kept for non-narrative sections) ─────────
 
 _SIGN_KEYWORDS: dict[str, Tuple[str, str, str]] = {
     # (core traits, love style, career energy)
@@ -72,6 +83,15 @@ _ZIWEI_CAREER_STARS = {
 }
 
 
+# ── Helper: extract planet sign ───────────────────────────────────────────────
+
+def _planet_sign(western: WesternChart, planet_name: str) -> Optional[str]:
+    for pp in western.planet_positions:
+        if pp.planet.value == planet_name:
+            return pp.sign.value
+    return None
+
+
 class SynthesisEngine:
     def synthesize(
         self,
@@ -83,28 +103,41 @@ class SynthesisEngine:
         numerology: Optional[NumerologyChart],
     ) -> SynthesisResult:
 
-        contradictions: List[str] = []
-        integration_suggestions: List[str] = []
+        # ── Extract key chart values ──────────────────────────────────────────
+        sun_sign  = _planet_sign(western, "太陽")  if western else None
+        moon_sign = _planet_sign(western, "月亮")  if western else None
+        venus_sign= _planet_sign(western, "金星")  if western else None
+        mars_sign = _planet_sign(western, "火星")  if western else None
+        mercury_sign = _planet_sign(western, "水星") if western else None
+        saturn_sign  = _planet_sign(western, "土星") if western else None
+        chiron_sign  = _planet_sign(western, "凱龍星") if western else None
+        north_sign   = _planet_sign(western, "北交點") if western else None
+        asc_sign  = western.ascendant.value if western else None
+        desc_sign = western.descendant.value if western else None
+        mc_sign   = western.mc.value if western else None
+        ic_sign   = western.ic.value if western else None
 
-        # ── Core Personality ─────────────────────────────────────────────────
+        # ── Core Personality ──────────────────────────────────────────────────
         core_parts: List[str] = []
-        sun_sign = None
-        asc_sign = None
 
-        if western:
-            for pp in western.planet_positions:
-                if pp.planet.value == "太陽":
-                    sun_sign = pp.sign.value
-                elif pp.planet.value == "月亮":
-                    moon_sign = pp.sign.value
-            asc_sign = western.ascendant.value
+        if western and sun_sign:
+            sp = get_sign_profile(sun_sign)
             sun_kw = _SIGN_KEYWORDS.get(sun_sign, ("", "", ""))
+            asc_kw = _SIGN_KEYWORDS.get(asc_sign, ("", "", "")) if asc_sign else ("", "", "")
             core_parts.append(
-                f"從西洋占星的角度，你的太陽星座位於{sun_sign}，"
-                f"核心特質為「{sun_kw[0]}」，代表你在生命中追求展現的本質自我。"
-                f"上升星座{asc_sign}則是你展現給外界的第一印象與外在氣質，"
-                "形塑了他人對你的初始認知。"
+                f"**西洋占星核心三角——太陽 / 月亮 / 上升**\n\n"
+                f"太陽落在{sun_sign}，是你在這一生中渴望展現的本質自我。"
+                f"{sp['personality']}\n\n"
+                f"上升星座{asc_sign}是你呈現給世界的第一印象與外在氣質——"
+                f"核心特質為「{asc_kw[0]}」，決定了他人對你最初的認知框架。"
             )
+            if moon_sign:
+                mp = get_sign_profile(moon_sign)
+                moon_kw = _SIGN_KEYWORDS.get(moon_sign, ("", "", ""))
+                core_parts.append(
+                    f"月亮位於{moon_sign}，揭示你的私下本色與情緒安全感模式——"
+                    f"核心特質：「{moon_kw[0]}」。{mp['personality']}"
+                )
 
         if bazi:
             dm = bazi.day_master.value
@@ -112,266 +145,308 @@ class SynthesisEngine:
             fav = "、".join(e.value for e in bazi.favorable_elements)
             unfav = "、".join(e.value for e in bazi.unfavorable_elements)
             core_parts.append(
-                f"在八字命盤中，你的日主為「{dm}」，屬{dm_elem}性，"
-                f"{_ELEMENT_DESC.get(dm_elem, '')} "
-                f"喜用神為{fav}，忌神為{unfav}。"
-                "這揭示了你天生的能量底色：你在什麼樣的環境中如魚得水，"
+                f"**八字日主——{dm}（{dm_elem}）**\n\n"
+                f"{_ELEMENT_DESC.get(dm_elem, '')}\n\n"
+                f"你的喜用神為{fav}，忌神為{unfav}。"
+                "這揭示了你天生的能量底色：在什麼樣的環境中你如魚得水，"
                 "以及什麼樣的能量組合會為你帶來阻力。"
+                "了解喜忌神是命盤實際應用的核心，"
+                "能夠指引你在工作環境、居住方位、日常習慣等面向做出更符合天性的選擇。"
             )
 
         if ziwei:
             ming_stars = "、".join(ziwei.ming_palace.main_stars) if ziwei.ming_palace.main_stars else "無主星"
             core_parts.append(
-                f"紫微命宮位於{ziwei.ming_palace.earthly_branch}宮，"
-                f"入宮主星：{ming_stars}。"
+                f"**紫微命宮——{ziwei.ming_palace.earthly_branch}宮，主星：{ming_stars}**\n\n"
                 f"{ziwei.ming_palace.interpretation}"
             )
 
         if numerology:
             core_parts.append(
-                f"生命靈數{numerology.life_path_number}的你，"
+                f"**生命靈數 {numerology.life_path_number}**\n\n"
                 f"{numerology.life_path_description}"
             )
 
-        core_personality = "\n\n".join(core_parts) or "（請至少輸入出生日期以產生分析）"
+        core_personality = "\n\n---\n\n".join(core_parts) or "（請至少輸入出生日期以產生分析）"
 
-        # ── Emotional Pattern ────────────────────────────────────────────────
+        # ── Emotional Pattern ─────────────────────────────────────────────────
         emotional_parts: List[str] = []
-        if western:
-            moon_kw = _SIGN_KEYWORDS.get(getattr(western, "_moon_sign", ""), None)
-            moon_positions = [pp for pp in western.planet_positions if pp.planet.value == "月亮"]
-            if moon_positions:
-                msign = moon_positions[0].sign.value
-                mkw = _SIGN_KEYWORDS.get(msign, ("", "", ""))
-                emotional_parts.append(
-                    f"月亮位於{msign}，揭示你的情緒底層需求：{mkw[0]}。"
-                    "月亮代表的是你在私下最真實的情感反應模式，"
-                    "以及你從小建立起的安全感藍圖。"
-                )
+
+        if western and moon_sign:
+            mp = get_sign_profile(moon_sign)
+            emotional_parts.append(
+                f"**月亮（{moon_sign}）——情緒底層語言**\n\n"
+                f"{mp['love']}\n\n"
+                "月亮是你內在小孩的棲居之所。在親密關係中，"
+                "它揭示了你最真實的安全感需求，以及你在感到威脅時的本能反應。"
+                "理解你的月亮星座，是與自己建立更深慈悲的第一步。"
+            )
+
         if bazi and bazi.five_element_strength:
             water_str = bazi.five_element_strength.get("水", "均衡")
             fire_str  = bazi.five_element_strength.get("火", "均衡")
+            wood_str  = bazi.five_element_strength.get("木", "均衡")
             emotional_parts.append(
-                f"八字五行中，水（情感直覺）{water_str}，火（熱情表達）{fire_str}。"
-                "水強者情感豐富細膩，但容易多愁善感；水弱者情感偏理性，需要刻意練習情感表達。"
+                f"**八字情感五行分析**\n\n"
+                f"水（情感直覺與內省）：{water_str}\n"
+                f"火（熱情外顯與溝通欲）：{fire_str}\n"
+                f"木（感情中的成長欲與同理心）：{wood_str}\n\n"
+                "水強者情感豐富細膩，直覺準確，但需注意避免多愁善感與過度思慮。\n"
+                "水弱者情感表達偏理性，需要刻意練習說出感受，而非等待對方自己察覺。\n"
+                "火強者情感熱烈易於表達，但需注意衝動之後的情緒管理。\n"
+                "火弱者內心豐富卻難以外顯，需要一個安全的環境才能充分開放。"
             )
-        emotional_pattern = "\n\n".join(emotional_parts) or "情緒模式分析需要更完整的出生資料。"
 
-        # ── Action Pattern ───────────────────────────────────────────────────
+        emotional_pattern = "\n\n---\n\n".join(emotional_parts) or "情緒模式分析需要更完整的出生資料。"
+
+        # ── Action Pattern ────────────────────────────────────────────────────
         action_parts: List[str] = []
-        if western:
-            mars_positions = [pp for pp in western.planet_positions if pp.planet.value == "火星"]
-            if mars_positions:
-                msign = mars_positions[0].sign.value
-                mkw = _SIGN_KEYWORDS.get(msign, ("", "", ""))
-                action_parts.append(
-                    f"火星位於{msign}，決定了你的行動驅動力與執行風格：{mkw[0]}。"
-                    "當你面對挑戰時，火星所在星座決定了你傾向以什麼方式回應。"
-                )
+
+        if western and mars_sign:
+            mp = get_sign_profile(mars_sign)
+            action_parts.append(
+                f"**火星（{mars_sign}）——行動驅動力**\n\n"
+                f"{mp['career']}\n\n"
+                "火星決定了你面對挑戰時的本能反應：是衝鋒、是策謀、是協作，還是等待時機。"
+                "了解火星所在星座，能讓你更有意識地部署自己的行動能量，"
+                "而非在衝動和消極之間漫無目的地擺盪。"
+            )
+
         if bazi:
             metal_str = bazi.five_element_strength.get("金", "均衡")
+            wood_str2 = bazi.five_element_strength.get("木", "均衡")
             action_parts.append(
-                f"金（決斷力）在你的五行中屬{metal_str}狀態，"
-                "這影響了你在需要做出決定時的果斷程度與執行速度。"
-            )
-        action_pattern = "\n\n".join(action_parts) or "行動模式分析需要更完整的出生資料。"
-
-        # ── Love Pattern ─────────────────────────────────────────────────────
-        love_parts: List[str] = []
-        if western:
-            venus_positions = [pp for pp in western.planet_positions if pp.planet.value == "金星"]
-            if venus_positions:
-                vsign = venus_positions[0].sign.value
-                vkw = _SIGN_KEYWORDS.get(vsign, ("", "", ""))
-                love_parts.append(
-                    f"金星位於{vsign}，是你愛與美的語言：{vkw[1]}。"
-                    "金星代表你在感情中吸引他人的方式，以及你對愛的想像與期待。"
-                    f"夫妻宮（第七宮）落在{western.descendant.value}，"
-                    "揭示了你在長期關係中需要的特質以及容易吸引的對象類型。"
-                )
-        if bazi and bazi.wealth_star:
-            love_parts.append(
-                f"在八字中，正財/偏財（{bazi.wealth_star.value}）的狀態，"
-                "在感情分析中（尤其對男命）代表緣分與伴侶特質。"
-                "建議進一步確認財星在命盤中的強弱位置以深化分析。"
-            )
-        if ziwei:
-            sp_stars = "、".join(ziwei.spouse_palace.main_stars) if ziwei.spouse_palace.main_stars else "無主星"
-            love_parts.append(
-                f"紫微夫妻宮入宮星曜：{sp_stars}。"
-                "夫妻宮揭示婚姻或長期伴侶關係的核心模式與磁場。"
-            )
-        if blood:
-            love_parts.append(f"血型輔助觀點：{blood.love_response}")
-        love_pattern = "\n\n".join(love_parts) or "感情模式分析需要更完整的出生資料。"
-
-        # ── Career Pattern ───────────────────────────────────────────────────
-        career_parts: List[str] = []
-        suitable_careers: List[str] = []
-
-        if western and sun_sign:
-            sun_kw = _SIGN_KEYWORDS.get(sun_sign, ("", "", ""))
-            career_parts.append(f"太陽在{sun_sign}的你，事業能量方向：{sun_kw[2]}。")
-            mc_kw = _SIGN_KEYWORDS.get(western.mc.value, ("", "", ""))
-            career_parts.append(
-                f"天頂（MC）落在{western.mc.value}，代表你在職業舞台上渴望展現的形象，"
-                f"以及最能讓你獲得社會認可的工作方向：{mc_kw[2]}。"
+                f"**八字行動五行分析**\n\n"
+                f"金（決斷力與執行力）：{metal_str}\n"
+                f"木（行動力與開創欲）：{wood_str2}\n\n"
+                "金強者決策果斷、執行力強，但需注意過度強硬帶來的人際摩擦。\n"
+                "金弱者決策過程較長，優柔寡斷可能是需要刻意突破的模式。\n"
+                "木強者行動積極、計畫層出不窮，但需注意執行力是否跟上創意速度。"
             )
 
-        if bazi and bazi.power_star:
-            career_parts.append(
-                f"八字官殺（{bazi.power_star.value}）揭示你與職場權威、規範、競爭的關係。"
-                "官殺旺者通常事業心強，但也需要注意與上司或體制的摩擦。"
-            )
+        action_pattern = "\n\n---\n\n".join(action_parts) or "行動模式分析需要更完整的出生資料。"
 
-        if ziwei:
-            career_stars = ziwei.career_palace.main_stars
-            for star in career_stars:
-                desc = _ZIWEI_CAREER_STARS.get(star, "")
-                if desc:
-                    career_parts.append(f"紫微官祿宮——{desc}")
+        # ── Love Pattern (using V1.2 narrative builder) ───────────────────────
+        # Resolve per-sign intimacy boundary and communication advice from narrative_rules
+        ib = ""
+        ca = ""
+        if venus_sign:
+            vp = get_sign_profile(venus_sign)
+            ib = vp.get("intimacy_boundary", "")
+            ca = vp.get("communication_advice", "")
 
-        if numerology:
-            lp = numerology.life_path_number
-            lp_careers = _LIFE_PATH_CAREER.get(lp, [])
-            suitable_careers.extend(lp_careers)
-            if lp_careers:
-                career_parts.append(
-                    f"生命靈數{lp}建議的職業方向：{'、'.join(lp_careers[:4])}等。"
-                )
+        love_pattern = build_love_narrative(
+            sun_sign=sun_sign,
+            venus_sign=venus_sign,
+            moon_sign=moon_sign,
+            descendant=desc_sign,
+            bazi_wealth_star=bazi.wealth_star.value if bazi and bazi.wealth_star else None,
+            ziwei_spouse_stars=ziwei.spouse_palace.main_stars if ziwei else None,
+            blood_love=blood.love_response if blood else None,
+            intimacy_boundary=ib,
+            communication_advice=ca,
+        )
 
-        # Add sun sign career suggestions
+        # ── Career Pattern (using V1.2 narrative builder) ─────────────────────
+        lp = numerology.life_path_number if numerology else None
+        lp_careers = _LIFE_PATH_CAREER.get(lp, []) if lp else []
+
+        career_pattern = build_career_narrative(
+            sun_sign=sun_sign,
+            mc_sign=mc_sign,
+            mars_sign=mars_sign,
+            bazi_power_star=bazi.power_star.value if bazi and bazi.power_star else None,
+            ziwei_career_stars=ziwei.career_palace.main_stars if ziwei else None,
+            lp_careers=lp_careers,
+            life_path_number=lp,
+            career_star_descs=_ZIWEI_CAREER_STARS,
+        )
+
+        suitable_careers: List[str] = list(lp_careers)
         if sun_sign:
             suitable_careers.append(_SIGN_KEYWORDS.get(sun_sign, ("", "", ""))[2])
 
-        career_pattern = "\n\n".join(career_parts) or "事業模式分析需要更完整的出生資料。"
-
-        # ── Wealth Pattern ───────────────────────────────────────────────────
+        # ── Wealth Pattern ────────────────────────────────────────────────────
         wealth_parts: List[str] = []
+
         if bazi:
             metal_pct = bazi.five_element_ratio.get("金", 0.0)
             water_pct = bazi.five_element_ratio.get("水", 0.0)
+            earth_pct = bazi.five_element_ratio.get("土", 0.0)
             wealth_parts.append(
-                f"八字財帛分析：金（{metal_pct}%）、水（{water_pct}%）在五行中的佔比，"
-                "反映了你天生的財富能量強弱。"
+                f"**八字財富五行**\n\n"
+                f"金（{metal_pct}%）、水（{water_pct}%）、土（{earth_pct}%）在五行中的佔比，"
+                "反映了你先天的財富能量底色。\n\n"
+                "金代表決斷與資本化能力，水代表財富的流動性與機遇感知，"
+                "土代表財富的積累與保守能力。三者的平衡決定了你的財富風格：\n"
+                "金旺者善於果斷入市，水旺者能感知財富機遇，土旺者善於守財建資產。"
             )
             if bazi.wealth_star:
                 wealth_parts.append(
-                    f"財星（{bazi.wealth_star.value}）的狀態，"
-                    "決定了你獲取財富的主要模式是主動攬財還是等待時機。"
+                    f"**財星（{bazi.wealth_star.value}）**\n\n"
+                    f"你的命盤中財星為{bazi.wealth_star.value}，"
+                    "這決定了你獲取財富的主要模式。"
+                    "正財代表穩定薪資型收入，偏財代表機遇型與投機型收入。"
+                    "了解財星的強弱，能夠指引你選擇最符合天性的財富積累策略。"
                 )
+
         if ziwei:
             wealth_stars = "、".join(ziwei.wealth_palace.main_stars) if ziwei.wealth_palace.main_stars else "無主星"
             wealth_parts.append(
-                f"紫微財帛宮入宮星曜：{wealth_stars}。"
-                "財帛宮揭示你賺錢的方式、財富觀念，以及金錢流動的模式。"
+                f"**紫微財帛宮（{wealth_stars}）**\n\n"
+                "紫微財帛宮揭示你的財富來源類型、金錢觀念，以及你與財富之間的能量流動模式。"
+                "財帛宮吉星多者，財路較廣；煞星重者，需更謹慎規避財務風險。"
             )
-        if blood:
-            wealth_parts.append(f"血型財富觀輔助：{blood.money_attitude}")
-        wealth_pattern = "\n\n".join(wealth_parts) or "財富模式分析需要更完整的出生資料。"
 
-        # ── Social Pattern ───────────────────────────────────────────────────
+        if blood:
+            wealth_parts.append(f"**血型財富觀輔助**\n\n{blood.money_attitude}")
+
+        wealth_pattern = "\n\n---\n\n".join(wealth_parts) or "財富模式分析需要更完整的出生資料。"
+
+        # ── Social Pattern ────────────────────────────────────────────────────
         social_parts: List[str] = []
-        if western:
-            for pp in western.planet_positions:
-                if pp.planet.value == "水星":
-                    mkw = _SIGN_KEYWORDS.get(pp.sign.value, ("", "", ""))
-                    social_parts.append(
-                        f"水星位於{pp.sign.value}，影響你的溝通方式、思維表達與人際交流風格：{mkw[0]}。"
-                    )
-                    break
-        if blood:
-            social_parts.append(f"血型人際輔助：{blood.interpersonal_style}")
-        social_pattern = "\n\n".join(social_parts) or "人際模式分析需要更完整的出生資料。"
 
-        # ── Family & Security ────────────────────────────────────────────────
-        family_parts: List[str] = []
-        if western:
-            ic_kw = _SIGN_KEYWORDS.get(western.ic.value, ("", "", ""))
-            family_parts.append(
-                f"天底（IC）落在{western.ic.value}，代表你的心理根基、家庭背景與安全感模式：{ic_kw[0]}。"
-                "IC是你最私密的內在需求，影響你如何建立屬於自己的家園與安全感。"
+        if western and mercury_sign:
+            mp = get_sign_profile(mercury_sign)
+            mercury_kw = _SIGN_KEYWORDS.get(mercury_sign, ("", "", ""))
+            social_parts.append(
+                f"**水星（{mercury_sign}）——溝通風格**\n\n"
+                f"水星決定了你的思維模式、溝通方式與資訊處理節奏。"
+                f"水星在{mercury_sign}：{mercury_kw[0]}。{mp['personality']}"
             )
+
+        if blood:
+            social_parts.append(f"**血型人際輔助**\n\n{blood.interpersonal_style}")
+
+        if ziwei:
+            friend_stars = "、".join(ziwei.friends_palace.main_stars) if ziwei.friends_palace.main_stars else "無主星"
+            social_parts.append(
+                f"**紫微交友宮（{friend_stars}）**\n\n"
+                "交友宮揭示你與友人、同儕、部屬的互動模式，以及在你生命中出現的貴人與小人特質。"
+            )
+
+        social_pattern = "\n\n---\n\n".join(social_parts) or "人際模式分析需要更完整的出生資料。"
+
+        # ── Family & Security ─────────────────────────────────────────────────
+        family_parts: List[str] = []
+
+        if western and ic_sign:
+            ip = get_sign_profile(ic_sign)
+            ic_kw = _SIGN_KEYWORDS.get(ic_sign, ("", "", ""))
+            family_parts.append(
+                f"**天底 IC（{ic_sign}）——心理根基與安全感模式**\n\n"
+                f"天底是你命盤中最私密的軸點，代表你的心理根基、家庭背景，"
+                f"以及你在最深層最需要的安全感是什麼。"
+                f"IC在{ic_sign}：核心特質為「{ic_kw[0]}」。{ip['personality']}\n\n"
+                "了解自己的 IC，能夠幫助你明白為什麼某些環境讓你感到安全，"
+                "而某些環境卻讓你感到如履薄冰。"
+            )
+
         if ziwei:
             prop_stars = "、".join(ziwei.property_palace.main_stars) if ziwei.property_palace.main_stars else "無主星"
             family_parts.append(
-                f"紫微田宅宮（{prop_stars}）代表家庭能量與不動產運勢。"
+                f"**紫微田宅宮（{prop_stars}）**\n\n"
+                "田宅宮代表家庭環境、不動產運勢，以及你對「家」這個概念的內在詮釋。"
+                "田宅宮吉星入宮者，家庭環境較和諧、不動產緣較佳；"
+                "煞星重者，可能在家庭議題上有較多需要處理的能量。"
             )
-        family_security = "\n\n".join(family_parts) or "家庭安全感分析需要更完整的出生資料。"
 
-        # ── Stress & Shadow ──────────────────────────────────────────────────
-        stress_parts: List[str] = []
-        if western:
-            saturn_positions = [pp for pp in western.planet_positions if pp.planet.value == "土星"]
-            if saturn_positions:
-                ssign = saturn_positions[0].sign.value
-                skw = _SIGN_KEYWORDS.get(ssign, ("", "", ""))
-                stress_parts.append(
-                    f"土星位於{ssign}，標記了你人生中最需要學習的功課與阻力所在。"
-                    f"土星的能量：{skw[0]}。土星的課題不是懲罰，而是通過在這個領域持續努力來獲得真正的精熟。"
-                )
-            chiron_positions = [pp for pp in western.planet_positions if pp.planet.value == "凱龍星"]
-            if chiron_positions:
-                csign = chiron_positions[0].sign.value
-                stress_parts.append(
-                    f"凱龍星位於{csign}，是你深層的「受傷之處」，同時也是你最強大的療癒能力的來源。"
-                    "接觸並整合凱龍的傷，往往能開啟你獨特的人生使命。"
-                )
-        if blood:
-            stress_parts.append(f"壓力反應（血型輔助）：{blood.stress_response}")
-        stress_shadow = "\n\n".join(stress_parts) or "壓力與陰影分析需要更完整的出生資料。"
+        family_security = "\n\n---\n\n".join(family_parts) or "家庭安全感分析需要更完整的出生資料。"
 
-        # ── Life Lessons ─────────────────────────────────────────────────────
+        # ── Stress & Shadow (using V1.2 narrative builder) ────────────────────
+        stress_shadow = build_stress_narrative(
+            saturn_sign=saturn_sign,
+            chiron_sign=chiron_sign,
+            unfav_elements=[e.value for e in bazi.unfavorable_elements] if bazi else None,
+            blood_stress=blood.stress_response if blood else None,
+        )
+
+        # ── Life Lessons ──────────────────────────────────────────────────────
         lesson_parts: List[str] = []
-        if western:
-            north_positions = [pp for pp in western.planet_positions if pp.planet.value == "北交點"]
-            if north_positions:
-                nsign = north_positions[0].sign.value
-                nkw = _SIGN_KEYWORDS.get(nsign, ("", "", ""))
-                lesson_parts.append(
-                    f"北交點位於{nsign}，是你靈魂此生的進化方向與功課。"
-                    f"要向{nsign}的能量學習：{nkw[0]}，才能在這一生達到靈魂的真正成長。"
-                    "南交點所在則代表你已熟悉的舒適區，需要有意識地離開它。"
-                )
+
+        if western and north_sign:
+            np = get_sign_profile(north_sign)
+            north_kw = _SIGN_KEYWORDS.get(north_sign, ("", "", ""))
+            lesson_parts.append(
+                f"**北交點（{north_sign}）——靈魂進化方向**\n\n"
+                f"北交點是你此生靈魂的進化箭頭，指向你需要刻意向其學習的能量方向。"
+                f"北交點在{north_sign}：{np['personality']}\n\n"
+                f"朝向{north_sign}的特質：「{north_kw[0]}」努力，雖然不自然，卻是真正成長的路徑。"
+                "南交點所在則代表你過去世（或童年）已熟悉的舒適區——"
+                "它是你的避風港，但若過度倚賴，便成為阻礙進化的執念。"
+            )
+
         if numerology:
             lesson_parts.append(
-                f"生命靈數{numerology.life_path_number}的人生課題：{numerology.life_path_description}"
+                f"**生命靈數 {numerology.life_path_number} 人生課題**\n\n"
+                f"{numerology.life_path_description}"
             )
-        life_lessons = "\n\n".join(lesson_parts) or "人生課題分析需要更完整的出生資料。"
 
-        # ── Innate Gifts ─────────────────────────────────────────────────────
+        life_lessons = "\n\n---\n\n".join(lesson_parts) or "人生課題分析需要更完整的出生資料。"
+
+        # ── Innate Gifts ──────────────────────────────────────────────────────
         gifts_parts: List[str] = []
+
         if bazi:
             fav_desc = "、".join(e.value for e in bazi.favorable_elements)
             gifts_parts.append(
-                f"喜用神（{fav_desc}）揭示了你天生就能輕鬆駕馭的能量頻率，"
-                "這是你的內在資源，在順境中自然顯現。"
+                f"**喜用神（{fav_desc}）——你的天賦能量頻率**\n\n"
+                "喜用神是你天生就能輕鬆駕馭的能量，是你在順境中自然湧現的內在資源。"
+                "當生活環境、工作性質、人際關係的五行屬性符合你的喜用神時，"
+                "你會感到一種「本來如此」的輕鬆感。\n\n"
+                "實際應用：在選擇工作、居住地、合作夥伴甚至飲食習慣時，"
+                "有意識地引入喜用神對應的五行能量，能夠為你的人生帶來長期的順流感。"
             )
+
         if numerology:
             gifts_parts.append(
-                f"天賦數{numerology.talent_number}：{numerology.talent_description}"
+                f"**天賦數 {numerology.talent_number}**\n\n"
+                f"{numerology.talent_description}"
             )
-        innate_gifts = "\n\n".join(gifts_parts) or "天賦優勢分析需要更完整的出生資料。"
 
-        # ── Recurring Challenges ─────────────────────────────────────────────
+        if western and sun_sign:
+            sp = get_sign_profile(sun_sign)
+            gifts_parts.append(
+                f"**太陽天賦（{sun_sign}）**\n\n{sp['career']}"
+            )
+
+        innate_gifts = "\n\n---\n\n".join(gifts_parts) or "天賦優勢分析需要更完整的出生資料。"
+
+        # ── Recurring Challenges ──────────────────────────────────────────────
         recurring_parts: List[str] = []
+
         if bazi and bazi.unfavorable_elements:
             unfav_desc = "、".join(e.value for e in bazi.unfavorable_elements)
             recurring_parts.append(
-                f"忌神（{unfav_desc}）代表你在人生中容易遭遇阻力的能量模式。"
-                "忌神旺盛的流年往往是挑戰較多的時期，但也是成長最快速的時機。"
+                f"**忌神（{unfav_desc}）——反覆出現的阻力模式**\n\n"
+                "忌神旺盛的流年往往是挑戰集中的時期。"
+                "但了解忌神的意義在於：它不是命運的詛咒，而是一種特定頻率的能量挑戰。"
+                "當你意識到「又來了」，便能更快從受害者模式轉換到策略應對模式——"
+                "守成、簡化、暫緩重大決策，等待喜用神流年的到來再積極部署。"
             )
-        recurring_challenges = "\n\n".join(recurring_parts) or "反覆模式分析需要更完整的出生資料。"
 
-        # ── Love Styles ──────────────────────────────────────────────────────
+        if saturn_sign:
+            sp = get_sign_profile(saturn_sign)
+            recurring_parts.append(
+                f"**土星反覆課題（{saturn_sign}）**\n\n"
+                f"土星在{saturn_sign}的課題會在你的人生中反覆出現，直到你真正精熟為止。"
+                f"{sp['personality']}\n\n"
+                "每一次遭遇這個主題的困境，都是土星在邀請你再往深一層。"
+            )
+
+        recurring_challenges = "\n\n---\n\n".join(recurring_parts) or "反覆模式分析需要更完整的出生資料。"
+
+        # ── Love Styles ───────────────────────────────────────────────────────
         suitable_love_styles: List[str] = []
-        if western:
-            desc = western.descendant.value
-            suitable_love_styles.append(f"第七宮（{desc}）特質的伴侶")
+        if desc_sign:
+            suitable_love_styles.append(f"具有{desc_sign}特質的伴侶（第七宮能量互補）")
+        if venus_sign:
+            vp = get_sign_profile(venus_sign)
+            suitable_love_styles.append(f"能理解{venus_sign}式愛語的伴侶")
         if blood:
-            suitable_love_styles.append(f"能理解{profile.blood_type.value}型特質的伴侶")
+            suitable_love_styles.append(f"能接納{profile.blood_type.value}型特質的伴侶")
 
-        # ── Temporal Advice ──────────────────────────────────────────────────
+        # ── Temporal Advice ───────────────────────────────────────────────────
         from datetime import date as _date
         current_year = _date.today().year
 
@@ -380,52 +455,62 @@ class SynthesisEngine:
 
         if bazi and bazi.liu_nian:
             nian = bazi.liu_nian[0]
-            year_advice_parts.append(
-                f"{nian.year}年（{nian.stem.value}{nian.branch.value}年）流年運勢："
-                "請結合喜用神與忌神判斷此流年能量是否順應你的命格。"
-                "若流年五行為喜用神，宜積極開展新計畫；若為忌神，則宜守成、避免重大決策。"
+            nian_elem_stem = None
+            # Determine if this year's stem element is favorable or unfavorable
+            from engines.bazi import STEM_ELEMENT
+            from core.models import FiveElement as FE
+            nian_elem = STEM_ELEMENT[nian.stem].value
+            is_fav = any(e.value == nian_elem for e in bazi.favorable_elements)
+            is_unfav = any(e.value == nian_elem for e in bazi.unfavorable_elements)
+            assessment = "屬於你的喜用神——宜積極開展新計畫、拓展機會" if is_fav else (
+                "屬於你的忌神——宜守成、聚焦核心、避免高風險決策" if is_unfav else
+                "為中性能量——宜保持穩定步伐"
             )
+            year_advice_parts.append(
+                f"**{nian.year}年（{nian.stem.value}{nian.branch.value}年）流年分析**\n\n"
+                f"今年流年天干五行屬「{nian_elem}」，{assessment}。\n\n"
+                "流年是大運與命盤五行的交互作用，本年的機遇或挑戰將在此框架內展開。"
+                "建議結合大運的整體趨勢，判斷本年是「擴張年」還是「整固年」。"
+            )
+
             if len(bazi.liu_nian) >= 3:
-                years = "、".join(str(n.year) for n in bazi.liu_nian[:3])
-                year_stems = "、".join(n.stem.value + n.branch.value for n in bazi.liu_nian[:3])
+                three_yr_data = []
+                for n in bazi.liu_nian[:3]:
+                    ne = STEM_ELEMENT[n.stem].value
+                    tone = "順" if any(e.value == ne for e in bazi.favorable_elements) else (
+                        "逆" if any(e.value == ne for e in bazi.unfavorable_elements) else "平"
+                    )
+                    three_yr_data.append(f"{n.year}年（{n.stem.value}{n.branch.value}，{ne}，{tone}年）")
                 three_year_parts.append(
-                    f"未來三年（{years}，{year_stems}）的流年趨勢，"
-                    "需持續檢視每年流年五行與你的喜忌神是否相合。"
+                    f"**未來三年趨勢**\n\n"
+                    + "\n".join(f"- {d}" for d in three_yr_data) + "\n\n"
+                    "順年：宜擴張、投資、拓展新領域；逆年：宜整固、沉澱、處理遺留問題；"
+                    "平年：宜維持現有節奏，穩中求進。\n\n"
+                    "建議每年年初重新評估流年能量與你的喜忌神關係，動態調整年度計畫。"
                 )
 
         if numerology:
+            py = numerology.personal_year
             year_advice_parts.append(
-                f"今年個人年數為{numerology.personal_year}：{numerology.personal_year_description}"
+                f"**個人年數 {py}**\n\n{numerology.personal_year_description}"
             )
 
-        one_year_advice  = "\n\n".join(year_advice_parts)  or "需要出生資料以計算流年建議。"
-        three_year_advice = "\n\n".join(three_year_parts) or "需要出生資料以計算三年趨勢。"
+        one_year_advice  = "\n\n---\n\n".join(year_advice_parts) or "需要出生資料以計算流年建議。"
+        three_year_advice = "\n\n---\n\n".join(three_year_parts)  or "需要出生資料以計算三年趨勢。"
 
-        # ── Contradiction Detection ───────────────────────────────────────────
-        if western and bazi:
-            # Example: High fire in BaZi but water-dominant western chart
-            fire_str = bazi.five_element_strength.get("火", "均衡")
-            sun_water = sun_sign in ("天蠍座", "雙魚座", "巨蟹座") if sun_sign else False
-            if fire_str == "強" and sun_water:
-                contradictions.append(
-                    "內在矛盾點：八字火旺（熱情外向），但西洋占星太陽星座屬水象（內省敏感），"
-                    "這可能形成外熱內冷的雙重性格——表面積極主動，內心卻需要大量獨處充電。"
-                )
-                integration_suggestions.append(
-                    "整合建議：接受自己的雙重性，為外向互動與獨處充電分別預留空間。不需要強迫自己只選一種模式。"
-                )
+        # ── Contradiction Detection (using V1.2 builder) ──────────────────────
+        dm_is_strong = False
+        if bazi:
+            dm_is_strong = bazi.five_element_ratio.get(
+                bazi.day_master_element.value, 0.0
+            ) >= 25.0
 
-        if numerology and bazi:
-            lp = numerology.life_path_number
-            dm_is_strong = bazi.five_element_ratio.get(bazi.day_master_element.value, 0) >= 25.0
-            if lp in (1, 8) and not dm_is_strong:
-                contradictions.append(
-                    f"內在矛盾點：生命靈數{lp}具有強烈的成就與獨立傾向，"
-                    "但八字日主偏弱，可能讓你在追求目標時感到能量不足或缺乏支撐。"
-                )
-                integration_suggestions.append(
-                    "整合建議：優先培養喜用神能量（環境、食物、顏色、方位），為你的雄心抱負打造更穩固的底層能量。"
-                )
+        contradictions, integration_suggestions = build_contradiction_analysis(
+            bazi_element_strength=bazi.five_element_strength if bazi else None,
+            sun_sign=sun_sign,
+            life_path_number=lp,
+            dm_is_strong=dm_is_strong,
+        )
 
         return SynthesisResult(
             core_personality=core_personality,
