@@ -34,3 +34,10 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+
+# Generated outputs (not committed)
+demo_outputs/
+release/
+!release/.gitkeep
+*.zip
+*.rar

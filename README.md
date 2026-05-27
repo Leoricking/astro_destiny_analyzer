@@ -504,6 +504,75 @@ Status: Zi Wei Auxiliary Stars & Da Xian Phase 1
 
 ---
 
+## 20. V1.6.3 更新說明 — Release Package & Demo Assets
+
+### 20.1 本版重點
+
+| 項目 | 說明 |
+|------|------|
+| Demo 資產生成 | `python scripts/generate_demo_assets.py` — 自動為所有 Demo Profile 生成 MD / HTML / DOCX / PDF |
+| Release 打包 | `python scripts/build_release.py` — 建立乾淨發佈包（含 RELEASE_INFO.txt，可選 zip） |
+| 產品文件 | `docs/QUICK_START.md`、`docs/DEMO_GUIDE.md`、`docs/RELEASE_CHECKLIST.md`、`docs/PRODUCT_OVERVIEW.md` |
+| .gitignore 補充 | `demo_outputs/`、`release/`、`*.zip`、`*.rar` 排除提交 |
+
+### 20.2 生成 Demo 報告
+
+```bash
+python scripts/generate_demo_assets.py
+```
+
+輸出至 `demo_outputs/`（不含個人資料，不寫入 DB）：
+
+```
+demo_outputs/
+├── Demo_台北精準時間.md
+├── Demo_台北精準時間.html
+├── Demo_新竹科技職涯.md
+├── Demo_新竹科技職涯.html
+├── Demo_未知出生時間.md
+└── Demo_未知出生時間.html
+```
+
+### 20.3 建立 Release 包
+
+```bash
+python scripts/build_release.py
+```
+
+輸出至 `release/astro_destiny_analyzer_vX.X.X/`，自動排除：
+- `.venv/`、`.git/`、`__pycache__/`
+- `data/*.db`、`exports/`、`release/`、`demo_outputs/`
+
+並生成 `RELEASE_INFO.txt`（版本、時間、Python 版本、功能列表、啟動說明）。
+
+> **注意**：`demo_outputs/` 和 `release/` 不提交 Git（已加入 `.gitignore`）。
+
+### 20.4 文件索引
+
+| 文件 | 用途 |
+|------|------|
+| `docs/QUICK_START.md` | 一般使用者快速上手 |
+| `docs/DEMO_GUIDE.md` | 展示 / 錄影 / 對外 Demo 腳本 |
+| `docs/RELEASE_CHECKLIST.md` | 發佈前完整檢查清單 |
+| `docs/PRODUCT_OVERVIEW.md` | 產品介紹與差異化說明 |
+
+### 20.5 新增 / 修改檔案
+
+| 檔案 | 說明 |
+|------|------|
+| `scripts/generate_demo_assets.py` | 新增：Demo 報告批次生成 |
+| `scripts/build_release.py` | 新增：Release 打包工具 |
+| `docs/QUICK_START.md` | 新增 |
+| `docs/DEMO_GUIDE.md` | 新增 |
+| `docs/RELEASE_CHECKLIST.md` | 新增 |
+| `docs/PRODUCT_OVERVIEW.md` | 新增 |
+| `release/.gitkeep` | 新增：保留 release 目錄結構 |
+| `.gitignore` | 補充 demo_outputs/、release/、*.zip、*.rar |
+| `config.py` | 版本 1.6.3 |
+| `tests/test_release_assets.py` | 新增：40+ 項測試 |
+
+---
+
 ## 19. V1.6.2 更新說明 — Windows 一鍵啟動
 
 ### 19.1 Windows 一鍵啟動
