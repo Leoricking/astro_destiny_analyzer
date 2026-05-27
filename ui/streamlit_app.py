@@ -29,6 +29,7 @@ from reports.generator import ReportGenerator
 from reports.pdf_exporter import PdfExporter
 from reports.docx_exporter import DocxExporter
 from reports.utils import make_export_filename
+from demo.sample_profiles import SAMPLE_PROFILES, SAMPLE_LABELS
 from core.database import (
     list_reports, get_report, delete_report,
     list_birth_profiles, get_setting, set_setting,
@@ -240,6 +241,16 @@ def _sync_input_state_from_profile(profile: BirthProfile) -> None:
     st.session_state["input_use_manual_latlon"] = use_manual
 
 
+def _load_sample(index: int) -> None:
+    """Load a demo sample profile into session state and navigate to Calculate."""
+    profile = SAMPLE_PROFILES[index]
+    _sync_input_state_from_profile(profile)
+    st.session_state["profile"] = profile
+    st.session_state["report"] = None
+    st.session_state["_demo_loaded"] = True
+    st.session_state["_pending_nav_page"] = "🔮 計算命盤"
+
+
 # Apply pending navigation before the radio widget is instantiated.
 # Streamlit does not allow modifying a widget-backed session_state key after
 # the widget has been created in the same run.
@@ -301,6 +312,27 @@ if page == "🏠 首頁":
 
     if st.button("🚀 立即開始分析", type="primary", use_container_width=True):
         _go_to_page("📝 輸入資料")
+
+    st.divider()
+    st.subheader("⚡ 快速體驗")
+    st.caption("不需要手動輸入，直接使用範例資料體驗完整分析流程。")
+    demo_c1, demo_c2, demo_c3 = st.columns(3)
+    with demo_c1:
+        if st.button("🏙️ Demo 台北精準時間", use_container_width=True):
+            _load_sample(0)
+            st.rerun()
+    with demo_c2:
+        if st.button("💼 Demo 新竹科技職涯", use_container_width=True):
+            _load_sample(1)
+            st.rerun()
+    with demo_c3:
+        if st.button("❓ Demo 未知出生時間", use_container_width=True):
+            _load_sample(2)
+            st.rerun()
+
+    if st.session_state.get("_demo_loaded"):
+        st.info("✅ 已載入範例資料，可直接計算，也可返回輸入頁修改。")
+        st.session_state["_demo_loaded"] = False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -871,6 +903,10 @@ elif page == "📄 報告預覽":
 
     report = st.session_state["report"]
 
+    # ── Demo label ────────────────────────────────────────────────────────────
+    if report.profile.name.startswith("Demo"):
+        st.info("🔍 這是範例報告，可用於展示與功能驗證。")
+
     # ── Report summary card ───────────────────────────────────────────────────
     with st.container(border=True):
         rc1, rc2, rc3, rc4 = st.columns(4)
@@ -994,6 +1030,16 @@ elif page == "📤 匯出":
             )
             st.caption(modes_summary)
 
+    st.divider()
+    with st.expander("📋 推薦匯出格式說明", expanded=False):
+        st.markdown("""
+| 格式 | 推薦用途 |
+|------|----------|
+| 🌐 HTML | 最適合展示與列印，單一檔案，自含樣式 |
+| 📘 Word | 最適合交付客戶，可人工調整排版 |
+| 📝 Markdown | 最適合二次編輯，版本控制友善 |
+| 📕 PDF | 需環境支援 WeasyPrint（pip install weasyprint） |
+""")
     st.divider()
 
     from reports.markdown_exporter import MarkdownExporter
