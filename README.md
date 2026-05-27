@@ -504,6 +504,63 @@ Status: Zi Wei Auxiliary Stars & Da Xian Phase 1
 
 ---
 
+## 17. V1.6.0 更新說明 — 報告產品化整理 & 匯出強化
+
+### 17.1 本版重點
+
+| 項目 | 說明 |
+|------|------|
+| 報告封面 | 所有匯出格式均包含封面（姓名、日期、地點、版本、產生時間） |
+| 免責聲明統一 | 統一免責聲明文字，出現在封面後與報告結尾 |
+| 基本資料頁 | 姓名、性別、血型、分析主題、報告長度 |
+| 計算模式摘要 | 西洋 / 八字 / 紫微各系統 calculation_mode 與 accuracy_note 一覽 |
+| 一頁式總覽 | 太陽 / 月亮 / 上升 / MC、八字日主 / 喜用神、命宮 / 身宮、生命靈數、血型 |
+| 目錄 | Markdown 標題模擬目錄；HTML 含清楚目錄區塊 |
+| HTML 美化 | max-width 960px、Microsoft JhengHei + Noto Sans TC 字型、封面區塊、免責聲明區塊、計算模式卡片、@media print 列印最佳化 |
+| Word 排版 | 封面標題、免責聲明、基本資料表、計算模式表、CJK 字型安全設定 |
+| PDF 安全策略 | WeasyPrint 可用時 HTML → PDF；不可用時 is_available() 回傳 False，不 crash |
+| 安全檔名 | sanitize_filename() 移除 Windows 非法字元、保留中文、最長 80 字元 |
+| 匯出檔名格式 | {name}_命盤整合分析報告_{YYYYMMDD_HHMM}.{ext} |
+| 匯出頁 UX | 報告摘要卡、每格式 caption 說明、不可用時清楚提示 |
+| 報告預覽 UX | 頂部摘要卡（姓名 / 長度 / 版本 / 時間）、計算模式 expander |
+| 設定頁 | 版本、支援功能清單、匯出格式可用性、資料庫路徑與報告數 |
+
+### 17.2 推薦交付格式
+
+| 格式 | 用途 |
+|------|------|
+| HTML | 最穩，適合瀏覽與列印，單一檔案自含 CSS |
+| Word | 適合客戶交付與人工排版 |
+| Markdown | 適合二次編輯與版本控制 |
+| PDF | 等 WeasyPrint 環境設定完成後使用（Windows 需額外依賴） |
+
+### 17.3 PDF 安裝說明
+
+WeasyPrint 為選用套件，不列入 requirements.txt：
+
+```bash
+pip install weasyprint
+```
+
+Windows 安裝 WeasyPrint 可能需要額外系統依賴（GTK / Pango / libpango）。
+V1.6 建議優先使用 HTML / Word 交付，待環境就緒後再啟用 PDF。
+
+### 17.4 新增 / 修改檔案
+
+| 檔案 | 說明 |
+|------|------|
+| `reports/utils.py` | 新增：sanitize_filename、make_export_filename、build_report_meta、DISCLAIMER |
+| `reports/markdown_exporter.py` | 加入封面、免責聲明、計算模式摘要、目錄 |
+| `reports/html_exporter.py` | 全面美化 CSS、封面 / 免責聲明 / 計算模式卡片 / TOC / 列印樣式 |
+| `reports/docx_exporter.py` | 封面表格、免責聲明、基本資料表、計算模式表、CJK 字型 |
+| `reports/pdf_exporter.py` | WeasyPrint 路徑實作；安全 fallback（RuntimeError，不 crash） |
+| `reports/generator.py` | 新增 to_docx()、to_pdf() 方法 |
+| `ui/streamlit_app.py` | 匯出頁 / 報告預覽頁 / 設定頁全面優化 |
+| `config.py` | 版本 1.6.0 |
+| `tests/test_report_export_product.py` | 新增：66 項測試（sanitize、meta、MD、HTML、DOCX、PDF） |
+
+---
+
 ## 16. V1.5.5 更新說明 — 紫微輔星 / 煞星 / 大限 Phase 1
 
 ### 16.1 新增輔星（六吉星 + 祿存）

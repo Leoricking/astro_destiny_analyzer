@@ -1,56 +1,52 @@
 """
 Astro Destiny Analyzer — PDF Exporter
-Interface reserved for future implementation.
+Uses WeasyPrint (if available) to render HTML → PDF.
 
-Option A (recommended): WeasyPrint — renders HTML/CSS to PDF with CJK font support.
+Installation (optional):
   pip install weasyprint
-  Requires: libpango, libcairo, and a CJK font (e.g. Noto Serif TC).
+  Windows: may require additional system dependencies (GTK, Pango).
 
-Option B: ReportLab — lower-level, more control, needs manual CJK font registration.
-  pip install reportlab
-
-Option C: Use html2pdf via Playwright (headless Chrome) for best CSS fidelity.
-  pip install playwright && playwright install chromium
+V1.6 recommendation:
+  Use HTML or Word for delivery; PDF after WeasyPrint environment is configured.
+  See README for details.
 """
 from core.models import FullReport
 
 
+def _weasyprint_available() -> bool:
+    try:
+        import weasyprint  # noqa: F401
+        return True
+    except (ImportError, OSError):
+        return False
+
+
 class PdfExporter:
     """
-    PDF export — reserved interface.
-    Calling export() or save() will raise NotImplementedError until implemented.
+    PDF export via WeasyPrint.
+    Gracefully unavailable (is_available() → False) when WeasyPrint is not installed.
     """
 
     def is_available(self) -> bool:
-        """Return True if a PDF backend is installed."""
-        try:
-            import weasyprint  # noqa: F401
-            return True
-        except ImportError:
-            pass
-        try:
-            import reportlab  # noqa: F401
-            return True
-        except ImportError:
-            pass
-        return False
+        """Return True only if WeasyPrint is installed and importable."""
+        return _weasyprint_available()
 
     def export(self, report: FullReport) -> bytes:
         """
-        TODO: Implement PDF export.
-
-        WeasyPrint example:
-            from weasyprint import HTML
-            from reports.html_exporter import HtmlExporter
-            html_content = HtmlExporter().export(report)
-            return HTML(string=html_content).write_pdf()
+        Generate PDF bytes from the HTML report via WeasyPrint.
+        Raises RuntimeError (not crash) if WeasyPrint is unavailable.
         """
         if not self.is_available():
-            raise NotImplementedError(
-                "PDF export requires WeasyPrint or ReportLab. "
-                "Run: pip install weasyprint"
+            raise RuntimeError(
+                "PDF 匯出需要安裝 WeasyPrint。\n"
+                "執行：pip install weasyprint\n"
+                "Windows 可能需要額外系統依賴（GTK / Pango / libpango）。\n"
+                "建議優先使用 HTML 或 Word 格式交付。"
             )
-        raise NotImplementedError("PDF export backend not yet configured.")
+        from weasyprint import HTML
+        from reports.html_exporter import HtmlExporter
+        html_content = HtmlExporter().export(report)
+        return HTML(string=html_content).write_pdf()
 
     def save(self, report: FullReport, path: str) -> None:
         """Save PDF to path."""

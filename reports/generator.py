@@ -20,6 +20,8 @@ from engines.synthesis import SynthesisEngine
 from reports.templates import render_report
 from reports.markdown_exporter import MarkdownExporter
 from reports.html_exporter import HtmlExporter
+from reports.docx_exporter import DocxExporter
+from reports.pdf_exporter import PdfExporter
 
 
 class ReportGenerator:
@@ -126,3 +128,9 @@ class ReportGenerator:
 
     def to_html(self, report: FullReport) -> str:
         return self._html.export(report)
+
+    def to_docx(self, report: FullReport) -> bytes:
+        return DocxExporter().export(report)
+
+    def to_pdf(self, report: FullReport) -> bytes:
+        return PdfExporter().export(report)

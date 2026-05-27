@@ -28,6 +28,7 @@ from core.validators import validate_birth_date, validate_birth_time, validate_n
 from reports.generator import ReportGenerator
 from reports.pdf_exporter import PdfExporter
 from reports.docx_exporter import DocxExporter
+from reports.utils import make_export_filename
 from core.database import (
     list_reports, get_report, delete_report,
     list_birth_profiles, get_setting, set_setting,
@@ -869,10 +870,40 @@ elif page == "📄 報告預覽":
         st.stop()
 
     report = st.session_state["report"]
-    st.subheader(f"{report.profile.name} 的命盤整合分析報告")
-    st.caption(
-        f"生成時間：{report.created_at} ｜ 報告長度：{report.profile.report_length.value}"
-    )
+
+    # ── Report summary card ───────────────────────────────────────────────────
+    with st.container(border=True):
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        with rc1:
+            st.metric("姓名", report.profile.name)
+        with rc2:
+            st.metric("報告長度", report.profile.report_length.value)
+        with rc3:
+            st.metric("版本", f"v{APP_VERSION}")
+        with rc4:
+            st.metric("生成時間", report.created_at[:16] if report.created_at else "─")
+
+    # ── Calculation mode expander ─────────────────────────────────────────────
+    with st.expander("計算模式摘要"):
+        wc = report.western_chart
+        bc = report.bazi_chart
+        zc = report.ziwei_chart
+        mode_data = [
+            ("西洋占星", getattr(wc, "calculation_mode", "─") if wc else "─",
+             getattr(wc, "accuracy_note", "") if wc else ""),
+            ("八字",    getattr(bc, "calculation_mode", "─") if bc else "─",
+             getattr(bc, "accuracy_note", "") if bc else ""),
+            ("紫微",    getattr(zc, "calculation_mode", "─") if zc else "─",
+             getattr(zc, "accuracy_note", "") if zc else ""),
+        ]
+        import pandas as pd
+        st.dataframe(
+            pd.DataFrame(mode_data, columns=["系統", "計算模式", "備注"]),
+            hide_index=True, use_container_width=True,
+        )
+        aux_note = getattr(zc, "auxiliary_accuracy_note", "") if zc else ""
+        if aux_note:
+            st.caption(f"輔星：{aux_note}")
 
     view_mode = st.radio("顯示模式", ["整合分析（互動式）", "Markdown 原文"], horizontal=True)
 
@@ -942,7 +973,28 @@ elif page == "📤 匯出":
         st.stop()
 
     report = st.session_state["report"]
-    st.info(f"目前報告：**{report.profile.name}**（{report.created_at}）")
+
+    # ── Report summary card ───────────────────────────────────────────────────
+    with st.container(border=True):
+        ec1, ec2, ec3, ec4 = st.columns(4)
+        with ec1:
+            st.metric("姓名", report.profile.name)
+        with ec2:
+            st.metric("生成時間", report.created_at[:16] if report.created_at else "─")
+        with ec3:
+            st.metric("報告長度", report.profile.report_length.value)
+        with ec4:
+            wc = report.western_chart
+            bc = report.bazi_chart
+            zc = report.ziwei_chart
+            modes_summary = (
+                f"西洋: {getattr(wc, 'calculation_mode', '─') if wc else '─'} ｜ "
+                f"八字: {getattr(bc, 'calculation_mode', '─') if bc else '─'} ｜ "
+                f"紫微: {getattr(zc, 'calculation_mode', '─') if zc else '─'}"
+            )
+            st.caption(modes_summary)
+
+    st.divider()
 
     from reports.markdown_exporter import MarkdownExporter
     from reports.html_exporter import HtmlExporter
@@ -950,47 +1002,32 @@ elif page == "📤 匯出":
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+        st.markdown("**Markdown**")
+        st.caption("適合二次編輯")
         md_content = MarkdownExporter().export(report)
         st.download_button(
             label="📝 下載 Markdown",
             data=md_content.encode("utf-8"),
-            file_name=f"{report.profile.name}_命盤報告.md",
+            file_name=make_export_filename(report.profile.name, "md"),
             mime="text/markdown",
             use_container_width=True,
         )
 
     with col2:
+        st.markdown("**HTML**")
+        st.caption("適合瀏覽與列印")
         html_content = HtmlExporter().export(report)
         st.download_button(
             label="🌐 下載 HTML",
             data=html_content.encode("utf-8"),
-            file_name=f"{report.profile.name}_命盤報告.html",
+            file_name=make_export_filename(report.profile.name, "html"),
             mime="text/html",
             use_container_width=True,
         )
 
     with col3:
-        pdf_exp = PdfExporter()
-        if pdf_exp.is_available():
-            try:
-                pdf_bytes = pdf_exp.export(report)
-                st.download_button(
-                    label="📕 下載 PDF",
-                    data=pdf_bytes,
-                    file_name=f"{report.profile.name}_命盤報告.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
-            except NotImplementedError as e:
-                st.button("📕 PDF（尚未設定）", disabled=True,
-                          use_container_width=True)
-                st.caption(str(e))
-        else:
-            st.button("📕 PDF（需安裝 WeasyPrint）", disabled=True,
-                      use_container_width=True)
-            st.caption("pip install weasyprint")
-
-    with col4:
+        st.markdown("**Word**")
+        st.caption("適合交付客戶與人工排版")
         docx_exp = DocxExporter()
         if docx_exp.is_available():
             try:
@@ -998,7 +1035,7 @@ elif page == "📤 匯出":
                 st.download_button(
                     label="📘 下載 Word",
                     data=docx_bytes,
-                    file_name=f"{report.profile.name}_命盤報告.docx",
+                    file_name=make_export_filename(report.profile.name, "docx"),
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True,
                 )
@@ -1007,9 +1044,36 @@ elif page == "📤 匯出":
                           use_container_width=True)
                 st.caption(str(e))
         else:
-            st.button("📘 Word（需安裝 python-docx）", disabled=True,
+            st.button("📘 Word（未安裝）", disabled=True,
                       use_container_width=True)
-            st.caption("pip install python-docx")
+            st.info("需安裝 python-docx：`pip install python-docx`")
+
+    with col4:
+        st.markdown("**PDF**")
+        st.caption("若環境支援 WeasyPrint 則可用")
+        pdf_exp = PdfExporter()
+        if pdf_exp.is_available():
+            try:
+                pdf_bytes = pdf_exp.export(report)
+                st.download_button(
+                    label="📕 下載 PDF",
+                    data=pdf_bytes,
+                    file_name=make_export_filename(report.profile.name, "pdf"),
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+            except RuntimeError as e:
+                st.button("📕 PDF（環境問題）", disabled=True,
+                          use_container_width=True)
+                st.warning(str(e))
+        else:
+            st.button("📕 PDF（未安裝）", disabled=True,
+                      use_container_width=True)
+            st.info(
+                "需安裝 WeasyPrint：`pip install weasyprint`\n\n"
+                "Windows 可能需要額外系統依賴（GTK / Pango）。\n"
+                "建議優先使用 HTML 或 Word 格式交付。"
+            )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1018,18 +1082,58 @@ elif page == "📤 匯出":
 elif page == "⚙️ 設定":
     st.title("⚙️ 應用程式設定")
 
+    # ── System info ───────────────────────────────────────────────────────────
     st.subheader("系統資訊")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**版本**：{APP_VERSION}")
-        from config import DB_PATH
-        st.write(f"**資料庫**：`{DB_PATH}`")
-    with col2:
-        from config import SWISSEPH_DATA_PATH
-        st.write(
-            f"**Swiss Ephemeris**：{'已設定 ✅' if SWISSEPH_DATA_PATH else '未設定（使用 Moshier 內建）⚠️'}"
-        )
+    from config import DB_PATH, SWISSEPH_DATA_PATH
+    si1, si2 = st.columns(2)
+    with si1:
+        st.metric("版本", f"v{APP_VERSION}")
+        st.write(f"**資料庫路徑**：`{DB_PATH}`")
+    with si2:
+        sweph_status = "已設定 ✅" if SWISSEPH_DATA_PATH else "未設定（Moshier 內建）⚠️"
+        st.write(f"**Swiss Ephemeris**：{sweph_status}")
 
+    # ── Supported features ────────────────────────────────────────────────────
+    st.divider()
+    st.subheader("支援功能")
+    st.markdown("""
+| 功能 | 狀態 |
+|------|------|
+| 西洋占星（Swiss Ephemeris） | ✅ 支援 |
+| 八字（節氣精確計算） | ✅ 支援 |
+| 紫微斗數（正式排盤 Phase 1） | ✅ 支援 |
+| 紫微輔星 / 煞星（V1.5.5） | ✅ 支援 |
+| 紫微大限 Phase 1（V1.5.5） | ✅ 支援 |
+| 血型分析 | ✅ 支援 |
+| 生命靈數 | ✅ 支援 |
+""")
+
+    # ── Export format availability ────────────────────────────────────────────
+    st.divider()
+    st.subheader("可用匯出格式")
+    _docx_ok = DocxExporter().is_available()
+    _pdf_ok  = PdfExporter().is_available()
+    ef1, ef2, ef3, ef4 = st.columns(4)
+    with ef1:
+        st.success("📝 Markdown ✅")
+        st.caption("適合二次編輯")
+    with ef2:
+        st.success("🌐 HTML ✅")
+        st.caption("適合瀏覽與列印")
+    with ef3:
+        if _docx_ok:
+            st.success("📘 Word ✅")
+        else:
+            st.warning("📘 Word ⚠️")
+            st.caption("pip install python-docx")
+    with ef4:
+        if _pdf_ok:
+            st.success("📕 PDF ✅")
+        else:
+            st.warning("📕 PDF ⚠️")
+            st.caption("pip install weasyprint")
+
+    # ── Swiss Ephemeris path ──────────────────────────────────────────────────
     st.divider()
     st.subheader("Swiss Ephemeris 設定（可選）")
     st.caption(
@@ -1045,12 +1149,13 @@ elif page == "⚙️ 設定":
         set_setting("swisseph_path", sweph_path)
         st.success("設定已儲存。請重新啟動應用程式以生效。")
 
+    # ── Data management ───────────────────────────────────────────────────────
     st.divider()
     st.subheader("資料管理")
-    col1, col2 = st.columns(2)
-    with col1:
+    dm1, dm2 = st.columns(2)
+    with dm1:
         full_reports = list_reports(limit=9999)
         st.metric("已儲存報告數", len(full_reports))
-    with col2:
+    with dm2:
         full_profiles = list_birth_profiles(limit=9999)
         st.metric("已儲存命盤數", len(full_profiles))
