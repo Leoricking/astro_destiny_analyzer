@@ -253,6 +253,12 @@ class BaZiChart(BaseModel):
     da_yun: List[LuckPeriod] = Field(default_factory=list)
     liu_nian: List[AnnualLuck] = Field(default_factory=list)
     is_mock: bool = False
+    # V1.4: solar term precision fields
+    calculation_mode: str = "solar_term_approx"
+    accuracy_note: str = ""
+    year_boundary_rule: str = "lichun"
+    month_boundary_rule: str = "solar_terms"
+    birth_time_accuracy: str = "known"        # "known" | "unknown"
 
 
 # ── Zi Wei Dou Shu Models ─────────────────────────────────────────────────────

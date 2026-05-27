@@ -644,6 +644,8 @@ elif page == "🔮 計算命盤":
         with tab_b:
             bc = report.bazi_chart
             if bc:
+                if bc.accuracy_note:
+                    st.caption(f"ℹ️ {bc.accuracy_note}")
                 col1, col2 = st.columns(2)
                 with col1:
                     st.metric("日主",

@@ -1,8 +1,11 @@
 """
 Astro Destiny Analyzer — BaZi (Eight Characters) Engine
 Implements genuine sexagenary-cycle calculations.
-Solar term boundaries are approximated to the 4th/6th of each month for V1.
-TODO: Replace solar term dates with precise 節氣 table for production accuracy.
+V1.4: Solar term driven year/month pillar calculation.
+  - Year boundary: 立春 (~Feb 4).
+  - Month boundary: 12 solar terms (節令) with approximate dates.
+  - calculation_mode = "solar_term_approx"; future versions may use
+    precise astronomical solar longitudes.
 """
 from datetime import date, time
 from typing import Optional, List, Dict, Tuple
@@ -63,18 +66,62 @@ def _controls(a: FiveElement, b: FiveElement) -> bool:
     return _GEN_ORDER[(i + 2) % 5] == b
 
 
+# ── Solar Term Tables (V1.4) ──────────────────────────────────────────────────
+
+# 12 節令 approximate dates (month, day, resulting branch).
+# Ordered within a calendar year (Jan→Dec).
+# Before Jan 6 (小寒) the active branch is 子 (carried from Dec 7 大雪 of prev year).
+_SOLAR_TERMS_APPROX: List[Tuple[int, int, EarthlyBranch]] = [
+    (1,  6,  EarthlyBranch.CHOU),   # 小寒  → 丑月
+    (2,  4,  EarthlyBranch.YIN),    # 立春  → 寅月 (also BaZi year boundary)
+    (3,  6,  EarthlyBranch.MAO),    # 驚蟄  → 卯月
+    (4,  5,  EarthlyBranch.CHEN),   # 清明  → 辰月
+    (5,  6,  EarthlyBranch.SI),     # 立夏  → 巳月
+    (6,  6,  EarthlyBranch.WU_),    # 芒種  → 午月
+    (7,  7,  EarthlyBranch.WEI),    # 小暑  → 未月
+    (8,  8,  EarthlyBranch.SHEN),   # 立秋  → 申月
+    (9,  8,  EarthlyBranch.YOU),    # 白露  → 酉月
+    (10, 8,  EarthlyBranch.XU),     # 寒露  → 戌月
+    (11, 7,  EarthlyBranch.HAI),    # 立冬  → 亥月
+    (12, 7,  EarthlyBranch.ZI),     # 大雪  → 子月
+]
+
+# 立春 approximate date (BaZi year boundary)
+_LICHUN_MONTH = 2
+_LICHUN_DAY   = 4
+
+
+def _bazi_year(birth_date: date) -> int:
+    """Return BaZi year integer; switches at 立春 (approx Feb 4)."""
+    year = birth_date.year
+    if birth_date < date(year, _LICHUN_MONTH, _LICHUN_DAY):
+        year -= 1
+    return year
+
+
+def _month_branch_from_solar_terms(birth_date: date) -> EarthlyBranch:
+    """
+    Determine BaZi month branch using approximate solar term dates.
+    Default is 子月 (carried from the previous year's 大雪 Dec 7)
+    for dates before Jan 6 小寒.
+    calculation_mode = "solar_term_approx"
+    """
+    year = birth_date.year
+    current_branch: EarthlyBranch = EarthlyBranch.ZI  # pre-小寒 default
+    for month, day, branch in _SOLAR_TERMS_APPROX:
+        if birth_date >= date(year, month, day):
+            current_branch = branch
+    return current_branch
+
+
 # ── Pillar Calculations ───────────────────────────────────────────────────────
 
 def _year_pillar(birth_date: date) -> Pillar:
     """
-    Year pillar based on Gregorian year.
-    Strict BaZi uses Lichun (~Feb 4) as the year boundary.
-    TODO: Use exact Lichun date for the given year for production accuracy.
+    Year pillar.  V1.4: boundary is 立春 (~Feb 4) via _bazi_year().
+    calculation_mode = "solar_term_approx"
     """
-    year = birth_date.year
-    # Approximate: if born before Feb 4, use previous year's stem/branch
-    if (birth_date.month == 1) or (birth_date.month == 2 and birth_date.day < 4):
-        year -= 1
+    year = _bazi_year(birth_date)
     stem_idx   = (year - 4) % 10
     branch_idx = (year - 4) % 12
     stem   = STEMS[stem_idx]
@@ -83,48 +130,22 @@ def _year_pillar(birth_date: date) -> Pillar:
                   element=STEM_ELEMENT[stem], label="年柱")
 
 
-# Month branch table (0-indexed from Jan)
-# Jan→丑, Feb→寅, Mar→卯, Apr→辰, May→巳, Jun→午,
-# Jul→未, Aug→申, Sep→酉, Oct→戌, Nov→亥, Dec→子
-_MONTH_BRANCH = [
-    EarthlyBranch.CHOU,  # Jan  (1)
-    EarthlyBranch.YIN,   # Feb  (2)
-    EarthlyBranch.MAO,   # Mar  (3)
-    EarthlyBranch.CHEN,  # Apr  (4)
-    EarthlyBranch.SI,    # May  (5)
-    EarthlyBranch.WU_,   # Jun  (6)
-    EarthlyBranch.WEI,   # Jul  (7)
-    EarthlyBranch.SHEN,  # Aug  (8)
-    EarthlyBranch.YOU,   # Sep  (9)
-    EarthlyBranch.XU,    # Oct  (10)
-    EarthlyBranch.HAI,   # Nov  (11)
-    EarthlyBranch.ZI,    # Dec  (12)
-]
-
 # Starting stem of 寅月 indexed by (year_stem_index % 5)
 # 甲己→丙, 乙庚→戊, 丙辛→庚, 丁壬→壬, 戊癸→甲
 _MONTH_STEM_BASE = [2, 4, 6, 8, 0]  # index into STEMS for 寅月
 
 def _month_pillar(birth_date: date, year_stem: HeavenlyStem) -> Pillar:
     """
-    Month pillar.
-    Strict BaZi uses actual 節氣 dates (approx every 15° of solar longitude).
-    TODO: Use precise 節氣 table for production accuracy.
+    Month pillar.  V1.4: boundary determined by solar terms via
+    _month_branch_from_solar_terms().
+    calculation_mode = "solar_term_approx"
     """
-    month = birth_date.month
-    # Approximate: transition around the 6th of each month
-    if birth_date.day < 6:
-        month -= 1
-        if month == 0:
-            month = 12
-
-    branch = _MONTH_BRANCH[month - 1]
+    branch = _month_branch_from_solar_terms(birth_date)
     branch_idx = BRANCHES.index(branch)  # 0-based index, 寅=2
 
     year_stem_idx = STEMS.index(year_stem)
     base_stem_idx = _MONTH_STEM_BASE[year_stem_idx % 5]
     # 寅月 has base stem; each subsequent branch adds 1 stem
-    # branch_idx relative to 寅 (index 2)
     stem_offset = (branch_idx - 2) % 12
     stem = STEMS[(base_stem_idx + stem_offset) % 10]
     return Pillar(heavenly_stem=stem, earthly_branch=branch,
@@ -281,6 +302,7 @@ class BaZiEngine:
         mp = _month_pillar(birth_date, yp.heavenly_stem)
         dp = _day_pillar(birth_date)
         hp = _hour_pillar(birth_time, dp.heavenly_stem) if birth_time else None
+        time_known = birth_time is not None
 
         day_master = dp.heavenly_stem
         dm_elem    = STEM_ELEMENT[day_master]
@@ -318,6 +340,12 @@ class BaZiEngine:
         # Annual luck for next 10 years
         liu_nian = self._calc_liu_nian(current_year, count=10)
 
+        accuracy_parts = [
+            "V1.4 使用節氣近似日期切年切月；若需專業級精準，後續版本將導入天文節氣精確時刻。"
+        ]
+        if not time_known:
+            accuracy_parts.append("時柱需精確出生時間，當前不可視為精準。")
+
         return BaZiChart(
             year_pillar=yp,
             month_pillar=mp,
@@ -338,6 +366,11 @@ class BaZiEngine:
             da_yun=da_yun,
             liu_nian=liu_nian,
             is_mock=False,
+            calculation_mode="solar_term_approx",
+            accuracy_note=" ".join(accuracy_parts),
+            year_boundary_rule="lichun",
+            month_boundary_rule="solar_terms",
+            birth_time_accuracy="known" if time_known else "unknown",
         )
 
     def _calc_da_yun(self, month_pillar: Pillar,
