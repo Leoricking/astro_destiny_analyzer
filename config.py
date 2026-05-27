@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.3.5"
+APP_VERSION = "1.4.5"
 APP_SUBTITLE = "命盤整合分析系統"
 
 DISCLAIMER_ZH = """
@@ -27,6 +27,13 @@ REPORT_FULL_WORD_TARGET = 10000
 
 # Supported languages
 SUPPORTED_LANGUAGES = ["繁體中文", "簡體中文", "English"]
+
+# BaZi 子時換日 policy
+# "late_zi_same_day"  : 23:00-23:59 stays on the same calendar day (default)
+# "late_zi_next_day"  : 23:00-23:59 advances to the next calendar day
+# Note: this policy only affects the day pillar (and consequently the hour pillar).
+# Year/month pillars always follow the original birth date + solar-term rules.
+ZI_HOUR_POLICY: str = "late_zi_same_day"
 
 # Swiss Ephemeris settings
 USE_SWISS_EPHEMERIS: bool = True          # set False to force mock

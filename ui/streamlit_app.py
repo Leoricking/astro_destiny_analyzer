@@ -343,6 +343,9 @@ elif page == "📝 輸入資料":
             with col_m:
                 st.number_input("分", min_value=0, max_value=59, step=1,
                                 key="input_birth_minute")
+            st.caption(
+                "ℹ️ 23:00～23:59 子時換日規則可依派別不同；本版預設晚子時不換日（late_zi_same_day）。"
+            )
         else:
             st.caption(
                 "⚠️ 出生時間未填：行星以中午 12:00 估算（可能有誤差）；"

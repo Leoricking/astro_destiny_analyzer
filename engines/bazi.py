@@ -6,8 +6,13 @@ V1.4: Solar term driven year/month pillar calculation.
   - Month boundary: 12 solar terms (節令) with approximate dates.
   - calculation_mode = "solar_term_approx"; future versions may use
     precise astronomical solar longitudes.
+V1.4.5: Day/hour pillar precision & 子時 policy.
+  - _get_hour_branch(hour, minute): explicit time-branch mapping.
+  - _hour_stem(day_stem, hour_branch): explicit hour-stem derivation.
+  - zi_hour_policy: "late_zi_same_day" (default) | "late_zi_next_day".
+  - day_pillar_accuracy, hour_pillar_accuracy, hour_pillar_is_precise fields.
 """
-from datetime import date, time
+from datetime import date, time, timedelta
 from typing import Optional, List, Dict, Tuple
 from core.models import (
     BaZiChart, Pillar, LuckPeriod, AnnualLuck,
@@ -153,6 +158,7 @@ def _month_pillar(birth_date: date, year_stem: HeavenlyStem) -> Pillar:
 
 
 # Reference: JDN 2415080 (1900-01-31) = 甲子日 (cycle index 0)
+# Formula: standard proleptic Gregorian JDN computation.
 _BAZI_JDN_REF = 2415080
 
 def _jdn(d: date) -> int:
@@ -163,8 +169,16 @@ def _jdn(d: date) -> int:
     return (d.day + (153 * m + 2) // 5 + 365 * y
             + y // 4 - y // 100 + y // 400 - 32045)
 
-def _day_pillar(birth_date: date) -> Pillar:
-    jdn = _jdn(birth_date)
+def _day_pillar(effective_date: date) -> Pillar:
+    """
+    Day pillar via JDN sexagenary cycle.
+    day_pillar_accuracy = "approx": the JDN reference (1900-01-31 = 甲子日)
+    is widely used but not universally agreed; treat as approximate until
+    verified against a canonical reference table.
+    When zi_hour_policy = "late_zi_next_day", effective_date may differ
+    from the actual birth date (see BaZiEngine.calculate).
+    """
+    jdn = _jdn(effective_date)
     idx = (jdn - _BAZI_JDN_REF) % 60
     stem   = STEMS[idx % 10]
     branch = BRANCHES[idx % 12]
@@ -172,33 +186,56 @@ def _day_pillar(birth_date: date) -> Pillar:
                   element=STEM_ELEMENT[stem], label="日柱")
 
 
-# Hour branch: 子時=23-1, 丑=1-3, 寅=3-5, 卯=5-7, 辰=7-9, 巳=9-11,
-#              午=11-13, 未=13-15, 申=15-17, 酉=17-19, 戌=19-21, 亥=21-23
+# ── Hour Branch & Stem (V1.4.5) ───────────────────────────────────────────────
+
+def _get_hour_branch(hour: int, minute: int) -> EarthlyBranch:
+    """
+    Map (hour, minute) to EarthlyBranch.
+    子：23:00-00:59  丑：01:00-02:59  寅：03:00-04:59
+    卯：05:00-06:59  辰：07:00-08:59  巳：09:00-10:59
+    午：11:00-12:59  未：13:00-14:59  申：15:00-16:59
+    酉：17:00-18:59  戌：19:00-20:59  亥：21:00-22:59
+    minute is accepted for API completeness; branching is by hour only.
+    """
+    if hour == 23 or hour == 0:   return EarthlyBranch.ZI
+    elif 1  <= hour < 3:          return EarthlyBranch.CHOU
+    elif 3  <= hour < 5:          return EarthlyBranch.YIN
+    elif 5  <= hour < 7:          return EarthlyBranch.MAO
+    elif 7  <= hour < 9:          return EarthlyBranch.CHEN
+    elif 9  <= hour < 11:         return EarthlyBranch.SI
+    elif 11 <= hour < 13:         return EarthlyBranch.WU_
+    elif 13 <= hour < 15:         return EarthlyBranch.WEI
+    elif 15 <= hour < 17:         return EarthlyBranch.SHEN
+    elif 17 <= hour < 19:         return EarthlyBranch.YOU
+    elif 19 <= hour < 21:         return EarthlyBranch.XU
+    else:                         return EarthlyBranch.HAI  # 21-22
+
+
 def _hour_branch(t: time) -> EarthlyBranch:
-    h = t.hour
-    if h == 23 or h == 0:    return EarthlyBranch.ZI
-    elif 1 <= h < 3:          return EarthlyBranch.CHOU
-    elif 3 <= h < 5:          return EarthlyBranch.YIN
-    elif 5 <= h < 7:          return EarthlyBranch.MAO
-    elif 7 <= h < 9:          return EarthlyBranch.CHEN
-    elif 9 <= h < 11:         return EarthlyBranch.SI
-    elif 11 <= h < 13:        return EarthlyBranch.WU_
-    elif 13 <= h < 15:        return EarthlyBranch.WEI
-    elif 15 <= h < 17:        return EarthlyBranch.SHEN
-    elif 17 <= h < 19:        return EarthlyBranch.YOU
-    elif 19 <= h < 21:        return EarthlyBranch.XU
-    else:                     return EarthlyBranch.HAI
+    """Thin wrapper around _get_hour_branch for backward compatibility."""
+    return _get_hour_branch(t.hour, t.minute)
+
 
 # Starting stem of 子時 indexed by (day_stem_index % 5)
-# 甲己→甲, 乙庚→丙, 丙辛→戊, 丁壬→庚, 戊癸→壬
+# 甲己→甲(0), 乙庚→丙(2), 丙辛→戊(4), 丁壬→庚(6), 戊癸→壬(8)
 _HOUR_STEM_BASE = [0, 2, 4, 6, 8]
 
+
+def _hour_stem(day_stem: HeavenlyStem, hour_branch: EarthlyBranch) -> HeavenlyStem:
+    """
+    Derive hour heavenly stem from day master and hour branch.
+    Rule: 甲己→甲子起, 乙庚→丙子起, 丙辛→戊子起, 丁壬→庚子起, 戊癸→壬子起.
+    Each subsequent branch increments the stem by 1.
+    """
+    day_stem_idx  = STEMS.index(day_stem)
+    base          = _HOUR_STEM_BASE[day_stem_idx % 5]
+    branch_idx    = BRANCHES.index(hour_branch)
+    return STEMS[(base + branch_idx) % 10]
+
+
 def _hour_pillar(birth_time: time, day_stem: HeavenlyStem) -> Pillar:
-    branch = _hour_branch(birth_time)
-    branch_idx = BRANCHES.index(branch)
-    day_stem_idx = STEMS.index(day_stem)
-    base = _HOUR_STEM_BASE[day_stem_idx % 5]
-    stem = STEMS[(base + branch_idx) % 10]
+    branch = _get_hour_branch(birth_time.hour, birth_time.minute)
+    stem   = _hour_stem(day_stem, branch)
     return Pillar(heavenly_stem=stem, earthly_branch=branch,
                   element=STEM_ELEMENT[stem], label="時柱")
 
@@ -293,16 +330,31 @@ def _favorable_elements(day_master: HeavenlyStem,
 class BaZiEngine:
     def calculate(self, birth_date: date,
                   birth_time: Optional[time] = None,
-                  current_year: Optional[int] = None) -> BaZiChart:
+                  current_year: Optional[int] = None,
+                  zi_hour_policy: Optional[str] = None) -> BaZiChart:
         if current_year is None:
             from datetime import date as _d
             current_year = _d.today().year
 
+        from config import ZI_HOUR_POLICY as _DEFAULT_ZI_POLICY
+        policy = zi_hour_policy if zi_hour_policy is not None else _DEFAULT_ZI_POLICY
+
+        # Year and month pillars always use the original birth date + solar terms.
         yp = _year_pillar(birth_date)
         mp = _month_pillar(birth_date, yp.heavenly_stem)
-        dp = _day_pillar(birth_date)
-        hp = _hour_pillar(birth_time, dp.heavenly_stem) if birth_time else None
+
+        # Day pillar: may shift one day forward when zi_hour_policy = late_zi_next_day
+        # and the birth hour is 23:xx (晚子時).  Only the day/hour pillars are affected;
+        # year and month boundaries remain tied to the actual birth date.
         time_known = birth_time is not None
+        day_date = birth_date
+        zi_note = ""
+        if time_known and birth_time.hour == 23 and policy == "late_zi_next_day":
+            day_date = birth_date + timedelta(days=1)
+            zi_note = "晚子時換日派別會影響日柱與時柱，請依命理師習慣選擇。"
+
+        dp = _day_pillar(day_date)
+        hp = _hour_pillar(birth_time, dp.heavenly_stem) if birth_time else None
 
         day_master = dp.heavenly_stem
         dm_elem    = STEM_ELEMENT[day_master]
@@ -345,6 +397,8 @@ class BaZiEngine:
         ]
         if not time_known:
             accuracy_parts.append("時柱需精確出生時間，當前不可視為精準。")
+        if zi_note:
+            accuracy_parts.append(zi_note)
 
         return BaZiChart(
             year_pillar=yp,
@@ -371,6 +425,10 @@ class BaZiEngine:
             year_boundary_rule="lichun",
             month_boundary_rule="solar_terms",
             birth_time_accuracy="known" if time_known else "unknown",
+            day_pillar_accuracy="approx",
+            hour_pillar_accuracy="precise" if time_known else "unknown",
+            zi_hour_policy=policy,
+            hour_pillar_is_precise=time_known,
         )
 
     def _calc_da_yun(self, month_pillar: Pillar,

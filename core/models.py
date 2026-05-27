@@ -259,6 +259,11 @@ class BaZiChart(BaseModel):
     year_boundary_rule: str = "lichun"
     month_boundary_rule: str = "solar_terms"
     birth_time_accuracy: str = "known"        # "known" | "unknown"
+    # V1.4.5: day/hour precision fields
+    day_pillar_accuracy: str = "approx"       # JDN-based; "approx" until verified
+    hour_pillar_accuracy: str = "unknown"     # "precise" | "unknown"
+    zi_hour_policy: str = "late_zi_same_day" # "late_zi_same_day" | "late_zi_next_day"
+    hour_pillar_is_precise: bool = False
 
 
 # ── Zi Wei Dou Shu Models ─────────────────────────────────────────────────────

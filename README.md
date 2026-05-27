@@ -384,6 +384,49 @@ accuracy_note：V1.4 使用節氣近似日期切年切月；若需專業級精�
 - `birth_time_accuracy = "unknown"`
 - `accuracy_note` 附加說明「時柱需精確出生時間，當前不可視為精準」
 
+#### V1.4.5 日柱 / 時柱精準化（已完成）
+
+**時辰地支切分**（`_get_hour_branch(hour, minute)`）：
+
+| 時辰 | 時段 |
+|---|---|
+| 子 | 23:00–00:59 |
+| 丑 | 01:00–02:59 |
+| 寅 | 03:00–04:59 |
+| 卯 | 05:00–06:59 |
+| 辰 | 07:00–08:59 |
+| 巳 | 09:00–10:59 |
+| 午 | 11:00–12:59 |
+| 未 | 13:00–14:59 |
+| 申 | 15:00–16:59 |
+| 酉 | 17:00–18:59 |
+| 戌 | 19:00–20:59 |
+| 亥 | 21:00–22:59 |
+
+**時干依日干推算**（`_hour_stem(day_stem, hour_branch)`）：
+
+| 日干 | 子時起 |
+|---|---|
+| 甲、己 | 甲 |
+| 乙、庚 | 丙 |
+| 丙、辛 | 戊 |
+| 丁、壬 | 庚 |
+| 戊、癸 | 壬 |
+
+**子時 Policy**（`ZI_HOUR_POLICY`，設定於 `config.py`）：
+
+| 模式 | 說明 |
+|---|---|
+| `late_zi_same_day`（預設）| 23:00–23:59 仍視為當天日柱；00:00–00:59 亦同當天 |
+| `late_zi_next_day` | 23:00–23:59 視為隔日日柱（部分命理派別） |
+
+注意：子時 policy 僅影響日柱與時柱。年柱 / 月柱仍依原始出生日期 + 節氣規則計算，不受影響。
+
+出生時間未知：
+- `birth_time_accuracy = "unknown"`
+- `hour_pillar_is_precise = False`
+- `accuracy_note` 說明「時柱需精確出生時間，當前不可視為精準」
+
 後續：
 
 - 導入 pyswisseph 太陽黃經計算精準節氣時刻（升級為 `solar_term_precise`）
@@ -445,7 +488,7 @@ feat: add astro destiny analyzer MVP
 ## 14. 版本資訊
 
 ```text
-Version: v1.4.0
+Version: v1.4.5
 Date: 2026-05-27
-Status: BaZi Solar Term Precision Upgrade
+Status: BaZi Day/Hour Precision & Zi Hour Policy
 ```
