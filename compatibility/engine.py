@@ -734,7 +734,11 @@ class CompatibilityEngine:
         if ziwei.main_star_resonance and "不同" not in ziwei.main_star_resonance:
             strengths.append("紫微：" + ziwei.main_star_resonance[:40])
         if not strengths:
-            strengths = ["兩人都有意識地了解彼此是最大的優勢"]
+            strengths.append("兩人都有意識地了解彼此是最大的優勢")
+        if len(strengths) < 2:
+            strengths.append("不同的背景與視角讓雙方能互相帶來新的思維與刺激")
+        if len(strengths) < 3:
+            strengths.append("願意進行合盤分析本身，代表雙方對關係品質的重視")
 
         challenges: List[str] = []
         if astro.tension_factors and "暫無" not in astro.tension_factors[0]:
@@ -744,7 +748,11 @@ class CompatibilityEngine:
         if num.challenge_theme:
             challenges.append("靈數：" + num.challenge_theme)
         if not challenges:
-            challenges = ["目前分析未偵測到重大挑戰，維持開放溝通即可"]
+            challenges.append("目前分析未偵測到重大挑戰，維持開放溝通即可")
+        if len(challenges) < 2:
+            challenges.append("避免假設對方的想法與感受，多用「我感受到」取代「你都」")
+        if len(challenges) < 3:
+            challenges.append("在重大決策前，確保雙方都有充分表達意見與底線的空間")
 
         emotional_pattern = (
             f"月亮配對（{astro.moon_pair.split('（')[0].strip()}）"
@@ -778,22 +786,27 @@ class CompatibilityEngine:
         )
 
         practical_advice = [
-            "每週安排一次「無手機的對話時光」，讓溝通不只停留在日常事務層面。",
+            "每週安排一次「30 分鐘關係會議」：無手機，輪流分享本週一件讓你開心的事和一件讓你困擾的事。",
             blood.advice if blood.advice else "理解彼此的壓力反應模式，衝突時先照顧情緒，再解決問題。",
             "當感受到對方行為模式令你困惑時，先好奇而非評判，問「你這樣做的原因是什麼？」",
+            "衝突時先暫停 20 分鐘再繼續對話，避免在情緒最高點說出無法收回的話。",
+            "用「我感受到…因為我需要…」取代「你都…你從來…」，描述自己的感受而非評判對方。",
+            "重大決策前，各自先寫下自己的底線與期望，再一起討論，減少誤解與假設。",
         ]
 
         thirty_day = [
-            "第 1 週：各自寫下「我在關係中最重視的三件事」，並交換閱讀。",
-            "第 2 週：觀察對方的壓力反應模式（逃避？直接說？沉默？），記下來但不評論。",
-            "第 3 週：挑選一個你們意見不同的話題，練習先完整聽對方說完再回應。",
-            "第 4 週：一起規劃一件兩人都期待的事，從計畫到執行，觀察彼此的協作模式。",
+            "**Week 1：觀察彼此觸發點** — 各自記錄本週什麼情況讓自己感到不舒服，不評論，只觀察並寫下來。",
+            "**Week 2：建立溝通規則** — 約定衝突時的「暫停信號」（如舉手或說「我需要 20 分鐘」），並建立每週固定的對話時間。",
+            "**Week 3：做一次共同決策** — 選一個兩人都有意見的決定，練習先完整聽完對方說法，再說自己的立場。",
+            "**Week 4：回顧與調整** — 一起回顧這個月：什麼溝通方式有效？什麼需要調整？記錄下來作為關係備忘錄。",
         ]
 
         warning = (
             "本報告為關係理解與溝通參考，不代表絕對適合或不適合。"
             "分數與描述皆為參考性質，最終關係品質由兩人共同創造。"
             "本報告不構成科學定論、醫療診斷、法律意見或任何形式的絕對命運預測。"
+            "\n\n若現實關係中存在羞辱、操控、暴力、財務控制或長期情緒勒索，"
+            "請優先尋求現實支持與專業協助，建立安全界線優先於任何命盤分析。"
         )
 
         return CompatibilitySynthesis(

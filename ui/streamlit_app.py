@@ -1128,6 +1128,11 @@ elif page == "📤 匯出":
 elif page == "💕 合盤分析":
     st.title("💕 合盤分析")
     st.caption("情侶、伴侶、合作夥伴、親子、朋友、同事 — 多系統關係互動分析")
+    st.info(
+        "**合盤分數不是絕對適合度，而是互動模式地圖。**\n\n"
+        "高衝突不一定不好，低衝突也不一定代表長期成長。"
+        "分數描述的是互動模式的可觀察指標，關係品質由兩人共同創造。"
+    )
 
     from compatibility.engine import CompatibilityEngine
     from compatibility.models import CompatibilityInput, RelationshipType
@@ -1338,23 +1343,27 @@ elif page == "💕 合盤分析":
     st.divider()
     st.subheader("⚡ 快速體驗")
     st.caption("直接載入範例資料，體驗合盤分析流程。")
-    dc1, dc2 = st.columns(2)
-    with dc1:
-        if st.button("💑 載入 Demo 情侶合盤", use_container_width=True, key="compat_demo_romantic"):
-            couple = SAMPLE_COUPLES[0]
-            st.session_state["compat_a_profile"] = couple["person_a"]
-            st.session_state["compat_b_profile"] = couple["person_b"]
-            st.session_state["compat_rel_type"] = "情侶 / 伴侶"
-            st.session_state["compatibility_report"] = None
-            st.rerun()
-    with dc2:
-        if st.button("🤝 載入 Demo 合作夥伴", use_container_width=True, key="compat_demo_business"):
-            couple = SAMPLE_COUPLES[1]
-            st.session_state["compat_a_profile"] = couple["person_a"]
-            st.session_state["compat_b_profile"] = couple["person_b"]
-            st.session_state["compat_rel_type"] = "合作夥伴"
-            st.session_state["compatibility_report"] = None
-            st.rerun()
+    _DEMO_RT_MAP = {"romantic": "情侶 / 伴侶", "business": "合作夥伴", "parent_child": "親子"}
+    _DEMO_ICONS = ["💑", "🤝", "👨‍👩‍👧"]
+    _demo_cols = st.columns(len(SAMPLE_COUPLES))
+    for _di, (_dcol, _couple) in enumerate(zip(_demo_cols, SAMPLE_COUPLES)):
+        with _dcol:
+            _btn_label = f"{_DEMO_ICONS[_di] if _di < len(_DEMO_ICONS) else '👥'} {_couple['label']}"
+            if st.button(_btn_label, use_container_width=True, key=f"compat_demo_{_di}"):
+                st.session_state["compat_a_profile"] = _couple["person_a"]
+                st.session_state["compat_b_profile"] = _couple["person_b"]
+                _rt_ui = _DEMO_RT_MAP.get(_couple["relationship_type"], "一般關係")
+                st.session_state["compat_rel_type"] = _rt_ui
+                st.session_state["compatibility_report"] = None
+                st.session_state[f"show_demo_info_{_di}"] = True
+                st.rerun()
+            if st.session_state.get(f"show_demo_info_{_di}"):
+                st.caption(_couple.get("description", ""))
+                _tps = _couple.get("talking_points", [])
+                if _tps:
+                    st.markdown("**展示重點：**")
+                    for _tp in _tps:
+                        st.markdown(f"- {_tp}")
 
     # ── Generate ──────────────────────────────────────────────────────────────
     st.divider()
@@ -1393,6 +1402,9 @@ elif page == "💕 合盤分析":
         with om1:
             st.metric("綜合評分", f"{sc.overall_score}/100")
             st.caption(sc.score_label())
+            _dyn = sc.dynamic_label()
+            if _dyn != sc.score_label():
+                st.caption(f"🔍 {_dyn}")
         with om2:
             sm1, sm2, sm3, sm4 = st.columns(4)
             sm1.metric("情感共鳴", sc.emotional_score)
@@ -1403,11 +1415,16 @@ elif page == "💕 合盤分析":
             sm5.metric("成長潛力", sc.growth_score)
             sm6.metric("衝突強度", sc.conflict_score)
             sm7.metric("協作效能", sc.collaboration_score)
+        st.caption("⚠️ 衝突分數高代表張力強，不代表關係不好。")
 
-        # Tabs
-        tab_overview, tab_astro, tab_bazi, tab_ziwei, tab_num_blood, tab_md = st.tabs(
-            ["總覽", "西洋占星", "八字", "紫微", "靈數 / 血型", "Markdown 原文"]
-        )
+        # Tabs (10 tabs)
+        (tab_overview, tab_emo_comm, tab_attract, tab_conflict,
+         tab_astro, tab_bazi, tab_ziwei, tab_num_blood,
+         tab_md, tab_export_tab) = st.tabs([
+            "總覽", "情緒 / 溝通", "吸引力 / 合作", "衝突修復",
+            "西洋占星", "八字", "紫微", "靈數 / 血型",
+            "報告原文", "匯出",
+        ])
 
         with tab_overview:
             st.markdown(f"**關係總論**\n\n{_cr.synthesis.relationship_summary}")
@@ -1420,6 +1437,39 @@ elif page == "💕 合盤分析":
             st.subheader("溝通建議")
             for i, a in enumerate(_cr.synthesis.practical_advice, 1):
                 st.markdown(f"{i}. {a}")
+
+        with tab_emo_comm:
+            _syn = _cr.synthesis
+            st.subheader("情緒互動模式")
+            st.markdown(_syn.emotional_pattern)
+            st.divider()
+            st.subheader("溝通模式")
+            st.markdown(_syn.communication_pattern)
+
+        with tab_attract:
+            st.subheader("吸引力與合作動能")
+            st.markdown(_cr.synthesis.attraction_pattern)
+
+        with tab_conflict:
+            st.subheader("衝突模式")
+            st.markdown(_cr.synthesis.conflict_pattern)
+            st.divider()
+            st.subheader("衝突修復步驟")
+            _repair_steps = [
+                "**暫停** — 感到情緒升高時，約定「暫停 20 分鐘」的信號。",
+                "**命名情緒** — 用「我現在感到…」說出自己的情緒狀態。",
+                "**回到事實** — 只描述具體發生的事，不加推測或標籤。",
+                "**說明需求** — 表達「我需要的是…」，而非期待對方猜測。",
+                "**約定下一步** — 衝突結束前，各說一個可以做到的具體行動。",
+                "**不翻舊帳** — 每次衝突只處理當下議題。",
+                "**不用沉默懲罰** — 需要空間時說出來，而不是冷戰。",
+            ]
+            for i, s in enumerate(_repair_steps, 1):
+                st.markdown(f"{i}. {s}")
+            st.divider()
+            st.subheader("30 天關係練習")
+            for p in _cr.synthesis.thirty_day_practice:
+                st.markdown(f"- {p}")
 
         with tab_astro:
             ast = _cr.astrology
@@ -1464,64 +1514,71 @@ elif page == "💕 合盤分析":
             st.markdown(f"- **建議**：{bld.advice}")
 
         with tab_md:
-            st.text_area("Markdown 原文", value=_cr.markdown_body, height=500,
+            st.text_area("報告原文", value=_cr.markdown_body, height=500,
                          label_visibility="collapsed")
 
-        # ── Export ────────────────────────────────────────────────────────────
-        st.divider()
-        st.subheader("📤 匯出合盤報告")
-        ex1, ex2, ex3 = st.columns(3)
-        with ex1:
-            _md_bytes = _cr.markdown_body.encode("utf-8")
-            st.download_button(
-                label="📝 下載 Markdown",
-                data=_md_bytes,
-                file_name=make_compat_filename(
-                    _cr.person_a_profile.name,
-                    _cr.person_b_profile.name,
-                    "md",
-                ),
-                mime="text/markdown",
-                use_container_width=True,
-            )
-        with ex2:
-            try:
-                _html_str = export_compat_to_html(_cr)
+        with tab_export_tab:
+            st.subheader("📤 匯出合盤報告")
+            st.caption("選擇適合用途的匯出格式：")
+            ex1, ex2, ex3 = st.columns(3)
+            _rt_str = _cr.relationship_type.value
+            with ex1:
+                st.caption("📝 **Markdown** — 適合二次編輯與純文字使用")
+                _md_bytes = _cr.markdown_body.encode("utf-8")
                 st.download_button(
-                    label="🌐 下載 HTML",
-                    data=_html_str.encode("utf-8"),
+                    label="📝 下載 Markdown",
+                    data=_md_bytes,
                     file_name=make_compat_filename(
                         _cr.person_a_profile.name,
                         _cr.person_b_profile.name,
-                        "html",
+                        "md",
+                        _rt_str,
                     ),
-                    mime="text/html",
+                    mime="text/markdown",
                     use_container_width=True,
                 )
-            except Exception as _he:
-                st.button("🌐 HTML（錯誤）", disabled=True, use_container_width=True)
-                st.warning(str(_he))
-        with ex3:
-            if _DocxExporter().is_available():
+            with ex2:
+                st.caption("🌐 **HTML** — 適合展示與列印")
                 try:
-                    _docx_bytes = export_compat_to_docx(_cr)
+                    _html_str = export_compat_to_html(_cr)
                     st.download_button(
-                        label="📘 下載 Word",
-                        data=_docx_bytes,
+                        label="🌐 下載 HTML",
+                        data=_html_str.encode("utf-8"),
                         file_name=make_compat_filename(
                             _cr.person_a_profile.name,
                             _cr.person_b_profile.name,
-                            "docx",
+                            "html",
+                            _rt_str,
                         ),
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        mime="text/html",
                         use_container_width=True,
                     )
-                except Exception as _de:
-                    st.button("📘 Word（錯誤）", disabled=True, use_container_width=True)
-                    st.warning(str(_de))
-            else:
-                st.button("📘 Word（未安裝）", disabled=True, use_container_width=True)
-                st.info("pip install python-docx")
+                except Exception as _he:
+                    st.button("🌐 HTML（錯誤）", disabled=True, use_container_width=True)
+                    st.warning(str(_he))
+            with ex3:
+                st.caption("📘 **Word** — 適合交付與排版")
+                if _DocxExporter().is_available():
+                    try:
+                        _docx_bytes = export_compat_to_docx(_cr)
+                        st.download_button(
+                            label="📘 下載 Word",
+                            data=_docx_bytes,
+                            file_name=make_compat_filename(
+                                _cr.person_a_profile.name,
+                                _cr.person_b_profile.name,
+                                "docx",
+                                _rt_str,
+                            ),
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True,
+                        )
+                    except Exception as _de:
+                        st.button("📘 Word（錯誤）", disabled=True, use_container_width=True)
+                        st.warning(str(_de))
+                else:
+                    st.button("📘 Word（未安裝）", disabled=True, use_container_width=True)
+                    st.info("pip install python-docx")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

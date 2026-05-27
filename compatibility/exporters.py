@@ -1,6 +1,6 @@
 """
 Astro Destiny Analyzer — Compatibility Exporters
-V1.7.0
+V1.7.1
 
 Provides HTML and DOCX export for CompatibilityReport.
 Reuses _CSS from reports.html_exporter and sanitize_filename from reports.utils.
@@ -16,11 +16,14 @@ if TYPE_CHECKING:
     from compatibility.models import CompatibilityReport
 
 
-def make_compat_filename(name_a: str, name_b: str, ext: str) -> str:
-    """Build: {safe_a}_x_{safe_b}_合盤分析報告_{YYYYMMDD_HHMM}.{ext}"""
+def make_compat_filename(name_a: str, name_b: str, ext: str, rel_type: str = "") -> str:
+    """Build: {safe_a}_x_{safe_b}_{rel_type}_合盤分析報告_{YYYYMMDD_HHMM}.{ext}"""
     safe_a = sanitize_filename(name_a)
     safe_b = sanitize_filename(name_b)
+    safe_rt = sanitize_filename(rel_type) if rel_type else ""
     ts = datetime.now().strftime("%Y%m%d_%H%M")
+    if safe_rt:
+        return f"{safe_a}_x_{safe_b}_{safe_rt}_合盤分析報告_{ts}.{ext}"
     return f"{safe_a}_x_{safe_b}_合盤分析報告_{ts}.{ext}"
 
 
@@ -49,7 +52,9 @@ def export_compat_to_html(report: "CompatibilityReport") -> str:
 
     pa = report.person_a_profile
     pb = report.person_b_profile
-    title_text = f"{pa.name} × {pb.name} 合盤分析報告"
+    from compatibility.models import relationship_label
+    rt_label_str = relationship_label(report.relationship_type)
+    title_text = f"{pa.name} × {pb.name} {rt_label_str} 合盤分析報告"
 
     html = (
         "<!DOCTYPE html>\n"

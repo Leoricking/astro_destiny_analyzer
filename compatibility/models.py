@@ -72,6 +72,14 @@ class ScoreBreakdown(BaseModel):
             return "磨合壓力高"
         return "需要高度成熟與界線"
 
+    def dynamic_label(self) -> str:
+        """Context-aware label that factors in conflict + growth patterns."""
+        if self.conflict_score >= 65 and self.growth_score >= 65:
+            return "高張力高成長"
+        if self.conflict_score < 45 and self.growth_score < 50:
+            return "舒適但需避免停滯"
+        return self.score_label()
+
 
 # ── Sub-system Compatibility ──────────────────────────────────────────────────
 
