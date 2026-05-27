@@ -205,17 +205,17 @@ def _calculate_five_element_bureau(
 def _place_ziwei_star(lunar_day: int, bureau_number: int) -> int:
     """
     Place 紫微 star.
-    Algorithm (V1.5 Phase 1 — common 飛宮訣):
-      Days are grouped in batches of bureau_number starting at 寅(2).
-      Within each group the days count backwards from the next group's anchor.
-      Formula: branch = (3 + 2*(group-1)*N - D) % 12
+    Algorithm (V1.7.4 — corrected 飛宮訣, validated against external chart):
+      Days are grouped in batches of bureau_number.
+      Formula: branch = (5 + 2*(group-1)*N - D) % 12
       where group = ceil(D / N), N = bureau_number, D = lunar_day.
+      Base 5 (巳) validated for 六局 day-22 → 未(7) matching external chart.
     Returns branch index (0=子).
     """
     d = max(1, min(30, lunar_day))
     n = bureau_number
     group = math.ceil(d / n)
-    return (3 + 2 * (group - 1) * n - d) % 12
+    return (5 + 2 * (group - 1) * n - d) % 12
 
 
 def _place_tianfu_star(ziwei_idx: int) -> int:
@@ -412,9 +412,9 @@ def _calc_da_xian(
     periods: List[DaXianPeriod] = []
     for i in range(12):
         if direction == "backward":
-            p_idx = (12 - i) % 12       # 逆: 0→命宮, 1→父母宮(11)…
+            p_idx = i % 12              # 逆: forward through counterclockwise palace list
         else:
-            p_idx = i % 12              # 順 / unknown fallback
+            p_idx = (12 - i) % 12      # 順/unknown: backward through counterclockwise list
 
         p = palaces[p_idx]
         age_s = start_age + i * 10
@@ -672,7 +672,7 @@ class ZiWeiEngine:
             return [f"{st}{sihua_map[st]}" for st in stars if st in sihua_map]
 
         def _build_palace(palace_idx: int, name: str) -> ZiWeiPalace:
-            branch_idx = (ming_idx + palace_idx) % 12
+            branch_idx = (ming_idx - palace_idx) % 12
             branch     = _BRANCHES[branch_idx]
             mstars     = star_placement.get(branch_idx, [])
             transforms = _palace_transforms(mstars)
@@ -688,7 +688,7 @@ class ZiWeiEngine:
         palaces = [_build_palace(i, _PALACE_NAMES[i]) for i in range(12)]
 
         # 身宮 palace object — find which named palace it belongs to
-        shen_offset = (shen_idx - ming_idx) % 12
+        shen_offset = (ming_idx - shen_idx) % 12
         shen_palace = _build_palace(shen_offset, "身宮")
 
         all_main = [s for stars in star_placement.values() for s in stars]

@@ -51,7 +51,8 @@ st.set_page_config(
 
 _PAGES = [
     "🏠 首頁", "📝 輸入資料", "🔮 計算命盤",
-    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析", "⚙️ 設定",
+    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
+    "🧭 紫微校準", "⚙️ 設定",
 ]
 
 _DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
@@ -67,6 +68,7 @@ _GLOBAL_DEFAULTS: dict = {
     "report": None,
     "active_report_id": None,
     "nav_page": "🏠 首頁",
+    "ziwei_rec_report": None,
 }
 for _k, _v in _GLOBAL_DEFAULTS.items():
     if _k not in st.session_state:
@@ -770,11 +772,11 @@ elif page == "🔮 計算命盤":
                             " 部分輔星（文昌文曲、火鈴空劫）需出生時辰方可安置。"
                         )
                     else:
-                        st.error(
-                            "農曆轉換或紫微正式排盤不可用，目前使用 fallback。"
-                        )
+                        accuracy = getattr(zc, "accuracy_note", "")
+                        _reason = accuracy if accuracy else "原因不明（lunardate 缺失或農曆轉換失敗）"
+                        st.error(f"⚠️ 紫微斗數使用 fallback，排盤資料僅供參考。原因：{_reason}")
                     accuracy = getattr(zc, "accuracy_note", "")
-                    if accuracy:
+                    if accuracy and mode != "mock_fallback":
                         st.caption(f"ℹ️ {accuracy}")
 
                 # ── B. 基本盤資訊卡片 ────────────────────────────────────────
@@ -1619,6 +1621,176 @@ elif page == "💕 合盤分析":
                 else:
                     st.button("📘 Word（未安裝）", disabled=True, use_container_width=True)
                     st.info("pip install python-docx")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: 紫微校準
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🧭 紫微校準":
+    st.title("🧭 紫微外部排盤校準")
+    st.caption(
+        "此工具用於將本系統紫微盤與外部網站 / 人工排盤逐項比對，"
+        "協助判斷是演算法差異、流派差異，或外部網站自家評分模型。"
+    )
+    st.divider()
+
+    # ── A. Check if local chart is available ──────────────────────────────────
+    _rpt = st.session_state.get("report")
+    _zc = _rpt.ziwei_chart if _rpt else None
+
+    if _zc is None:
+        st.warning("⚠️ 尚無本機紫微命盤，請先在「📝 輸入資料」填寫資料並計算命盤。")
+        if st.button("前往輸入資料"):
+            _go_to_page("📝 輸入資料")
+        st.stop()
+
+    with st.expander("📋 本機紫微盤摘要", expanded=False):
+        _mode = getattr(_zc, "calculation_mode", "unknown")
+        st.markdown(f"**排盤模式**：{_mode}")
+        st.markdown(f"**五行局**：{getattr(_zc, 'five_element_bureau', '—')}")
+        st.markdown(f"**命宮地支**：{getattr(_zc, 'ming_branch', '—')}")
+        st.markdown(f"**身宮地支**：{getattr(_zc, 'shen_branch', '—')}")
+        st.markdown(f"**準確度說明**：{getattr(_zc, 'accuracy_note', '—')}")
+
+    st.divider()
+
+    # ── B. External chart input ────────────────────────────────────────────────
+    from ziwei_reconciliation.examples import EXAMPLE_ROSSI_EXTERNAL_CHART, BLANK_EXTERNAL_CHART_JSON
+    from ziwei_reconciliation.models import ExternalZiWeiChart
+
+    _input_mode = st.radio(
+        "外部盤輸入方式",
+        ["使用內建 Rossi 截圖範例", "手動 JSON 輸入"],
+        horizontal=True,
+    )
+
+    _ext_chart: ExternalZiWeiChart | None = None
+    _parse_error: str = ""
+
+    if _input_mode == "使用內建 Rossi 截圖範例":
+        _ext_chart = EXAMPLE_ROSSI_EXTERNAL_CHART
+        with st.expander("查看範例資料", expanded=False):
+            import json as _json
+            st.json(_ext_chart.model_dump())
+
+    else:
+        _json_input = st.text_area(
+            "外部盤 JSON",
+            value=BLANK_EXTERNAL_CHART_JSON,
+            height=300,
+        )
+        st.caption("請依格式填入外部網站或人工排盤資料，不確定的欄位請留 null 或空白。")
+        if _json_input.strip():
+            try:
+                import json as _json
+                _parsed = _json.loads(_json_input)
+                _ext_chart = ExternalZiWeiChart(**_parsed)
+            except Exception as _e:
+                _parse_error = str(_e)
+
+    if _parse_error:
+        st.error(f"JSON 解析失敗：{_parse_error}")
+
+    # ── C. Run reconciliation ──────────────────────────────────────────────────
+    if st.button("🔍 開始紫微校準比對", disabled=(_ext_chart is None), type="primary"):
+        from ziwei_reconciliation.engine import ZiWeiReconciliationEngine
+        with st.spinner("比對中…"):
+            _rec_report = ZiWeiReconciliationEngine().reconcile(_zc, _ext_chart)
+        st.session_state["ziwei_rec_report"] = _rec_report
+
+    _rec_report = st.session_state.get("ziwei_rec_report")
+
+    if _rec_report is None:
+        st.info("填寫外部盤資料後，按「開始紫微校準比對」。")
+        st.stop()
+
+    # ── D. Display results ─────────────────────────────────────────────────────
+    from ziwei_reconciliation.models import STATUS_ZH, SEVERITY_ZH, OVERALL_STATUS_ZH
+
+    overall_zh = OVERALL_STATUS_ZH.get(_rec_report.overall_status, _rec_report.overall_status)
+    _col1, _col2, _col3, _col4, _col5 = st.columns(5)
+    with _col1:
+        st.metric("整體狀態", overall_zh)
+    with _col2:
+        st.metric("✅ 一致", _rec_report.match_count)
+    with _col3:
+        st.metric("❌ 不一致", _rec_report.mismatch_count)
+    with _col4:
+        st.metric("🏫 流派差異", _rec_report.school_difference_count)
+    with _col5:
+        st.metric("⚙️ 尚未實作", _rec_report.not_implemented_count)
+
+    st.caption(_rec_report.summary)
+
+    _rtabs = st.tabs(["總覽", "一致項", "差異項", "流派差異", "尚未實作", "Markdown 報告"])
+
+    with _rtabs[0]:
+        st.markdown("### 建議")
+        for _r in _rec_report.recommendation.split(". "):
+            _r = _r.strip()
+            if _r:
+                st.write(f"• {_r}")
+
+    with _rtabs[1]:
+        _match_items = [i for i in _rec_report.items if i.status == "match"]
+        if _match_items:
+            import pandas as _pd
+            _df = _pd.DataFrame([{
+                "類別": i.category, "項目": i.field_name,
+                "本機": i.local_value, "外部": i.external_value,
+            } for i in _match_items])
+            st.dataframe(_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("無一致項。")
+
+    with _rtabs[2]:
+        _mm_items = [i for i in _rec_report.items if i.status == "mismatch"]
+        if _mm_items:
+            import pandas as _pd
+            _df = _pd.DataFrame([{
+                "類別": i.category, "項目": i.field_name,
+                "本機": i.local_value, "外部": i.external_value,
+                "嚴重度": SEVERITY_ZH.get(i.severity, i.severity),
+                "說明": i.explanation,
+            } for i in _mm_items])
+            st.dataframe(_df, use_container_width=True, hide_index=True)
+        else:
+            st.success("無不一致項。")
+
+    with _rtabs[3]:
+        _sd_items = [i for i in _rec_report.items if i.status == "likely_school_difference"]
+        if _sd_items:
+            import pandas as _pd
+            _df = _pd.DataFrame([{
+                "類別": i.category, "項目": i.field_name,
+                "本機": i.local_value, "外部": i.external_value,
+                "說明": i.explanation,
+            } for i in _sd_items])
+            st.dataframe(_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("無流派差異項。")
+
+    with _rtabs[4]:
+        _ni_items = [i for i in _rec_report.items if i.status == "not_implemented"]
+        if _ni_items:
+            import pandas as _pd
+            _df = _pd.DataFrame([{
+                "類別": i.category, "項目": i.field_name,
+                "外部值": i.external_value, "說明": i.explanation,
+            } for i in _ni_items])
+            st.dataframe(_df, use_container_width=True, hide_index=True)
+            st.caption("以上項目（好運指數、廟旺陷等）屬外部網站自家功能，不代表本機排盤有誤。")
+        else:
+            st.info("無尚未實作項。")
+
+    with _rtabs[5]:
+        st.markdown(_rec_report.markdown_body)
+        st.download_button(
+            "📥 下載 Markdown 報告",
+            data=_rec_report.markdown_body.encode("utf-8"),
+            file_name=f"ziwei_reconciliation_{_rec_report.created_at[:10]}.md",
+            mime="text/markdown",
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

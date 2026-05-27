@@ -210,11 +210,11 @@ def test_place_ziwei_deterministic():
     assert _place_ziwei_star(22, 3) == _place_ziwei_star(22, 3)
     assert _place_ziwei_star(1, 5)  == _place_ziwei_star(1, 5)
 
-def test_place_ziwei_day1_bureau3_is_yin():
-    """Day 1 with any bureau starts at 寅 (index 2)."""
+def test_place_ziwei_day1_any_bureau_is_chen():
+    """Day 1 with any bureau → 辰 (index 4). Corrected base in V1.7.4."""
     for bureau in (2, 3, 4, 5, 6):
-        assert _place_ziwei_star(1, bureau) == 2, \
-            f"Bureau {bureau}: expected 寅(2), got {_place_ziwei_star(1, bureau)}"
+        assert _place_ziwei_star(1, bureau) == 4, \
+            f"Bureau {bureau}: expected 辰(4), got {_place_ziwei_star(1, bureau)}"
 
 def test_place_tianfu_deterministic():
     for z in range(12):
