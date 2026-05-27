@@ -56,6 +56,11 @@ _PAGES = [
 
 _DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
 
+# ── Birth year constants ───────────────────────────────────────────────────────
+DEFAULT_BIRTH_YEAR: int = 1990
+MIN_BIRTH_YEAR:     int = 1900
+MAX_BIRTH_YEAR:     int = date.today().year
+
 # ── Session state: global defaults (never overwrite existing values) ───────────
 _GLOBAL_DEFAULTS: dict = {
     "profile": None,
@@ -71,7 +76,8 @@ for _k, _v in _GLOBAL_DEFAULTS.items():
 _INPUT_DEFAULTS: dict = {
     "input_name": "",
     "input_gender": "不填寫",
-    "input_birth_year": 1990,
+    "input_birth_year": DEFAULT_BIRTH_YEAR,
+    "input_birth_year_user_touched": False,
     "input_birth_month": 1,
     "input_birth_day": 1,
     "birth_time_is_known": False,
@@ -95,18 +101,43 @@ for _k, _v in _INPUT_DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = list(_v) if isinstance(_v, list) else _v
 
-# ── One-time migration for old Streamlit sessions ─────────────────────────────
-# Earlier UI versions could leave input_birth_year at the old number_input minimum
-# value (1800). Do not overwrite normal user edits; only migrate once when no
-# profile/report has been created yet and a stale pre-1900 value is detected.
-if (
-    st.session_state.get("input_birth_year", 1990) <= 1900
-    and not st.session_state.get("profile")
-    and not st.session_state.get("report")
-    and not st.session_state.get("_birth_year_default_migrated")
-):
-    st.session_state["input_birth_year"] = _INPUT_DEFAULTS["input_birth_year"]
-st.session_state["_birth_year_default_migrated"] = True
+def _mark_birth_year_touched() -> None:
+    """on_change callback: user has explicitly interacted with the birth year field."""
+    st.session_state["input_birth_year_user_touched"] = True
+
+
+def _normalize_birth_year_state() -> None:
+    """Ensure input_birth_year displays DEFAULT_BIRTH_YEAR (1990), not the
+    Streamlit artefact of min_value (1900) that appears when the widget key
+    is first created by the framework rather than by our initialization loop.
+    """
+    year    = st.session_state.get("input_birth_year")
+    touched = st.session_state.get("input_birth_year_user_touched", False)
+    has_profile = bool(st.session_state.get("profile") or st.session_state.get("current_profile"))
+    has_report  = bool(st.session_state.get("report"))
+
+    if year is None:
+        st.session_state["input_birth_year"] = DEFAULT_BIRTH_YEAR
+        st.session_state["input_birth_year_user_touched"] = False
+        return
+
+    try:
+        year_int = int(year)
+    except Exception:
+        st.session_state["input_birth_year"] = DEFAULT_BIRTH_YEAR
+        st.session_state["input_birth_year_user_touched"] = False
+        return
+
+    if year_int < MIN_BIRTH_YEAR or year_int > MAX_BIRTH_YEAR:
+        st.session_state["input_birth_year"] = DEFAULT_BIRTH_YEAR
+        st.session_state["input_birth_year_user_touched"] = False
+        return
+
+    # 舊 session 常見問題：1900 被 Streamlit 當成 min_value 預設。
+    # 如果使用者尚未手動碰過，且沒有已建立 profile/report，就把 1900 拉回 1990。
+    if year_int == MIN_BIRTH_YEAR and not touched and not has_profile and not has_report:
+        st.session_state["input_birth_year"] = DEFAULT_BIRTH_YEAR
+        st.session_state["input_birth_year_user_touched"] = False
 
 # Migrate old blank country state to Taiwan for Taiwan-first workflow.
 # This only applies before a profile/report is created, so it will not overwrite
@@ -162,6 +193,8 @@ def _clear_input_state() -> None:
     """Reset all input fields to defaults and clear profile / report."""
     for k, v in _INPUT_DEFAULTS.items():
         st.session_state[k] = list(v) if isinstance(v, list) else v
+    st.session_state["input_birth_year"] = DEFAULT_BIRTH_YEAR
+    st.session_state["input_birth_year_user_touched"] = False
     st.session_state["profile"] = None
     st.session_state["report"] = None
 
@@ -354,10 +387,17 @@ elif page == "📝 輸入資料":
                          key="input_gender")
 
         st.subheader("出生日期")
+        _normalize_birth_year_state()
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.number_input("西元年 *", min_value=1900, max_value=date.today().year,
-                            step=1, key="input_birth_year")
+            st.number_input(
+                "西元年 *",
+                min_value=MIN_BIRTH_YEAR,
+                max_value=MAX_BIRTH_YEAR,
+                step=1,
+                key="input_birth_year",
+                on_change=_mark_birth_year_touched,
+            )
         with col2:
             st.number_input("月 *", min_value=1, max_value=12, step=1,
                             key="input_birth_month")
