@@ -435,6 +435,207 @@ def _calc_da_xian(
     return direction, start_age, periods
 
 
+# ── 命主 / 身主 (V1.7.5) ──────────────────────────────────────────────────────
+
+_MING_ZHU_TABLE: Dict[str, str] = {
+    "子": "貪狼", "丑": "巨門", "寅": "祿存", "卯": "文曲",
+    "辰": "廉貞", "巳": "武曲", "午": "破軍", "未": "武曲",
+    "申": "廉貞", "酉": "文曲", "戌": "祿存", "亥": "巨門",
+}
+
+_SHEN_ZHU_TABLE: Dict[str, str] = {
+    "子": "火星", "丑": "天相", "寅": "天梁", "卯": "天同",
+    "辰": "文昌", "巳": "天機", "午": "火星", "未": "天相",
+    "申": "天梁", "酉": "天同", "戌": "文昌", "亥": "天機",
+}
+
+
+def _calc_ming_zhu(ming_branch: str) -> Optional[str]:
+    """命主：依命宮地支查表。卯 → 文曲。"""
+    return _MING_ZHU_TABLE.get(ming_branch)
+
+
+def _calc_shen_zhu(year_branch: str) -> Optional[str]:
+    """身主：依生年地支查表。巳年 → 天機。"""
+    return _SHEN_ZHU_TABLE.get(year_branch)
+
+
+# ── 天馬 (V1.7.5) ────────────────────────────────────────────────────────────
+
+_TIAN_MA_TABLE: Dict[str, str] = {
+    "寅": "申", "午": "申", "戌": "申",
+    "申": "寅", "子": "寅", "辰": "寅",
+    "巳": "亥", "酉": "亥", "丑": "亥",
+    "亥": "巳", "卯": "巳", "未": "巳",
+}
+
+
+def _calc_tian_ma_branch(year_branch: str) -> Optional[str]:
+    """天馬：依年支三合局查表。巳年 → 亥。"""
+    return _TIAN_MA_TABLE.get(year_branch)
+
+
+# ── 廟旺利陷 (V1.7.5 Phase 1) ────────────────────────────────────────────────
+# Phase 1 table: covers 14 main stars × key branches.
+# Unlisted (star, branch) combos → "平".
+
+_STAR_BRIGHTNESS_TABLE: Dict[str, Dict[str, str]] = {
+    "紫微": {"子": "廟", "丑": "廟", "寅": "得", "卯": "利", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "廟", "申": "廟", "酉": "廟", "戌": "廟", "亥": "廟"},
+    "天機": {"子": "廟", "丑": "陷", "寅": "廟", "卯": "旺", "辰": "陷", "巳": "陷",
+             "午": "廟", "未": "陷", "申": "廟", "酉": "陷", "戌": "陷", "亥": "廟"},
+    "太陽": {"子": "陷", "丑": "陷", "寅": "旺", "卯": "廟", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "得", "申": "利", "酉": "陷", "戌": "陷", "亥": "陷"},
+    "武曲": {"子": "廟", "丑": "廟", "寅": "得", "卯": "利", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "廟", "申": "廟", "酉": "廟", "戌": "廟", "亥": "廟"},
+    "天同": {"子": "廟", "丑": "陷", "寅": "利", "卯": "陷", "辰": "陷", "巳": "陷",
+             "午": "陷", "未": "旺", "申": "廟", "酉": "廟", "戌": "陷", "亥": "廟"},
+    "廉貞": {"子": "廟", "丑": "廟", "寅": "廟", "卯": "廟", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "廟", "申": "廟", "酉": "廟", "戌": "廟", "亥": "陷"},
+    "天府": {"子": "廟", "丑": "廟", "寅": "廟", "卯": "廟", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "廟", "申": "廟", "酉": "旺", "戌": "廟", "亥": "廟"},
+    "太陰": {"子": "廟", "丑": "旺", "寅": "陷", "卯": "陷", "辰": "陷", "巳": "陷",
+             "午": "陷", "未": "廟", "申": "旺", "酉": "廟", "戌": "旺", "亥": "廟"},
+    "貪狼": {"子": "旺", "丑": "廟", "寅": "廟", "卯": "廟", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "廟", "申": "廟", "酉": "廟", "戌": "廟", "亥": "陷"},
+    "巨門": {"子": "廟", "丑": "廟", "寅": "陷", "卯": "旺", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "陷", "申": "廟", "酉": "廟", "戌": "陷", "亥": "廟"},
+    "天相": {"子": "廟", "丑": "廟", "寅": "廟", "卯": "廟", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "廟", "申": "廟", "酉": "廟", "戌": "廟", "亥": "廟"},
+    "天梁": {"子": "廟", "丑": "廟", "寅": "廟", "卯": "廟", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "旺", "申": "廟", "酉": "廟", "戌": "廟", "亥": "廟"},
+    "七殺": {"子": "廟", "丑": "廟", "寅": "廟", "卯": "旺", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "廟", "申": "廟", "酉": "廟", "戌": "廟", "亥": "廟"},
+    "破軍": {"子": "廟", "丑": "廟", "寅": "廟", "卯": "廟", "辰": "廟", "巳": "廟",
+             "午": "廟", "未": "旺", "申": "廟", "酉": "廟", "戌": "廟", "亥": "廟"},
+}
+
+
+def _get_star_brightness(star: str, branch: str) -> str:
+    """Return brightness label for (star, branch). Defaults to '平' if not in table."""
+    return _STAR_BRIGHTNESS_TABLE.get(star, {}).get(branch, "平")
+
+
+def _calc_brightness_map(palaces: list) -> Dict[str, Dict[str, str]]:
+    """Build {palace_name: {star: brightness}} for all 12 palaces."""
+    result: Dict[str, Dict[str, str]] = {}
+    for p in palaces:
+        if p.main_stars:
+            result[p.name] = {
+                star: _get_star_brightness(star, p.earthly_branch)
+                for star in p.main_stars
+            }
+    return result
+
+
+# ── 盤面強度分數 Phase 1 (V1.7.5) ────────────────────────────────────────────
+
+_SCORE_BRIGHTNESS_BONUS: Dict[str, int] = {
+    "廟": 8, "旺": 6, "得": 5, "利": 4, "平": 0, "陷": 0,
+}
+
+_SCORE_LABELS: list = [
+    (85, "高支援盤"),
+    (70, "結構良好"),
+    (55, "中性可塑"),
+    (40, "張力偏高"),
+    (0,  "高壓磨練盤"),
+]
+
+
+def _calc_ziwei_score(
+    palaces: list,
+    brightness_map: Dict[str, Dict[str, str]],
+    four_trans: Dict[str, str],
+) -> Tuple[int, str, str]:
+    """
+    Calculate Phase 1 盤面強度分數 (0–100).
+    Deterministic. NOT equivalent to any external site's 好運指數.
+    Returns (score, label, explanation).
+    """
+    score = 60  # baseline
+
+    # 命宮
+    ming = next((p for p in palaces if p.name == "命宮"), None)
+    if ming:
+        if ming.main_stars:
+            score += 6
+        for star in ming.main_stars:
+            b = brightness_map.get("命宮", {}).get(star, "平")
+            score += _SCORE_BRIGHTNESS_BONUS.get(b, 0)
+        for star in ming.main_stars:
+            if four_trans.get(star) in ("化祿", "化權", "化科"):
+                score += 6
+                break
+        if any(four_trans.get(star) == "化忌" for star in ming.main_stars):
+            score -= 6
+        # Malefic stars in 命宮
+        malefic_in_ming = sum(
+            1 for s in ming.minor_stars
+            if s in {"擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"}
+        )
+        score -= malefic_in_ming * 3
+
+    # 官祿宮
+    career = next((p for p in palaces if p.name == "官祿宮"), None)
+    if career and career.main_stars:
+        score += 5
+        best_b = max(
+            (_SCORE_BRIGHTNESS_BONUS.get(brightness_map.get("官祿宮", {}).get(s, "平"), 0)
+             for s in career.main_stars),
+            default=0,
+        )
+        score += min(best_b, 5)
+
+    # 財帛宮
+    wealth = next((p for p in palaces if p.name == "財帛宮"), None)
+    if wealth and wealth.main_stars:
+        score += 4
+        malefic_in_wealth = sum(
+            1 for s in wealth.minor_stars
+            if s in {"擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"}
+        )
+        score -= malefic_in_wealth * 3
+
+    # 福德宮 化祿/化權/化科
+    fortune = next((p for p in palaces if p.name == "福德宮"), None)
+    if fortune:
+        if any(four_trans.get(s) in ("化祿", "化權", "化科") for s in fortune.main_stars):
+            score += 4
+
+    # 輔星在命/官/財
+    auspicious_stars = {"左輔", "右弼", "文昌", "文曲", "天魁", "天鉞", "祿存"}
+    for p in palaces:
+        if p.name in ("命宮", "官祿宮", "財帛宮"):
+            bonus = sum(2 for s in p.minor_stars if s in auspicious_stars)
+            score += min(bonus, 4)
+
+    # 六煞在命/官/財
+    malefic_stars = {"擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"}
+    for p in palaces:
+        if p.name in ("命宮", "官祿宮", "財帛宮"):
+            penalty = sum(2 for s in p.minor_stars if s in malefic_stars)
+            score -= min(penalty, 4)
+
+    # Clamp
+    score = max(0, min(100, score))
+
+    # Label
+    label = "高壓磨練盤"
+    for threshold, lbl in _SCORE_LABELS:
+        if score >= threshold:
+            label = lbl
+            break
+
+    explanation = (
+        "此分數是 Astro Destiny Analyzer 的盤面強度 Phase 1 指標，"
+        "不等同外部網站好運指數，也不代表絕對命運好壞。"
+        "分數反映盤面結構性支持程度，供自我探索參考。"
+    )
+
+    return score, label, explanation
+
+
 # ── Interpretation helpers (V1.5.1) ──────────────────────────────────────────
 
 _MAIN_STAR_INTERPRETATIONS: Dict[str, str] = {
@@ -745,6 +946,28 @@ class ZiWeiEngine:
                 if star not in palaces[p_idx].minor_stars:
                     palaces[p_idx].minor_stars.append(star)
 
+        # 10b. V1.7.5: Ming Zhu / Shen Zhu / Tian Ma / Brightness / Score
+        ming_zhu_val = _calc_ming_zhu(ming_branch_str) if time_known else None
+        shen_zhu_val = _calc_shen_zhu(year_branch_str)
+        tian_ma_branch_val = _calc_tian_ma_branch(year_branch_str)
+        tian_ma_palace_val: Optional[str] = None
+        if tian_ma_branch_val:
+            for _p in palaces:
+                if _p.earthly_branch == tian_ma_branch_val:
+                    tian_ma_palace_val = _p.name
+                    break
+            # Add 天馬 to aux_map so it appears in auxiliary_star_map
+            aux_map["天馬"] = tian_ma_branch_val
+            star_cat["天馬"] = "auspicious"
+            # Also add to palace minor_stars
+            _tm_p_idx = branch_to_palace_idx.get(tian_ma_branch_val)
+            if _tm_p_idx is not None and "天馬" not in palaces[_tm_p_idx].minor_stars:
+                palaces[_tm_p_idx].minor_stars.append("天馬")
+        brightness_map_val = _calc_brightness_map(palaces)
+        ziwei_score_val, ziwei_score_label_val, ziwei_score_expl = _calc_ziwei_score(
+            palaces, brightness_map_val, four_trans
+        )
+
         # 10. Da Xian (V1.5.5)
         da_xian_direction, da_xian_start_age, da_xian_list = _calc_da_xian(
             ming_idx=ming_idx,
@@ -763,11 +986,11 @@ class ZiWeiEngine:
         if time_known:
             mode = "formal_layout_phase1"
             note = (
-                "V1.5.5 已依農曆生日與出生時辰進行正式排盤，含十四主星、四化、"
-                "核心輔星（左輔右弼、文昌文曲、天魁天鉞、祿存）、"
+                "V1.7.5 已依農曆生日與出生時辰進行正式排盤，含十四主星、四化、"
+                "核心輔星（左輔右弼、文昌文曲、天魁天鉞、祿存、天馬）、"
                 "六煞（擎羊、陀羅、火星、鈴星、地空、地劫）與大限 Phase 1。"
-                " 輔星煞星採 Phase 1 常見表法，流派差異後續版本可配置。"
-                " 大限尚未加入四化與飛化。"
+                " V1.7.5 新增命主、身主、天馬、廟旺陷 Phase 1、盤面強度分數 Phase 1。"
+                " 盤面強度分數不等同外部網站好運指數。"
             )
         else:
             mode = "partial_lunar_only"
@@ -775,6 +998,7 @@ class ZiWeiEngine:
                 "出生時間未知，紫微命宮、身宮與主星位置不可視為精準結果。"
                 "已完成農曆轉換、天魁天鉞、祿存羊陀與左輔右弼基礎安星；"
                 "文昌文曲、火鈴空劫需補填出生時辰。"
+                " 命主需命宮地支，身主依年支計算。"
             )
 
         return ZiWeiChart(
@@ -813,4 +1037,12 @@ class ZiWeiEngine:
             da_xian_start_age=da_xian_start_age,
             da_xian_accuracy=da_xian_accuracy,
             auxiliary_accuracy_note=aux_accuracy_note,
+            ming_zhu=ming_zhu_val,
+            shen_zhu=shen_zhu_val,
+            tian_ma_branch=tian_ma_branch_val,
+            tian_ma_palace=tian_ma_palace_val,
+            brightness_map=brightness_map_val,
+            ziwei_score=ziwei_score_val,
+            ziwei_score_label=ziwei_score_label_val,
+            ziwei_score_explanation=ziwei_score_expl,
         )

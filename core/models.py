@@ -330,6 +330,15 @@ class ZiWeiChart(BaseModel):
     da_xian_start_age: Optional[int] = None
     da_xian_accuracy: str = "phase1"       # Phase 1 skeleton
     auxiliary_accuracy_note: str = ""
+    # V1.7.5: ming zhu / shen zhu / tian ma / brightness / score
+    ming_zhu: Optional[str] = None
+    shen_zhu: Optional[str] = None
+    tian_ma_branch: Optional[str] = None
+    tian_ma_palace: Optional[str] = None
+    brightness_map: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    ziwei_score: Optional[int] = None
+    ziwei_score_label: Optional[str] = None
+    ziwei_score_explanation: str = ""
 
 
 # ── Blood Type Models ─────────────────────────────────────────────────────────

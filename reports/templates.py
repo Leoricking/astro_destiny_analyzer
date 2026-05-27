@@ -601,15 +601,55 @@ TEMPLATE_FULL = _MACROS + """
 
 ### 十二、版本限制聲明
 
-V1.5.5 已完成核心輔星、六煞與大限 Phase 1。以下功能尚未完成，解讀時請注意：
+V1.7.5 已完成核心輔星、六煞、大限 Phase 1、命主、身主、天馬、廟旺陷 Phase 1、盤面強度分數 Phase 1。以下功能尚未完成，解讀時請注意：
 
 - **大限四化 / 宮干四化**：尚未實作，目前大限僅有宮位骨架與基礎解讀。
 - **流年 / 流月 / 流日**：尚未實作，不適合做完整年份斷事。
-- **輔星安星流派差異**：V1.5.5 採用 Phase 1 常見表法，流派細節後續版本可配置。
-- **廟旺陷強弱**：尚未實作，星曜強弱分析待後續版本。
+- **輔星安星流派差異**：V1.7.5 採用 Phase 1 常見表法，流派細節後續版本可配置。
 - **閏月精準處理**：採保守處理，後續版本加入閏月流派設定。
+- **盤面強度分數**：Phase 1 指標，不等同外部網站好運指數。
 
 ---
+
+{% if report.ziwei_chart.ming_zhu or report.ziwei_chart.shen_zhu or report.ziwei_chart.tian_ma_branch %}
+### 十三、命主 / 身主 / 天馬（V1.7.5）
+
+{% if report.ziwei_chart.ming_zhu %}
+- **命主（先天人格輔助星）**：{{ report.ziwei_chart.ming_zhu }}
+{% endif %}
+{% if report.ziwei_chart.shen_zhu %}
+- **身主（後天行動重心輔助星）**：{{ report.ziwei_chart.shen_zhu }}
+{% endif %}
+{% if report.ziwei_chart.tian_ma_branch %}
+- **天馬（移動與外部機會能量）**：{{ report.ziwei_chart.tian_ma_branch }}{% if report.ziwei_chart.tian_ma_palace %}（落{{ report.ziwei_chart.tian_ma_palace }}）{% endif %}
+{% endif %}
+
+---
+{% endif %}
+
+{% if report.ziwei_chart.ziwei_score is not none %}
+### 十四、盤面強度分數 Phase 1（V1.7.5）
+
+**分數**：{{ report.ziwei_chart.ziwei_score }} / 100（{{ report.ziwei_chart.ziwei_score_label or "" }}）
+
+{% if report.ziwei_chart.ziwei_score_explanation %}
+> {{ report.ziwei_chart.ziwei_score_explanation }}
+{% endif %}
+
+---
+{% endif %}
+
+{% set _ming_brightness = report.ziwei_chart.brightness_map.get("命宮", {}) if report.ziwei_chart.brightness_map else {} %}
+{% if _ming_brightness %}
+### 十五、命宮主星廟旺陷（V1.7.5 Phase 1）
+
+{% for star, bv in _ming_brightness.items() %}
+- {{ star }}：{{ bv }}
+{% endfor %}
+
+---
+{% endif %}
+
 {% endif %}
 
 {% if report.blood_type_analysis %}

@@ -185,35 +185,48 @@ class TestMatchingLogic:
         ming_items = [i for i in report.items if i.field_name == "命宮地支"]
         assert any(i.status == "match" for i in ming_items)
 
-    def test_luck_score_is_not_implemented(self):
-        """External luck_score → not_implemented (not mismatch)."""
+    def test_luck_score_is_not_mismatch_high(self):
+        """External luck_score → score item exists and is not a high-severity mismatch (V1.7.5: likely_school_difference or not_implemented)."""
         from ziwei_reconciliation.models import ExternalZiWeiChart
         from ziwei_reconciliation.engine import ZiWeiReconciliationEngine
         local = _make_local_chart()
         ext = ExternalZiWeiChart(luck_score=80)
         report = ZiWeiReconciliationEngine().reconcile(local, ext)
         score_items = [i for i in report.items if i.category == "score"]
-        assert any(i.status == "not_implemented" for i in score_items)
+        assert len(score_items) > 0, "No score items found"
+        # V1.7.5: score should be likely_school_difference (since local has Phase1 score) or not_implemented
+        # It should never be a high-severity mismatch
+        assert not any(
+            i.status == "mismatch" and i.severity == "high" for i in score_items
+        ), "Score should not be a high-severity mismatch"
 
-    def test_ming_zhu_is_not_implemented(self):
-        """命主 → not_implemented."""
+    def test_ming_zhu_is_computed(self):
+        """V1.7.5: 命主 now computed → match (when external matches local)."""
         from ziwei_reconciliation.models import ExternalZiWeiChart
         from ziwei_reconciliation.engine import ZiWeiReconciliationEngine
         local = _make_local_chart()
         ext = ExternalZiWeiChart(ming_zhu="文曲")
         report = ZiWeiReconciliationEngine().reconcile(local, ext)
         mingzhu_items = [i for i in report.items if i.field_name == "命主"]
-        assert any(i.status == "not_implemented" for i in mingzhu_items)
+        assert len(mingzhu_items) > 0, "命主 item not found"
+        # V1.7.5: local now calculates ming_zhu, so status should be match or mismatch (not not_implemented)
+        assert not any(i.status == "not_implemented" for i in mingzhu_items), (
+            "命主 should no longer be not_implemented in V1.7.5"
+        )
 
-    def test_shen_zhu_is_not_implemented(self):
-        """身主 → not_implemented."""
+    def test_shen_zhu_is_computed(self):
+        """V1.7.5: 身主 now computed → match (when external matches local)."""
         from ziwei_reconciliation.models import ExternalZiWeiChart
         from ziwei_reconciliation.engine import ZiWeiReconciliationEngine
         local = _make_local_chart()
         ext = ExternalZiWeiChart(shen_zhu="天機")
         report = ZiWeiReconciliationEngine().reconcile(local, ext)
         shenzhu_items = [i for i in report.items if i.field_name == "身主"]
-        assert any(i.status == "not_implemented" for i in shenzhu_items)
+        assert len(shenzhu_items) > 0, "身主 item not found"
+        # V1.7.5: local now calculates shen_zhu, so status should be match or mismatch (not not_implemented)
+        assert not any(i.status == "not_implemented" for i in shenzhu_items), (
+            "身主 should no longer be not_implemented in V1.7.5"
+        )
 
     def test_star_order_does_not_matter(self):
         """Stars in different order should still match."""

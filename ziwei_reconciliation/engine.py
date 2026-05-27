@@ -85,8 +85,11 @@ class ZiWeiReconciliationEngine:
         # F. Da Xian (大限)
         items.extend(self._compare_da_xian(local_chart, external_chart))
 
-        # G. Luck score / brightness (未實作)
-        items.extend(self._compare_not_implemented(external_chart))
+        # G. Tian Ma (V1.7.5)
+        items.extend(self._compare_tian_ma(local_chart, external_chart))
+
+        # H. Luck score / brightness
+        items.extend(self._compare_not_implemented(local_chart, external_chart))
 
         # Tally
         match_count = sum(1 for i in items if i.status == "match")
@@ -182,17 +185,36 @@ class ZiWeiReconciliationEngine:
             else:
                 items.append(_item("basic", "身宮地支", "（本機未記錄）", ext_shen, "missing_local", "low"))
 
-        # 命主 / 身主（本機未實作）
+        # 命主
         if ext.ming_zhu:
-            items.append(_item(
-                "basic", "命主", "（尚未實作）", ext.ming_zhu, "not_implemented", "info",
-                "本機 V1.5.5 尚未實作命主演算法。",
-            ))
+            local_mz = getattr(local, "ming_zhu", None) or ""
+            if local_mz and local_mz == ext.ming_zhu:
+                items.append(_item("basic", "命主", local_mz, ext.ming_zhu, "match", "info"))
+            elif local_mz:
+                items.append(_item(
+                    "basic", "命主", local_mz, ext.ming_zhu, "mismatch", "medium",
+                    "命主差異可能源自流派表法不同。",
+                ))
+            else:
+                items.append(_item(
+                    "basic", "命主", "（尚未實作）", ext.ming_zhu, "not_implemented", "info",
+                    "本機未計算命主。",
+                ))
+        # 身主
         if ext.shen_zhu:
-            items.append(_item(
-                "basic", "身主", "（尚未實作）", ext.shen_zhu, "not_implemented", "info",
-                "本機 V1.5.5 尚未實作身主演算法。",
-            ))
+            local_sz = getattr(local, "shen_zhu", None) or ""
+            if local_sz and local_sz == ext.shen_zhu:
+                items.append(_item("basic", "身主", local_sz, ext.shen_zhu, "match", "info"))
+            elif local_sz:
+                items.append(_item(
+                    "basic", "身主", local_sz, ext.shen_zhu, "mismatch", "medium",
+                    "身主差異可能源自流派表法不同。",
+                ))
+            else:
+                items.append(_item(
+                    "basic", "身主", "（尚未實作）", ext.shen_zhu, "not_implemented", "info",
+                    "本機未計算身主。",
+                ))
 
         # 農曆日期（若本機有記錄）
         if local.lunar_year and local.lunar_month and local.lunar_day and ext.birth_lunar_date:
@@ -450,27 +472,101 @@ class ZiWeiReconciliationEngine:
 
         return items
 
-    # ── G. Not-implemented features ────────────────────────────────────────────
+    # ── G. Tian Ma comparison ──────────────────────────────────────────────────
+
+    def _compare_tian_ma(
+        self, local: ZiWeiChart, ext: ExternalZiWeiChart
+    ) -> List[ReconciliationItem]:
+        """Compare 天馬 branch between local and external chart."""
+        items: List[ReconciliationItem] = []
+        # Find 天馬 in external auxiliary stars
+        ext_tian_ma_branch: Optional[str] = None
+        for ep in (ext.palaces or []):
+            if "天馬" in ep.auxiliary_stars:
+                ext_tian_ma_branch = ep.branch
+                break
+        if ext_tian_ma_branch is None:
+            return items
+
+        local_tm = getattr(local, "tian_ma_branch", None) or ""
+        if local_tm == ext_tian_ma_branch:
+            items.append(_item(
+                "auxiliary", "天馬位置",
+                local_tm, ext_tian_ma_branch, "match", "info",
+            ))
+        elif local_tm:
+            items.append(_item(
+                "auxiliary", "天馬位置",
+                local_tm, ext_tian_ma_branch, "mismatch", "medium",
+                "天馬位置差異，請確認年支三合局表法。",
+            ))
+        else:
+            items.append(_item(
+                "auxiliary", "天馬位置",
+                "（未計算）", ext_tian_ma_branch, "not_implemented", "info",
+                "本機未計算天馬。",
+            ))
+        return items
+
+    # ── H. Not-implemented features ────────────────────────────────────────────
 
     def _compare_not_implemented(
-        self, ext: ExternalZiWeiChart
+        self, local: ZiWeiChart, ext: ExternalZiWeiChart
     ) -> List[ReconciliationItem]:
         items: List[ReconciliationItem] = []
+
+        # Score / 好運指數
         if ext.luck_score is not None:
-            items.append(_item(
-                "score", "好運指數",
-                "（尚未實作）", str(ext.luck_score), "not_implemented", "info",
-                "外部網站好運指數屬自家權重模型，本系統目前未實作，不能視為排盤錯誤。",
-            ))
-        # Brightness (廟旺陷) check
-        for ep in ext.palaces:
-            if ep.brightness:
+            local_score = getattr(local, "ziwei_score", None)
+            if local_score is not None:
+                items.append(_item(
+                    "score", "好運指數 vs 盤面強度",
+                    f"本機 Phase 1 盤面強度：{local_score}",
+                    f"外部好運指數：{ext.luck_score}",
+                    "likely_school_difference", "info",
+                    "本機分數為 Astro Destiny Analyzer Phase 1 盤面強度指標，不等同外部網站好運指數，兩者演算法不同，差異屬模型差異非排盤錯誤。",
+                ))
+            else:
+                items.append(_item(
+                    "score", "好運指數",
+                    "（尚未實作）", str(ext.luck_score), "not_implemented", "info",
+                    "外部網站好運指數屬自家權重模型，本系統目前未實作，不能視為排盤錯誤。",
+                ))
+
+        # Brightness (廟旺陷) — compare per palace
+        local_bmap: dict = getattr(local, "brightness_map", {}) or {}
+        for ep in (ext.palaces or []):
+            if not ep.brightness:
+                continue
+            local_palace_brightness = local_bmap.get(ep.palace_name, {})
+            if not local_palace_brightness:
                 items.append(_item(
                     "brightness", f"{ep.palace_name}廟旺陷",
                     "（尚未實作）", str(ep.brightness), "not_implemented", "info",
-                    "廟旺陷演算法尚未實作，外部結果僅供參考，不影響排盤正確性判斷。",
+                    "廟旺陷演算法尚未實作。",
                 ))
-                break  # one summary note
+            else:
+                # Compare each star's brightness
+                matches = all(
+                    local_palace_brightness.get(star, "平") == bv
+                    for star, bv in ep.brightness.items()
+                    if star in local_palace_brightness
+                )
+                if matches and ep.brightness.keys() <= local_palace_brightness.keys():
+                    items.append(_item(
+                        "brightness", f"{ep.palace_name}廟旺陷",
+                        str(local_palace_brightness), str(ep.brightness),
+                        "match", "info", "廟旺陷一致。",
+                    ))
+                else:
+                    items.append(_item(
+                        "brightness", f"{ep.palace_name}廟旺陷",
+                        str(local_palace_brightness), str(ep.brightness),
+                        "likely_school_difference", "low",
+                        "廟旺陷部分差異，各流派表法不同屬正常。",
+                    ))
+            break  # one palace brightness summary is sufficient
+
         return items
 
     # ── Summary / recommendation ───────────────────────────────────────────────

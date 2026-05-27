@@ -909,6 +909,44 @@ elif page == "🔮 計算命盤":
                         st.caption(f"ℹ️ {aux_note}")
                     render_ziwei_auxiliary_table(zc)
 
+                # ── H1. 命主 / 身主 / 天馬 (V1.7.5) ─────────────────────────
+                if getattr(zc, "ming_zhu", None) or getattr(zc, "shen_zhu", None) or getattr(zc, "tian_ma_branch", None):
+                    with st.container(border=True):
+                        st.markdown("#### 命主 / 身主 / 天馬")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("命主（先天人格輔助星）", getattr(zc, "ming_zhu", None) or "—")
+                        with col2:
+                            st.metric("身主（後天行動重心）", getattr(zc, "shen_zhu", None) or "—")
+                        with col3:
+                            _tm_b = getattr(zc, "tian_ma_branch", None)
+                            _tm_p = getattr(zc, "tian_ma_palace", None)
+                            tian_ma_disp = f"{_tm_b}（{_tm_p}）" if _tm_b else "—"
+                            st.metric("天馬（移動/變動能量）", tian_ma_disp)
+
+                # ── H2. 盤面強度分數 Phase 1 (V1.7.5) ───────────────────────
+                _zscore = getattr(zc, "ziwei_score", None)
+                if _zscore is not None:
+                    with st.container(border=True):
+                        st.markdown("#### 盤面強度分數 Phase 1")
+                        st.metric(
+                            f"盤面強度：{getattr(zc, 'ziwei_score_label', '') or ''}",
+                            f"{_zscore} / 100",
+                        )
+                        _zexpl = getattr(zc, "ziwei_score_explanation", "")
+                        if _zexpl:
+                            st.caption(_zexpl)
+
+                # ── H3. 命宮主星廟旺陷 (V1.7.5) ──────────────────────────────
+                _bmap = getattr(zc, "brightness_map", {}) or {}
+                if _bmap and getattr(zc, "ming_branch", None):
+                    ming_brightness = _bmap.get("命宮", {})
+                    if ming_brightness:
+                        with st.container(border=True):
+                            st.markdown("#### 命宮主星廟旺陷")
+                            br_text = "、".join(f"{s}（{b}）" for s, b in ming_brightness.items())
+                            st.write(br_text)
+
                 # ── H. 大限 ──────────────────────────────────────────────────
                 with st.expander("大限 10 年運限（V1.5.5 Phase 1）"):
                     dx_dir = getattr(zc, "da_xian_direction", "")
