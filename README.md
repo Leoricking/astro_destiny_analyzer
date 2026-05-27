@@ -504,6 +504,93 @@ Status: Zi Wei Auxiliary Stars & Da Xian Phase 1
 
 ---
 
+## 19. V1.6.2 更新說明 — Windows 一鍵啟動
+
+### 19.1 Windows 一鍵啟動
+
+#### 第一次使用
+
+雙擊 `setup.bat`，自動完成：
+1. 檢查 Python 版本
+2. 建立虛擬環境 `.venv`
+3. 安裝所有依賴套件（`requirements.txt`）
+4. 執行環境檢查（`scripts/check_env.py`）
+
+#### 日常使用
+
+雙擊 `run.bat`，自動：
+1. 確認 Python / `.venv` 存在
+2. 更新依賴套件
+3. 執行環境檢查
+4. 啟動 Streamlit（http://localhost:8501）
+
+#### 不需要手動執行
+
+```
+# 不需要這些步驟：
+.venv\Scripts\activate
+streamlit run ui\streamlit_app.py
+```
+
+#### 手動啟動（備用）
+
+```bat
+.venv\Scripts\python -m streamlit run ui\streamlit_app.py
+```
+
+#### PowerShell Execution Policy 問題
+
+`run.bat` 不使用 `activate.ps1`，因此不受 PowerShell 執行政策影響。
+無需修改系統 `ExecutionPolicy`。
+
+### 19.2 環境檢查（check_env.py）
+
+```
+python scripts\check_env.py
+```
+
+輸出範例：
+```
+[OK]   Python 3.11.5
+[OK]   streamlit
+[OK]   pydantic
+[OK]   jinja2
+[OK]   markdown
+[OK]   python-docx
+[OK]   lunardate
+[OK]   swisseph
+[WARN] weasyprint not installed; PDF export disabled
+[OK]   data directory
+[OK]   exports directory
+[OK]   DB path writable
+```
+
+Exit code 0 = 通過（weasyprint 缺失為警告，不算失敗）
+Exit code 1 = 有必備套件缺失
+
+### 19.3 常見錯誤排除
+
+| 錯誤 | 解決方法 |
+|------|----------|
+| 找不到 Python | 安裝 Python 3.10+，並確認已加入 PATH |
+| pip install 失敗 | 確認網路正常；可改用 `pip install -r requirements.txt -i https://pypi.org/simple` |
+| streamlit 找不到 | 執行 `setup.bat` 重新安裝依賴 |
+| PDF 不可用 | 安裝 WeasyPrint：`pip install weasyprint`（Windows 需額外依賴） |
+| 瀏覽器沒有自動開啟 | 手動開啟 http://localhost:8501 |
+
+### 19.4 新增 / 修改檔案
+
+| 檔案 | 說明 |
+|------|------|
+| `run.bat` | 新增：5 步驟一鍵啟動腳本 |
+| `setup.bat` | 新增：首次安裝腳本 |
+| `scripts/__init__.py` | 新增：scripts 套件 |
+| `scripts/check_env.py` | 新增：環境檢查工具 |
+| `config.py` | 版本 1.6.2 |
+| `tests/test_launcher_scripts.py` | 新增：launcher 測試 |
+
+---
+
 ## 18. V1.6.1 更新說明 — UX QA & Sample Report Pack
 
 ### 18.1 3 分鐘快速體驗
