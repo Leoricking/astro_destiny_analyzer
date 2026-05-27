@@ -272,8 +272,19 @@ class ZiWeiPalace(BaseModel):
     name: str
     earthly_branch: str = ""
     main_stars: List[str] = Field(default_factory=list)
-    minor_stars: List[str] = Field(default_factory=list)
+    minor_stars: List[str] = Field(default_factory=list)      # auxiliary + malefic stars
     transformations: List[str] = Field(default_factory=list)   # 四化
+    interpretation: str = ""
+
+
+class DaXianPeriod(BaseModel):
+    """V1.5.5: Da Xian (大限) 10-year period."""
+    start_age: int
+    end_age: int
+    palace_name: str
+    branch: str
+    main_stars: List[str] = Field(default_factory=list)
+    auxiliary_stars: List[str] = Field(default_factory=list)
     interpretation: str = ""
 
 
@@ -310,6 +321,15 @@ class ZiWeiChart(BaseModel):
     shen_branch: Optional[str] = None
     five_element_bureau: Optional[str] = None
     five_element_bureau_number: Optional[int] = None
+    # V1.5.5: auxiliary stars, malefic stars, da xian
+    auxiliary_star_map: Dict[str, str] = Field(default_factory=dict)   # star -> branch
+    malefic_star_map: Dict[str, str] = Field(default_factory=dict)     # star -> branch
+    star_categories: Dict[str, str] = Field(default_factory=dict)      # star -> "auspicious"/"malefic"
+    da_xian: List[DaXianPeriod] = Field(default_factory=list)
+    da_xian_direction: str = ""            # "forward" | "backward" | "unknown"
+    da_xian_start_age: Optional[int] = None
+    da_xian_accuracy: str = "phase1"       # Phase 1 skeleton
+    auxiliary_accuracy_note: str = ""
 
 
 # ── Blood Type Models ─────────────────────────────────────────────────────────

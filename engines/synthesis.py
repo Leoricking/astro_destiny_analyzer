@@ -275,6 +275,10 @@ class SynthesisEngine:
             career_pattern += (
                 "\n\n---\n\n（紫微正式盤已完成官祿宮定位，以上紫微事業分析可作為正式參考。）"
             )
+            if ziwei and getattr(ziwei, "da_xian", []):
+                career_pattern += (
+                    "\n\n紫微大限 Phase 1 已建立，可作為十年事業焦點的大框架參考。"
+                )
 
         suitable_careers: List[str] = list(lp_careers)
         if sun_sign:
@@ -374,6 +378,24 @@ class SynthesisEngine:
             unfav_elements=[e.value for e in bazi.unfavorable_elements] if bazi else None,
             blood_stress=blood.stress_response if blood else None,
         )
+        if ziwei:
+            malefic_map = getattr(ziwei, "malefic_star_map", {})
+            key_palaces = {
+                ziwei.ming_palace.earthly_branch,
+                ziwei.career_palace.earthly_branch,
+                ziwei.wealth_palace.earthly_branch,
+            }
+            malefic_in_key = [
+                s for s, b in malefic_map.items() if b in key_palaces
+            ]
+            if malefic_in_key:
+                stress_shadow += (
+                    "\n\n---\n\n**紫微煞曜提示**：命盤中 "
+                    + "、".join(malefic_in_key)
+                    + " 落於命宮 / 官祿宮 / 財帛宮等核心宮位。"
+                    "煞曜代表高壓與突破，不等於壞，需透過策略管理。"
+                    "了解煞曜的課題方向，比逃避它更有力量。"
+                )
 
         # ── Life Lessons ──────────────────────────────────────────────────────
         lesson_parts: List[str] = []

@@ -105,7 +105,7 @@ def render_ziwei_palace_grid(ziwei_chart):
 
 
 def render_ziwei_formal_table(ziwei_chart):
-    """Render 12-palace data as a readable table with 宮位/地支/主星/四化/解讀摘要 columns."""
+    """Render 12-palace data as a readable table with 宮位/地支/主星/輔煞/四化/解讀摘要 columns."""
     import pandas as pd
     from engines.ziwei import _interpret_palace
 
@@ -123,6 +123,8 @@ def render_ziwei_formal_table(ziwei_chart):
         "化科": "化科（名聲）", "化忌": "化忌（課題）",
     }
     four_trans = ziwei_chart.four_transformations or {}
+    star_cat = getattr(ziwei_chart, "star_categories", {})
+    malefic_set = {s for s, c in star_cat.items() if c == "malefic"}
 
     rows = []
     for p in palaces:
@@ -133,6 +135,11 @@ def render_ziwei_formal_table(ziwei_chart):
                 tx = four_trans[s]
                 tx_strs.append(sihua_display.get(tx, tx))
         tx_display = " ".join(tx_strs) if tx_strs else "—"
+        # Split minor_stars into auspicious and malefic
+        aux_stars = [s for s in p.minor_stars if s not in malefic_set]
+        sha_stars = [s for s in p.minor_stars if s in malefic_set]
+        aux_display = "、".join(aux_stars) if aux_stars else "—"
+        sha_display = "、".join(sha_stars) if sha_stars else "—"
         interp = _interpret_palace(p.name, p.main_stars, four_trans)
         interp_short = interp.split("\n")[0]
         if len(interp_short) > 60:
@@ -141,8 +148,91 @@ def render_ziwei_formal_table(ziwei_chart):
             "宮位": p.name,
             "地支": p.earthly_branch,
             "主星": stars,
+            "吉輔": aux_display,
+            "煞曜": sha_display,
             "四化": tx_display,
             "解讀摘要": interp_short,
+        })
+
+    df = pd.DataFrame(rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+def render_ziwei_auxiliary_table(ziwei_chart):
+    """Render auxiliary + malefic star overview table."""
+    import pandas as pd
+
+    star_cat = getattr(ziwei_chart, "star_categories", {})
+    aux_map = getattr(ziwei_chart, "auxiliary_star_map", {})
+    malefic_map = getattr(ziwei_chart, "malefic_star_map", {})
+    all_palaces = [
+        ziwei_chart.ming_palace, ziwei_chart.brother_palace,
+        ziwei_chart.spouse_palace, ziwei_chart.children_palace,
+        ziwei_chart.wealth_palace, ziwei_chart.health_palace,
+        ziwei_chart.travel_palace, ziwei_chart.friends_palace,
+        ziwei_chart.career_palace, ziwei_chart.property_palace,
+        ziwei_chart.fortune_palace, ziwei_chart.parents_palace,
+    ]
+    branch_to_name = {p.earthly_branch: p.name for p in all_palaces}
+
+    _star_hints = {
+        "左輔": "貴人輔佐，協作人際支援",
+        "右弼": "貴人輔佐，幕後支援力量",
+        "文昌": "學習、文書、考試、專業表達",
+        "文曲": "藝術、口才、才藝、情感表達",
+        "天魁": "天乙貴人，關鍵提攜機會",
+        "天鉞": "玉堂貴人，溫柔助力與緣分",
+        "祿存": "資源守成，財庫穩固之象",
+        "擎羊": "衝突刀鋒，果斷破局之力",
+        "陀羅": "拖延拉扯，慢性執著之象",
+        "火星": "爆發行動，急躁突發之火",
+        "鈴星": "內在焦躁，警覺突發之象",
+        "地空": "空性落差，理想與現實的距離",
+        "地劫": "資源破耗，斷裂與重建之象",
+    }
+
+    rows = []
+    all_stars = {**{s: "auspicious" for s in aux_map}, **{s: "malefic" for s in malefic_map}}
+    for star, cat in all_stars.items():
+        branch = aux_map.get(star) or malefic_map.get(star, "—")
+        palace = branch_to_name.get(branch, "—")
+        cat_label = "吉輔" if cat == "auspicious" else "煞曜"
+        hint = _star_hints.get(star, "")
+        rows.append({
+            "星曜": star,
+            "類別": cat_label,
+            "所在宮位": palace,
+            "地支": branch,
+            "解讀方向": hint,
+        })
+
+    if rows:
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("輔煞星資料尚未計算（需出生時辰或正式排盤）。")
+
+
+def render_daxian_table(ziwei_chart):
+    """Render Da Xian 10-year period table."""
+    import pandas as pd
+
+    da_xian = getattr(ziwei_chart, "da_xian", [])
+    if not da_xian:
+        st.caption("大限資料尚未計算。")
+        return
+
+    rows = []
+    for d in da_xian:
+        main = "、".join(d.main_stars) if d.main_stars else "—"
+        aux = "、".join(d.auxiliary_stars) if d.auxiliary_stars else "—"
+        rows.append({
+            "年齡區間": f"{d.start_age}–{d.end_age} 歲",
+            "宮位": d.palace_name,
+            "地支": d.branch,
+            "主星": main,
+            "輔星 / 煞星": aux,
+            "解讀": d.interpretation,
         })
 
     df = pd.DataFrame(rows)

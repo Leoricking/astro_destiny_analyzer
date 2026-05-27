@@ -21,7 +21,7 @@ import hashlib
 from datetime import date, time
 from typing import Optional, List, Dict, Tuple
 
-from core.models import ZiWeiChart, ZiWeiPalace
+from core.models import ZiWeiChart, ZiWeiPalace, DaXianPeriod, Gender
 
 try:
     from lunardate import LunarDate as _LunarDate
@@ -257,6 +257,184 @@ def _place_main_stars(ziwei_idx: int, tianfu_idx: int) -> Dict[int, List[str]]:
     return placement
 
 
+# ── Auxiliary & Malefic Star Placement (V1.5.5) ──────────────────────────────
+# Phase 1 — common table method.  Flow-school variants can be configured in
+# future versions.  All placements are deterministic; no randomness.
+
+# Yang stems (陽干)
+_YANG_STEMS = {"甲", "丙", "戊", "庚", "壬"}
+
+# 天魁 / 天鉞 by year stem (common 資治通鑑 table, Phase 1)
+# 甲戊庚: 魁丑 鉞未 | 乙己: 魁子 鉞申 | 丙丁: 魁亥 鉞酉
+# 壬癸: 魁卯 鉞巳 | 辛: 魁午 鉞寅
+_KUI_YUE_TABLE: Dict[str, Tuple[int, int]] = {
+    "甲": (1, 7), "戊": (1, 7), "庚": (1, 7),   # 魁=丑(1) 鉞=未(7)
+    "乙": (0, 8), "己": (0, 8),                   # 魁=子(0) 鉞=申(8)
+    "丙": (11, 9), "丁": (11, 9),                 # 魁=亥(11) 鉞=酉(9)
+    "壬": (3, 5), "癸": (3, 5),                   # 魁=卯(3) 鉞=巳(5)
+    "辛": (6, 2),                                  # 魁=午(6) 鉞=寅(2)
+}
+
+# 祿存 / 擎羊 / 陀羅 by year stem (standard rule: 羊 = 祿存+1, 陀 = 祿存-1)
+_LUCUN_TABLE: Dict[str, int] = {
+    "甲": 2, "乙": 3, "丙": 5, "丁": 6,
+    "戊": 5, "己": 6, "庚": 8, "辛": 9,
+    "壬": 11, "癸": 0,
+}
+
+# 火星 / 鈴星 base indices by year-branch group (Phase 1 common table)
+# key = year_branch, value = (火星_base_idx, 鈴星_base_idx) for 子時
+# 火星 = (base + hour_idx) % 12; 鈴星 = (ling_base + hour_idx) % 12
+_HUO_LING_BASE: Dict[str, Tuple[int, int]] = {
+    "寅": (2, 3), "午": (2, 3), "戌": (2, 3),   # 火起寅(2) 鈴起卯(3)
+    "申": (10, 11), "子": (10, 11), "辰": (10, 11),  # 火起戌(10) 鈴起亥(11)
+    "巳": (6, 10), "酉": (6, 10), "丑": (6, 10),    # 火起午(6) 鈴起戌(10)
+    "亥": (9, 3), "卯": (9, 3), "未": (9, 3),       # 火起酉(9) 鈴起卯(3)
+}
+
+# 大限 palace interpretation themes
+_PALACE_DA_XIAN_THEMES: Dict[str, str] = {
+    "命宮": "自我定位、身份認同與人生主軸",
+    "兄弟宮": "手足情誼、平輩人際與同儕合作",
+    "夫妻宮": "親密關係、婚姻合作與對等連結",
+    "子女宮": "子嗣緣分、創造力與部屬管理",
+    "財帛宮": "財務積累、資源取得與金錢流動",
+    "疾厄宮": "健康管理、承壓能力與身心調適",
+    "遷移宮": "外部環境、移動發展與社會接觸",
+    "交友宮": "社交圈、貴人小人與群體關係",
+    "官祿宮": "事業格局、社會定位與職涯成就",
+    "田宅宮": "居家環境、不動產與安全感基礎",
+    "福德宮": "精神生活、內在滋養與享受模式",
+    "父母宮": "長輩關係、上司緣與社會規範適應",
+}
+
+
+def _place_left_right(lunar_month: int) -> Dict[str, str]:
+    """
+    左輔 / 右弼 placement by lunar month (V1.5.5 Phase 1).
+    左輔: 辰(4) + month - 1 (forward).
+    右弼: 戌(10) - (month - 1) (backward).
+    """
+    zuo_idx = (4 + lunar_month - 1) % 12     # 辰 = index 4
+    you_idx = (10 - (lunar_month - 1)) % 12  # 戌 = index 10
+    return {"左輔": _BRANCHES[zuo_idx], "右弼": _BRANCHES[you_idx]}
+
+
+def _place_chang_qu(hour_branch: str) -> Dict[str, str]:
+    """
+    文昌 / 文曲 placement by hour branch (V1.5.5 Phase 1).
+    文昌: 戌(10) backwards from 子時 → idx = (10 - hour_idx) % 12.
+    文曲: 辰(4) forwards from 子時 → idx = (4 + hour_idx) % 12.
+    """
+    h = _BI[hour_branch]
+    chang_idx = (10 - h) % 12
+    qu_idx    = (4 + h) % 12
+    return {"文昌": _BRANCHES[chang_idx], "文曲": _BRANCHES[qu_idx]}
+
+
+def _place_kui_yue(year_stem: str) -> Dict[str, str]:
+    """
+    天魁 / 天鉞 placement by year stem (V1.5.5 Phase 1, common table).
+    """
+    kui_idx, yue_idx = _KUI_YUE_TABLE.get(year_stem, (1, 7))
+    return {"天魁": _BRANCHES[kui_idx], "天鉞": _BRANCHES[yue_idx]}
+
+
+def _place_lucun_yang_tuo(year_stem: str) -> Dict[str, str]:
+    """
+    祿存 / 擎羊 / 陀羅 placement by year stem (V1.5.5 Phase 1).
+    祿存 at standard position; 擎羊 = +1; 陀羅 = -1.
+    """
+    lu_idx  = _LUCUN_TABLE.get(year_stem, 0)
+    yang_idx = (lu_idx + 1) % 12
+    tuo_idx  = (lu_idx - 1) % 12
+    return {
+        "祿存": _BRANCHES[lu_idx],
+        "擎羊": _BRANCHES[yang_idx],
+        "陀羅": _BRANCHES[tuo_idx],
+    }
+
+
+def _place_huo_ling(year_branch: str, hour_branch: str) -> Dict[str, str]:
+    """
+    火星 / 鈴星 placement by year branch group + hour branch (V1.5.5 Phase 1).
+    火星 = (huo_base + hour_idx) % 12.
+    鈴星 = (ling_base + hour_idx) % 12.
+    """
+    huo_base, ling_base = _HUO_LING_BASE.get(year_branch, (2, 3))
+    h = _BI[hour_branch]
+    huo_idx  = (huo_base + h) % 12
+    ling_idx = (ling_base + h) % 12
+    return {"火星": _BRANCHES[huo_idx], "鈴星": _BRANCHES[ling_idx]}
+
+
+def _place_kong_jie(hour_branch: str) -> Dict[str, str]:
+    """
+    地空 / 地劫 placement by hour branch (V1.5.5 Phase 1).
+    地空: 亥(11) backwards from 子時 → idx = (11 - hour_idx) % 12.
+    地劫: 亥(11) forwards from 子時 → idx = (11 + hour_idx) % 12.
+    """
+    h = _BI[hour_branch]
+    kong_idx = (11 - h) % 12
+    jie_idx  = (11 + h) % 12
+    return {"地空": _BRANCHES[kong_idx], "地劫": _BRANCHES[jie_idx]}
+
+
+def _calc_da_xian(
+    ming_idx: int,
+    bureau_number: int,
+    year_stem: str,
+    gender: Optional[Gender],
+    palaces: List[ZiWeiPalace],
+) -> Tuple[str, int, List[DaXianPeriod]]:
+    """
+    Calculate Da Xian (大限) 10-year periods — Phase 1.
+
+    Direction rules (V1.5.5):
+      陽男 / 陰女 → forward (順行)
+      陰男 / 陽女 → backward (逆行)
+      Unknown gender → direction = "unknown", palaces assigned forward as fallback.
+
+    Start age = five_element_bureau_number (水二=2, 木三=3, 金四=4, 土五=5, 火六=6).
+    Each period = 10 years.  Returns (direction, start_age, [DaXianPeriod x 12]).
+    """
+    is_yang_stem = year_stem in _YANG_STEMS
+
+    if gender == Gender.MALE:
+        direction = "forward" if is_yang_stem else "backward"
+    elif gender == Gender.FEMALE:
+        direction = "backward" if is_yang_stem else "forward"
+    else:
+        direction = "unknown"
+
+    start_age = bureau_number
+
+    periods: List[DaXianPeriod] = []
+    for i in range(12):
+        if direction == "backward":
+            p_idx = (12 - i) % 12       # 逆: 0→命宮, 1→父母宮(11)…
+        else:
+            p_idx = i % 12              # 順 / unknown fallback
+
+        p = palaces[p_idx]
+        age_s = start_age + i * 10
+        age_e = age_s + 9
+        theme = _PALACE_DA_XIAN_THEMES.get(p.name, "此宮位相關課題")
+        interp = f"此大限落於{p.name}（{p.earthly_branch}），代表此十年{theme}議題被放大。"
+
+        periods.append(DaXianPeriod(
+            start_age=age_s,
+            end_age=age_e,
+            palace_name=p.name,
+            branch=p.earthly_branch,
+            main_stars=list(p.main_stars),
+            auxiliary_stars=list(p.minor_stars),
+            interpretation=interp,
+        ))
+
+    return direction, start_age, periods
+
+
 # ── Interpretation helpers (V1.5.1) ──────────────────────────────────────────
 
 _MAIN_STAR_INTERPRETATIONS: Dict[str, str] = {
@@ -430,7 +608,8 @@ def _layout_mock(birth_date: date, birth_time: Optional[time]) -> ZiWeiChart:
 
 class ZiWeiEngine:
     def calculate(self, birth_date: date,
-                  birth_time: Optional[time] = None) -> ZiWeiChart:
+                  birth_time: Optional[time] = None,
+                  gender: Optional[Gender] = None) -> ZiWeiChart:
         """
         Calculate Zi Wei chart.
         Attempts formal Phase 1 layout when lunardate is available and
@@ -514,19 +693,88 @@ class ZiWeiEngine:
 
         all_main = [s for stars in star_placement.values() for s in stars]
 
-        # 9. calculation_mode
+        # 9. Auxiliary & malefic star placement (V1.5.5)
+        aux_map: Dict[str, str] = {}
+        malefic_map: Dict[str, str] = {}
+        star_cat: Dict[str, str] = {}
+        aux_accuracy_note = (
+            "V1.5.5 輔星、煞星採 Phase 1 常見表法；流派差異後續版本可配置。"
+        )
+        year_branch_str = _BRANCHES[(lunar_year - 4) % 12]
+
+        # Stars that only need lunar_month (available even without time)
+        _lr = _place_left_right(lunar_month)
+        _ky = _place_kui_yue(year_stem)
+        _lu = _place_lucun_yang_tuo(year_stem)
+
+        aux_map["左輔"] = _lr["左輔"]
+        aux_map["右弼"] = _lr["右弼"]
+        aux_map["天魁"] = _ky["天魁"]
+        aux_map["天鉞"] = _ky["天鉞"]
+        aux_map["祿存"] = _lu["祿存"]
+        malefic_map["擎羊"] = _lu["擎羊"]
+        malefic_map["陀羅"] = _lu["陀羅"]
+
+        if time_known:
+            _cq = _place_chang_qu(hour_branch)
+            _hl = _place_huo_ling(year_branch_str, hour_branch)
+            _kj = _place_kong_jie(hour_branch)
+            aux_map["文昌"] = _cq["文昌"]
+            aux_map["文曲"] = _cq["文曲"]
+            malefic_map["火星"] = _hl["火星"]
+            malefic_map["鈴星"] = _hl["鈴星"]
+            malefic_map["地空"] = _kj["地空"]
+            malefic_map["地劫"] = _kj["地劫"]
+        else:
+            aux_accuracy_note += " 文昌、文曲、火星、鈴星、地空、地劫需出生時辰，本次未計算。"
+
+        # Star categories
+        for s in ["左輔", "右弼", "文昌", "文曲", "天魁", "天鉞", "祿存"]:
+            star_cat[s] = "auspicious"
+        for s in ["擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"]:
+            star_cat[s] = "malefic"
+
+        # Apply auxiliary/malefic stars to palaces' minor_stars
+        branch_to_palace_idx: Dict[str, int] = {
+            p.earthly_branch: i for i, p in enumerate(palaces)
+        }
+        all_aux = {**aux_map, **malefic_map}
+        for star, branch in all_aux.items():
+            p_idx = branch_to_palace_idx.get(branch)
+            if p_idx is not None:
+                if star not in palaces[p_idx].minor_stars:
+                    palaces[p_idx].minor_stars.append(star)
+
+        # 10. Da Xian (V1.5.5)
+        da_xian_direction, da_xian_start_age, da_xian_list = _calc_da_xian(
+            ming_idx=ming_idx,
+            bureau_number=bureau_num,
+            year_stem=year_stem,
+            gender=gender,
+            palaces=palaces,
+        )
+        da_xian_accuracy = "phase1"
+        da_xian_note = (
+            "V1.5.5 大限為 Phase 1 骨架，依五行局數起大限，陽男陰女順行；"
+            "尚未加入大限四化與流年飛化。"
+        )
+
+        # 11. calculation_mode
         if time_known:
             mode = "formal_layout_phase1"
             note = (
-                "V1.5 已依農曆生日與出生時辰進行紫微斗數第一階段正式排盤；"
-                "十四主星與四化已安置，輔星、煞星、大限與流年將於後續版本補齊。"
-                " V1.5 對閏月採保守處理，後續版本將加入精準閏月流派設定。"
+                "V1.5.5 已依農曆生日與出生時辰進行正式排盤，含十四主星、四化、"
+                "核心輔星（左輔右弼、文昌文曲、天魁天鉞、祿存）、"
+                "六煞（擎羊、陀羅、火星、鈴星、地空、地劫）與大限 Phase 1。"
+                " 輔星煞星採 Phase 1 常見表法，流派差異後續版本可配置。"
+                " 大限尚未加入四化與飛化。"
             )
         else:
             mode = "partial_lunar_only"
             note = (
                 "出生時間未知，紫微命宮、身宮與主星位置不可視為精準結果。"
-                "已完成農曆轉換；命宮僅依農曆月份估算，時辰資料需補充。"
+                "已完成農曆轉換、天魁天鉞、祿存羊陀與左輔右弼基礎安星；"
+                "文昌文曲、火鈴空劫需補填出生時辰。"
             )
 
         return ZiWeiChart(
@@ -557,4 +805,12 @@ class ZiWeiEngine:
             shen_branch=shen_branch_str,
             five_element_bureau=bureau_name,
             five_element_bureau_number=bureau_num,
+            auxiliary_star_map=aux_map,
+            malefic_star_map=malefic_map,
+            star_categories=star_cat,
+            da_xian=da_xian_list,
+            da_xian_direction=da_xian_direction,
+            da_xian_start_age=da_xian_start_age,
+            da_xian_accuracy=da_xian_accuracy,
+            auxiliary_accuracy_note=aux_accuracy_note,
         )

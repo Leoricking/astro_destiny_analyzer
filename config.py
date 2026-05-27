@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.5.1"
+APP_VERSION = "1.5.5"
 APP_SUBTITLE = "命盤整合分析系統"
 
 DISCLAIMER_ZH = """
@@ -34,6 +34,11 @@ SUPPORTED_LANGUAGES = ["繁體中文", "簡體中文", "English"]
 # Note: this policy only affects the day pillar (and consequently the hour pillar).
 # Year/month pillars always follow the original birth date + solar-term rules.
 ZI_HOUR_POLICY: str = "late_zi_same_day"
+
+# Zi Wei Da Xian (大限) policy
+# "phase1_gender_yinyang": Phase 1 — 陽男陰女順行，陰男陽女逆行
+# Future versions may support full multi-school configuration
+DA_XIAN_POLICY: str = "phase1_gender_yinyang"
 
 # Swiss Ephemeris settings
 USE_SWISS_EPHEMERIS: bool = True          # set False to force mock

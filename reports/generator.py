@@ -61,6 +61,7 @@ class ReportGenerator:
         ziwei_chart = self._ziwei.calculate(
             birth_date=birth_date,
             birth_time=birth_time,
+            gender=profile.gender,
         )
 
         blood_analysis = self._blood.analyze(profile.blood_type)

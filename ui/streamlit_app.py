@@ -36,6 +36,7 @@ from ui.components import (
     render_planet_table, render_house_table, render_aspect_table,
     render_bazi_pillars, render_five_element_chart,
     render_ziwei_palace_grid, render_ziwei_formal_table,
+    render_ziwei_auxiliary_table, render_daxian_table,
     render_numerology_card, render_synthesis_section,
 )
 
@@ -686,12 +687,14 @@ elif page == "🔮 計算命盤":
                     st.markdown(f"**排盤模式**：{mode_labels.get(mode, mode)}")
                     if mode == "formal_layout_phase1":
                         st.success(
-                            "紫微斗數 V1.5 第一階段正式排盤：命宮、身宮、"
-                            "十四主星與生年四化已完成。"
+                            "紫微斗數 V1.5.5 正式排盤：命宮、身宮、十四主星、四化、"
+                            "核心輔星、六煞與大限 Phase 1 已完成。"
+                            " 尚未加入大限四化、流年、流月。"
                         )
                     elif mode == "partial_lunar_only":
                         st.warning(
                             "⚠️ 缺少出生時辰，命宮 / 身宮 / 主星不可視為精準。"
+                            " 部分輔星（文昌文曲、火鈴空劫）需出生時辰方可安置。"
                         )
                     else:
                         st.error(
@@ -817,12 +820,36 @@ elif page == "🔮 計算命盤":
                                         palace_info = f"，落於{p.name}（{p.earthly_branch}）"
                                         break
                             else:
-                                palace_info = "（輔星四化，V1.5 先保留資訊，後續版本安輔星）"
+                                palace_info = "（輔星四化，V1.5 保留資訊）"
                             st.markdown(
                                 f"**{tx_type}**：{star}{palace_info} — {sihua_desc.get(tx_type, '')}"
                             )
                         else:
                             st.markdown(f"**{tx_type}**：—")
+
+                # ── G. 輔星 / 煞星總覽 ───────────────────────────────────────
+                with st.expander("輔星 / 煞星總覽（V1.5.5）"):
+                    aux_note = getattr(zc, "auxiliary_accuracy_note", "")
+                    if aux_note:
+                        st.caption(f"ℹ️ {aux_note}")
+                    render_ziwei_auxiliary_table(zc)
+
+                # ── H. 大限 ──────────────────────────────────────────────────
+                with st.expander("大限 10 年運限（V1.5.5 Phase 1）"):
+                    dx_dir = getattr(zc, "da_xian_direction", "")
+                    dx_age = getattr(zc, "da_xian_start_age", None)
+                    dir_labels = {"forward": "順行（陽男 / 陰女）",
+                                  "backward": "逆行（陰男 / 陽女）",
+                                  "unknown": "方向未知（性別未填）"}
+                    if dx_dir:
+                        st.caption(f"大限方向：{dir_labels.get(dx_dir, dx_dir)}")
+                    if dx_age:
+                        st.caption(f"第一大限起始歲數：{dx_age} 歲（依五行局數）")
+                    st.caption(
+                        "ℹ️ V1.5.5 大限為 Phase 1 骨架，尚未加入大限四化與流年飛化。"
+                        " 適合看十年生命焦點，不適合直接斷具體年份事件。"
+                    )
+                    render_daxian_table(zc)
 
         with tab_n:
             nc = report.numerology_chart

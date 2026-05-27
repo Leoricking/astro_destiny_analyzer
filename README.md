@@ -497,10 +497,79 @@ feat: add astro destiny analyzer MVP
 ## 14. 版本資訊
 
 ```text
-Version: v1.5.1
+Version: v1.5.5
 Date: 2026-05-27
-Status: Zi Wei UI & Report Interpretation Polish
+Status: Zi Wei Auxiliary Stars & Da Xian Phase 1
 ```
+
+---
+
+## 16. V1.5.5 更新說明 — 紫微輔星 / 煞星 / 大限 Phase 1
+
+### 16.1 新增輔星（六吉星 + 祿存）
+
+| 星曜 | 安置規則 | 類別 |
+|---|---|---|
+| 左輔 | 辰宮起正月，順數至生月 | 吉輔 |
+| 右弼 | 戌宮起正月，逆數至生月 | 吉輔 |
+| 文昌 | 依出生時辰（戌宮逆數） | 吉輔 |
+| 文曲 | 依出生時辰（辰宮順數） | 吉輔 |
+| 天魁 | 依出生年天干（常見表法） | 吉輔 |
+| 天鉞 | 依出生年天干（常見表法） | 吉輔 |
+| 祿存 | 依出生年天干 | 吉輔 |
+
+### 16.2 新增六煞星 Phase 1
+
+| 星曜 | 安置規則 | 類別 |
+|---|---|---|
+| 擎羊 | 祿存+1 宮 | 煞曜 |
+| 陀羅 | 祿存-1 宮 | 煞曜 |
+| 火星 | 依年支三合局 + 時辰 | 煞曜 |
+| 鈴星 | 依年支三合局 + 時辰 | 煞曜 |
+| 地空 | 依時辰（亥宮逆數） | 煞曜 |
+| 地劫 | 依時辰（亥宮順數） | 煞曜 |
+
+> 文昌、文曲、火星、鈴星、地空、地劫需出生時辰；未填出生時辰時略過。
+> 輔星煞星採 Phase 1 常見表法，流派差異後續版本可配置。
+
+### 16.3 大限 10 年運限骨架
+
+**方向規則**（V1.5.5 Phase 1）：
+
+| 條件 | 大限方向 |
+|---|---|
+| 陽年（甲丙戊庚壬）+ 男 | 順行 |
+| 陽年 + 女 | 逆行 |
+| 陰年（乙丁己辛癸）+ 男 | 逆行 |
+| 陰年 + 女 | 順行 |
+| 性別未填 | 方向 unknown，保守以順行計算 |
+
+**大限起始歲數**：依五行局數（水二=2歲、木三=3歲、金四=4歲、土五=5歲、火六=6歲）
+
+**每大限 10 年**，共 12 個大限，涵蓋整個人生週期。
+
+### 16.4 V1.5.5 資料模型新增欄位
+
+`ZiWeiChart` 新增：
+- `auxiliary_star_map: Dict[str, str]` — 吉輔星 → 所在地支
+- `malefic_star_map: Dict[str, str]` — 煞曜 → 所在地支
+- `star_categories: Dict[str, str]` — 星曜 → "auspicious" / "malefic"
+- `da_xian: List[DaXianPeriod]` — 12 個大限資料
+- `da_xian_direction: str` — "forward" / "backward" / "unknown"
+- `da_xian_start_age: int` — 第一大限起始歲數
+- `da_xian_accuracy: str` — "phase1"
+- `auxiliary_accuracy_note: str` — 輔星精度說明
+
+新增 `DaXianPeriod` 模型：
+- `start_age / end_age / palace_name / branch / main_stars / auxiliary_stars / interpretation`
+
+### 16.5 V1.5.5 限制聲明
+
+- **大限四化 / 宮干四化**：尚未實作
+- **流年 / 流月 / 流日**：尚未實作
+- **廟旺陷強弱**：尚未實作
+- **輔星安星流派差異**：採 Phase 1 常見表法，後續版本可配置
+- **閏月精準處理**：採保守處理
 
 ---
 
