@@ -35,7 +35,8 @@ from core.database import (
 from ui.components import (
     render_planet_table, render_house_table, render_aspect_table,
     render_bazi_pillars, render_five_element_chart,
-    render_ziwei_palace_grid, render_numerology_card, render_synthesis_section,
+    render_ziwei_palace_grid, render_ziwei_formal_table,
+    render_numerology_card, render_synthesis_section,
 )
 
 st.set_page_config(
@@ -671,34 +672,157 @@ elif page == "🔮 計算命盤":
         with tab_z:
             zc = report.ziwei_chart
             if zc:
+                from engines.ziwei import _interpret_main_star, _interpret_palace, _MAIN_STARS_14
+
                 mode = getattr(zc, "calculation_mode", "mock_fallback")
-                if mode == "formal_layout_phase1":
-                    st.success(
-                        "紫微斗數 V1.5 第一階段正式排盤：十四主星與四化已安置；"
-                        "輔星、煞星、大限、流年待後續版本。"
-                    )
-                elif mode == "partial_lunar_only":
-                    st.warning("⚠️ 出生時間未知，命宮與主星位置不可視為精準排盤。")
-                else:
-                    st.caption("⚠️ 紫微斗數目前為 Mock 布局。完整排盤演算法開發中。")
-                if getattr(zc, "accuracy_note", ""):
-                    st.caption(f"ℹ️ {zc.accuracy_note}")
-                # Lunar / Ming / Shen / Bureau info
-                info_cols = st.columns(4)
-                with info_cols[0]:
-                    if zc.lunar_year:
-                        st.metric("農曆年月日",
-                                  f"{zc.lunar_year}/{zc.lunar_month}/{zc.lunar_day}")
-                with info_cols[1]:
-                    if zc.ming_branch:
-                        st.metric("命宮", zc.ming_branch)
-                with info_cols[2]:
-                    if zc.shen_branch:
-                        st.metric("身宮", zc.shen_branch)
-                with info_cols[3]:
-                    if zc.five_element_bureau:
-                        st.metric("五行局", zc.five_element_bureau)
-                render_ziwei_palace_grid(zc)
+
+                # ── A. 排盤狀態卡片 ─────────────────────────────────────────
+                with st.container(border=True):
+                    mode_labels = {
+                        "formal_layout_phase1": "正式排盤 Phase 1",
+                        "partial_lunar_only": "只有農曆資料，缺出生時辰",
+                        "mock_fallback": "Fallback（農曆轉換不可用）",
+                    }
+                    st.markdown(f"**排盤模式**：{mode_labels.get(mode, mode)}")
+                    if mode == "formal_layout_phase1":
+                        st.success(
+                            "紫微斗數 V1.5 第一階段正式排盤：命宮、身宮、"
+                            "十四主星與生年四化已完成。"
+                        )
+                    elif mode == "partial_lunar_only":
+                        st.warning(
+                            "⚠️ 缺少出生時辰，命宮 / 身宮 / 主星不可視為精準。"
+                        )
+                    else:
+                        st.error(
+                            "農曆轉換或紫微正式排盤不可用，目前使用 fallback。"
+                        )
+                    accuracy = getattr(zc, "accuracy_note", "")
+                    if accuracy:
+                        st.caption(f"ℹ️ {accuracy}")
+
+                # ── B. 基本盤資訊卡片 ────────────────────────────────────────
+                with st.container(border=True):
+                    st.markdown("**基本盤資訊**")
+                    info_cols = st.columns(6)
+                    with info_cols[0]:
+                        if zc.lunar_year:
+                            leap_mark = "（閏）" if zc.lunar_is_leap_month else ""
+                            st.metric(
+                                "農曆生日",
+                                f"{zc.lunar_year}/{zc.lunar_month}{leap_mark}/{zc.lunar_day}"
+                            )
+                    with info_cols[1]:
+                        if zc.birth_hour_branch:
+                            st.metric("出生時辰", zc.birth_hour_branch)
+                        else:
+                            st.metric("出生時辰", "未知")
+                    with info_cols[2]:
+                        if zc.ming_branch:
+                            st.metric("命宮地支", zc.ming_branch)
+                    with info_cols[3]:
+                        if zc.shen_branch:
+                            st.metric("身宮地支", zc.shen_branch)
+                    with info_cols[4]:
+                        if zc.five_element_bureau:
+                            st.metric("五行局", zc.five_element_bureau)
+                    with info_cols[5]:
+                        year_stem = None
+                        if zc.lunar_year:
+                            _stems_list = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"]
+                            year_stem = _stems_list[(zc.lunar_year - 4) % 10]
+                        if year_stem:
+                            st.metric("生年天干", year_stem)
+
+                # ── C. 命宮 / 身宮重點解讀 ─────────────────────────────────
+                if zc.ming_palace:
+                    with st.container(border=True):
+                        st.markdown("**命宮 / 身宮解讀**")
+                        cc1, cc2 = st.columns(2)
+                        with cc1:
+                            st.markdown(
+                                f"**命宮（{zc.ming_palace.earthly_branch}）**\n\n"
+                                "命宮代表人格主軸、外在行為與人生基調。"
+                            )
+                            ming_stars = zc.ming_palace.main_stars
+                            if ming_stars:
+                                st.markdown(f"主星：{'、'.join(ming_stars)}")
+                                for s in ming_stars:
+                                    interp = _interpret_main_star(s)
+                                    if interp:
+                                        st.caption(interp)
+                            else:
+                                st.caption("命宮無主星（空宮）。")
+                        with cc2:
+                            shen_branch = getattr(zc, "shen_branch", None)
+                            shen_label = shen_branch if shen_branch else "未知"
+                            st.markdown(
+                                f"**身宮（{shen_label}）**\n\n"
+                                "身宮代表後天行動重心、中年後越來越明顯的生命著力點。"
+                            )
+                            if zc.shen_palace and zc.shen_palace.main_stars:
+                                st.markdown(f"主星：{'、'.join(zc.shen_palace.main_stars)}")
+
+                # ── D. 十二宮表格 ────────────────────────────────────────────
+                st.markdown("##### 十二宮總表")
+                render_ziwei_formal_table(zc)
+
+                # ── E. 十四主星總覽 ─────────────────────────────────────────
+                with st.expander("十四主星分布"):
+                    four_trans = zc.four_transformations or {}
+                    star_rows = []
+                    all_palaces = [
+                        zc.ming_palace, zc.brother_palace, zc.spouse_palace,
+                        zc.children_palace, zc.wealth_palace, zc.health_palace,
+                        zc.travel_palace, zc.friends_palace, zc.career_palace,
+                        zc.property_palace, zc.fortune_palace, zc.parents_palace,
+                    ]
+                    branch_to_palace: dict = {}
+                    for p in all_palaces:
+                        branch_to_palace[p.earthly_branch] = p.name
+                    for star in _MAIN_STARS_14:
+                        palace_name = "—"
+                        for p in all_palaces:
+                            if star in p.main_stars:
+                                palace_name = f"{p.name}（{p.earthly_branch}）"
+                                break
+                        sihua = four_trans.get(star, "")
+                        star_rows.append({
+                            "星曜": star,
+                            "所在宮位": palace_name,
+                            "四化": sihua if sihua else "—",
+                        })
+                    import pandas as pd
+                    st.dataframe(pd.DataFrame(star_rows), use_container_width=True, hide_index=True)
+
+                # ── F. 四化總覽 ──────────────────────────────────────────────
+                with st.expander("生年四化"):
+                    four_trans = zc.four_transformations or {}
+                    from engines.ziwei import _MAIN_STARS_14 as _MS14
+                    sihua_order = ["化祿", "化權", "化科", "化忌"]
+                    sihua_desc = {
+                        "化祿": "偏機會 / 資源",
+                        "化權": "偏主導 / 權力",
+                        "化科": "偏名聲 / 學習",
+                        "化忌": "偏壓力 / 課題（轉化視角：深化的功課）",
+                    }
+                    for tx_type in sihua_order:
+                        star = next((s for s, t in four_trans.items() if t == tx_type), None)
+                        if star:
+                            is_main = star in _MS14
+                            palace_info = ""
+                            if is_main:
+                                for p in all_palaces:
+                                    if star in p.main_stars:
+                                        palace_info = f"，落於{p.name}（{p.earthly_branch}）"
+                                        break
+                            else:
+                                palace_info = "（輔星四化，V1.5 先保留資訊，後續版本安輔星）"
+                            st.markdown(
+                                f"**{tx_type}**：{star}{palace_info} — {sihua_desc.get(tx_type, '')}"
+                            )
+                        else:
+                            st.markdown(f"**{tx_type}**：—")
 
         with tab_n:
             nc = report.numerology_chart

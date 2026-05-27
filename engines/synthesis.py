@@ -156,9 +156,18 @@ class SynthesisEngine:
 
         if ziwei:
             ming_stars = "、".join(ziwei.ming_palace.main_stars) if ziwei.ming_palace.main_stars else "無主星"
+            ziwei_mode = getattr(ziwei, "calculation_mode", "mock_fallback")
+            formal_note = ""
+            if ziwei_mode == "formal_layout_phase1":
+                formal_note = (
+                    "\n\n（紫微正式盤已完成命宮 / 身宮 / 主星定位，"
+                    "因此紫微結論可作為人格與宮位領域的重要參考。）"
+                )
+            elif ziwei_mode == "mock_fallback":
+                formal_note = "\n\n（紫微目前為 fallback 資料，請以西洋占星與八字結論為主要參考。）"
             core_parts.append(
                 f"**紫微命宮——{ziwei.ming_palace.earthly_branch}宮，主星：{ming_stars}**\n\n"
-                f"{ziwei.ming_palace.interpretation}"
+                f"{ziwei.ming_palace.interpretation}{formal_note}"
             )
 
         if numerology:
@@ -251,6 +260,7 @@ class SynthesisEngine:
         lp = numerology.life_path_number if numerology else None
         lp_careers = _LIFE_PATH_CAREER.get(lp, []) if lp else []
 
+        ziwei_mode_for_career = getattr(ziwei, "calculation_mode", "mock_fallback") if ziwei else None
         career_pattern = build_career_narrative(
             sun_sign=sun_sign,
             mc_sign=mc_sign,
@@ -261,6 +271,10 @@ class SynthesisEngine:
             life_path_number=lp,
             career_star_descs=_ZIWEI_CAREER_STARS,
         )
+        if ziwei_mode_for_career == "formal_layout_phase1":
+            career_pattern += (
+                "\n\n---\n\n（紫微正式盤已完成官祿宮定位，以上紫微事業分析可作為正式參考。）"
+            )
 
         suitable_careers: List[str] = list(lp_careers)
         if sun_sign:

@@ -257,6 +257,106 @@ def _place_main_stars(ziwei_idx: int, tianfu_idx: int) -> Dict[int, List[str]]:
     return placement
 
 
+# ── Interpretation helpers (V1.5.1) ──────────────────────────────────────────
+
+_MAIN_STAR_INTERPRETATIONS: Dict[str, str] = {
+    "紫微": "紫微是帝星，象徵主導、整合與尊貴。命宮有紫微者，天生具備領導格局與統御意識，傾向獨立自主，重視身份認同，最佳發展方向是成為某一領域的主心骨。",
+    "天機": "天機是智謀之星，善於思考、策劃與變通。命宮有天機者，腦筋靈活、愛好學習，擅長找尋系統中的漏洞與機遇，適合智識型或需要靈活應對的工作。",
+    "太陽": "太陽是光明之星，代表外放、責任與名聲。命宮有太陽者，天生具有公眾魅力，喜歡照亮他人，適合需要曝光的工作，但也容易過度付出而忽略自身需求。",
+    "武曲": "武曲是財星兼將星，象徵執行力、紀律與資源掌控。命宮有武曲者，行事果斷、重實際，財務觀念強，適合金融、管理或需要強大執行力的職場。",
+    "天同": "天同是福星，象徵福氣、享受與柔和。命宮有天同者，天生散發親和力，重視生活品質與內心平靜，適合服務業、福利型工作，或能帶給他人輕鬆感的職位。",
+    "廉貞": "廉貞是規範之星，兼具魅力與原則。命宮有廉貞者，具有界線意識與競爭心，吸引力強但不輕易妥協，適合法律、軍警、藝術或需要嚴格自律的工作。",
+    "天府": "天府是財庫星，象徵穩定、管理與資源累積。命宮有天府者，天生具備守成與管理才能，重視安全感，適合財務、行政、資源型管理工作，善於建構穩定的基礎。",
+    "太陰": "太陰是月亮之星，象徵內斂、情緒感知與細膩。命宮有太陰者，細膩敏感、直覺強，適合藝術、教育、後台支持工作，在安靜環境中發揮最大潛力。",
+    "貪狼": "貪狼是慾望與才藝之星，象徵擴張、人際與多元能力。命宮有貪狼者，魅力十足，才藝廣博，善於社交，但需注意慾望過旺帶來的能量分散。",
+    "巨門": "巨門是語言與辯證之星，善言辭但也帶口舌之象。命宮有巨門者，表達能力強，邏輯清晰，適合律師、教師、媒體工作，但需注意言語帶來的誤解。",
+    "天相": "天相是輔佐之星，象徵協調、制度與公正。命宮有天相者，擅長在組織中扮演關鍵的溝通橋樑，適合行政、幕僚、協調型主管職位。",
+    "天梁": "天梁是蔭護之星，象徵保護、道德與長輩緣。命宮有天梁者，具有被保護或保護他人的特質，醫療、社工、監督等領域最能展現其價值。",
+    "七殺": "七殺是殺將之星，象徵決斷、壓力承受與破局能力。命宮有七殺者，具有強烈的行動力和競爭意識，不怕壓力，適合創業、軍警、體育或高度競爭的行業。",
+    "破軍": "破軍是變革之星，象徵破壞重建、冒險與重新開始。命宮有破軍者，不拘常規，喜歡突破既有框架，適合改革性工作、創業或需要開創新局面的環境。",
+}
+
+_SIHUA_LABELS: Dict[str, str] = {
+    "化祿": "資源流入與機會",
+    "化權": "主導力與掌控感",
+    "化科": "名聲、學習與形象光環",
+    "化忌": "壓力與執念，也是深化的課題",
+}
+
+
+def _interpret_main_star(star: str) -> str:
+    """Return interpretation string for a main star. Empty string if unknown."""
+    return _MAIN_STAR_INTERPRETATIONS.get(star, "")
+
+
+def _interpret_palace(
+    palace_name: str,
+    main_stars: List[str],
+    transformations: Dict[str, str],
+) -> str:
+    """
+    Build interpretation text for a palace given its name, stars, and transformations.
+    Returns a composed paragraph suitable for reports and UI display.
+    """
+    base = _PALACE_INTERPRETATIONS.get(palace_name, "")
+    star_parts = []
+    for s in main_stars:
+        interp = _MAIN_STAR_INTERPRETATIONS.get(s, "")
+        if interp:
+            star_parts.append(f"主星{s}：{interp}")
+    sihua_parts = []
+    for s in main_stars:
+        if s in transformations:
+            tx = transformations[s]
+            label = _SIHUA_LABELS.get(tx, "")
+            if label:
+                sihua_parts.append(f"{s}{tx}（{label}）")
+    result = base
+    if star_parts:
+        result += "\n\n" + "\n\n".join(star_parts)
+    if sihua_parts:
+        result += "\n\n**四化影響**：" + "；".join(sihua_parts) + "。"
+    return result.strip()
+
+
+def _build_ziwei_summary(chart: "ZiWeiChart") -> str:
+    """
+    Build a concise summary of the ZiWeiChart for synthesis/report use.
+    Returns a markdown-formatted string.
+    """
+    lines: List[str] = []
+    mode = getattr(chart, "calculation_mode", "mock_fallback")
+    if mode == "formal_layout_phase1":
+        lines.append(
+            "紫微斗數 V1.5 第一階段正式排盤已完成，命宮、身宮、十四主星與生年四化均已安置。"
+        )
+    elif mode == "partial_lunar_only":
+        lines.append(
+            "紫微斗數已完成農曆轉換，但因出生時辰未知，命宮與身宮不可視為精準。"
+        )
+    else:
+        lines.append("紫微斗數目前使用 mock fallback，排盤資料僅供參考架構。")
+
+    ming = chart.ming_palace
+    if ming:
+        stars = "、".join(ming.main_stars) if ming.main_stars else "無主星"
+        lines.append(f"命宮位於{ming.earthly_branch}，主星：{stars}。")
+        if ming.main_stars:
+            first_star_interp = _interpret_main_star(ming.main_stars[0])
+            if first_star_interp:
+                lines.append(first_star_interp.split("。")[0] + "。")
+
+    shen_branch = getattr(chart, "shen_branch", None)
+    if shen_branch:
+        lines.append(f"身宮位於{shen_branch}，代表後天行動重心，中年後越來越明顯的生命著力點。")
+
+    bureau = getattr(chart, "five_element_bureau", None)
+    if bureau:
+        lines.append(f"五行局為{bureau}，是紫微星落宮的計算基礎。")
+
+    return "\n".join(lines)
+
+
 # ── Mock fallback (preserved from V1) ────────────────────────────────────────
 
 def _seed(birth_date: date, birth_time: Optional[time]) -> int:

@@ -497,7 +497,63 @@ feat: add astro destiny analyzer MVP
 ## 14. 版本資訊
 
 ```text
-Version: v1.5.0
+Version: v1.5.1
 Date: 2026-05-27
-Status: Zi Wei Dou Shu Formal Layout Phase 1
+Status: Zi Wei UI & Report Interpretation Polish
 ```
+
+---
+
+## 15. V1.5.1 更新說明 — 紫微 UI 與報告敘事校準
+
+### 15.1 紫微分頁 UI 優化
+
+| 新增區塊 | 說明 |
+|---|---|
+| 排盤狀態卡片 | 顯示 calculation_mode（正式 / 部分 / fallback）與 accuracy_note |
+| 基本盤資訊卡片 | 農曆生日、出生時辰、命宮地支、身宮地支、五行局、生年天干 |
+| 命宮 / 身宮解讀 | 命宮主星逐星解讀、身宮說明 |
+| 十二宮表格 | 新增 `render_ziwei_formal_table()`，欄位：宮位 / 地支 / 主星 / 四化 / 解讀摘要 |
+| 十四主星總覽 | expander 列出 14 顆主星各自所在宮位與四化 |
+| 生年四化總覽 | expander 列出化祿 / 化權 / 化科 / 化忌星曜，區分主星與輔星四化 |
+
+### 15.2 紫微報告敘事強化
+
+完整版報告（萬字完整版）紫微章節新增：
+
+1. 排盤狀態說明（formal_layout_phase1 / partial_lunar_only / mock_fallback）
+2. 命宮解讀（主星意義、人格主軸）
+3. 身宮解讀（後天行動重心、中年後方向）
+4. 官祿宮解讀（事業格局）
+5. 財帛宮解讀（財富模式）
+6. 夫妻宮解讀（感情模式）
+7. 福德宮解讀（精神世界 / 內在修復）
+8. 生年四化詳細解讀（化祿 / 化權 / 化科 / 化忌 各自段落）
+9. 版本限制聲明（輔星 / 大限 / 流年尚未完成）
+
+### 15.3 interpretation helpers 新增
+
+`engines/ziwei.py` 新增：
+
+| 函數 | 說明 |
+|---|---|
+| `_interpret_main_star(star)` | 回傳 14 主星的命理顧問式解讀文字 |
+| `_interpret_palace(palace_name, stars, transformations)` | 組合宮位 + 主星 + 四化的完整解讀段落 |
+| `_build_ziwei_summary(chart)` | 產出命盤摘要字串，供 Synthesis Engine 引用 |
+
+### 15.4 Synthesis Engine 銜接
+
+`engines/synthesis.py` 小幅新增：
+
+- 若 `ziwei.calculation_mode == "formal_layout_phase1"`，在核心人格段落補充正式排盤說明。
+- 若 `mock_fallback`，保持保守語氣。
+- 事業分析段落標注紫微官祿宮是否為正式盤資料。
+
+### 15.5 V1.5.1 不包含的功能
+
+- 輔星、煞星安置
+- 大限、流年、流月
+- 宮干四化
+- 廟旺陷流派細節
+
+以上功能待後續版本實作。

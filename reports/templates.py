@@ -356,18 +356,145 @@ TEMPLATE_FULL = _MACROS + """
 {% if report.ziwei_chart %}
 ## 紫微斗數命盤分析
 
-### 命宮分析
+### 一、排盤狀態說明
 
-宮位：{{ report.ziwei_chart.ming_palace.earthly_branch }}宮
-主星：{{ report.ziwei_chart.ming_palace.main_stars | join('、') if report.ziwei_chart.ming_palace.main_stars else "無主星" }}
-輔星：{{ report.ziwei_chart.ming_palace.minor_stars | join('、') if report.ziwei_chart.ming_palace.minor_stars else "無" }}
+{% set zmode = report.ziwei_chart.calculation_mode %}
+{% if zmode == "formal_layout_phase1" %}
+本版紫微斗數為 **V1.5 第一階段正式排盤**（formal_layout_phase1）。
+
+已正式完成：
+- 農曆日期轉換
+- 命宮 / 身宮精確定位
+- 五行局計算
+- 十四主星安置
+- 生年四化安置
+
+尚未完成（後續版本）：
+- 輔星與煞星
+- 大限 / 流年 / 流月
+- 宮干四化
+- 廟旺陷流派細節
+
+> **重要說明**：V1.5 的紫微分析適合作為人格主軸與宮位架構的參考，不適合做完整流年斷事。
+{% elif zmode == "partial_lunar_only" %}
+本次排盤為 **部分農曆模式**（partial_lunar_only）：農曆轉換成功，但出生時辰未知，命宮 / 身宮 / 主星位置不可視為精準結果。補填出生時辰後可升級為正式排盤。
+{% else %}
+本次排盤為 **Fallback 模式**（mock_fallback）：農曆轉換套件不可用，資料為架構性 mock，不代表真實排盤結果。
+{% endif %}
+
+{% if report.ziwei_chart.accuracy_note %}
+> {{ report.ziwei_chart.accuracy_note }}
+{% endif %}
+
+---
+
+### 二、命宮解讀
+
+宮位：**{{ report.ziwei_chart.ming_palace.earthly_branch }}宮**
+主星：{{ report.ziwei_chart.ming_palace.main_stars | join('、') if report.ziwei_chart.ming_palace.main_stars else "無主星（空宮）" }}
 四化：{{ report.ziwei_chart.ming_palace.transformations | join('、') if report.ziwei_chart.ming_palace.transformations else "無" }}
+
+命宮是紫微命盤的核心，代表你的根本個性、外在氣質與人生主軸。命宮主星決定了你最本能的行為策略與人生著力點。
 
 {{ report.ziwei_chart.ming_palace.interpretation }}
 
 ---
 
-### 十二宮完整分析
+### 三、身宮解讀
+
+{% if report.ziwei_chart.shen_branch %}
+身宮地支：**{{ report.ziwei_chart.shen_branch }}**
+身宮所在宮位：{{ report.ziwei_chart.shen_palace.name if report.ziwei_chart.shen_palace else "─" }}
+主星：{{ report.ziwei_chart.shen_palace.main_stars | join('、') if report.ziwei_chart.shen_palace and report.ziwei_chart.shen_palace.main_stars else "無主星" }}
+
+身宮代表後天行動重心，會隨年齡增長越來越明顯。身宮所在宮位揭示你人生後半段用力最多的領域——這是你中年之後逐漸找到節奏、越來越游刃有餘的生命舞台。
+{% else %}
+出生時辰未知，身宮無法精確計算。
+{% endif %}
+
+---
+
+### 四、官祿宮解讀（事業格局）
+
+宮位：**{{ report.ziwei_chart.career_palace.earthly_branch }}宮**
+主星：{{ report.ziwei_chart.career_palace.main_stars | join('、') if report.ziwei_chart.career_palace.main_stars else "無主星（空宮）" }}
+四化：{{ report.ziwei_chart.career_palace.transformations | join('、') if report.ziwei_chart.career_palace.transformations else "無" }}
+
+官祿宮是事業格局的核心，揭示你的職涯走向、工作模式與成就方式。空宮不代表事業無成，而是格局更靈活，往往借鑑對宮（夫妻宮）特質來展現。
+
+{{ report.ziwei_chart.career_palace.interpretation }}
+
+---
+
+### 五、財帛宮解讀（財富模式）
+
+宮位：**{{ report.ziwei_chart.wealth_palace.earthly_branch }}宮**
+主星：{{ report.ziwei_chart.wealth_palace.main_stars | join('、') if report.ziwei_chart.wealth_palace.main_stars else "無主星（空宮）" }}
+四化：{{ report.ziwei_chart.wealth_palace.transformations | join('、') if report.ziwei_chart.wealth_palace.transformations else "無" }}
+
+財帛宮揭示你的財富獲取方式、金錢觀與理財模式。與八字財星及五行財富能量互為參照，可以幫助你更立體地理解自己的財富場域。
+
+{{ report.ziwei_chart.wealth_palace.interpretation }}
+
+---
+
+### 六、夫妻宮解讀（感情模式）
+
+宮位：**{{ report.ziwei_chart.spouse_palace.earthly_branch }}宮**
+主星：{{ report.ziwei_chart.spouse_palace.main_stars | join('、') if report.ziwei_chart.spouse_palace.main_stars else "無主星（空宮）" }}
+四化：{{ report.ziwei_chart.spouse_palace.transformations | join('、') if report.ziwei_chart.spouse_palace.transformations else "無" }}
+
+夫妻宮揭示你在長期親密關係中的模式與課題。搭配西洋占星金星 / 月亮 / 第七宮，可以更完整地看見你對伴侶的期待與自身的關係模式。
+
+{{ report.ziwei_chart.spouse_palace.interpretation }}
+
+---
+
+### 七、福德宮解讀（精神世界）
+
+宮位：**{{ report.ziwei_chart.fortune_palace.earthly_branch }}宮**
+主星：{{ report.ziwei_chart.fortune_palace.main_stars | join('、') if report.ziwei_chart.fortune_palace.main_stars else "無主星（空宮）" }}
+四化：{{ report.ziwei_chart.fortune_palace.transformations | join('、') if report.ziwei_chart.fortune_palace.transformations else "無" }}
+
+福德宮顯示你的內在精神世界、享樂模式與壓力修復方式。福德宮強的人，即使外在環境困難，也能在內心找到平靜的出口。
+
+{{ report.ziwei_chart.fortune_palace.interpretation }}
+
+---
+
+### 八、生年四化解讀
+
+四化是流動的命運之鑰，反映出生年天干帶給人格的能量烙印。
+
+{% set four_trans = report.ziwei_chart.four_transformations %}
+{% set lu_star = namespace(value="") %}
+{% set quan_star = namespace(value="") %}
+{% set ke_star = namespace(value="") %}
+{% set ji_star = namespace(value="") %}
+{% for star, tx in four_trans.items() %}
+  {% if tx == "化祿" %}{% set lu_star.value = star %}{% endif %}
+  {% if tx == "化權" %}{% set quan_star.value = star %}{% endif %}
+  {% if tx == "化科" %}{% set ke_star.value = star %}{% endif %}
+  {% if tx == "化忌" %}{% set ji_star.value = star %}{% endif %}
+{% endfor %}
+
+**化祿**（{{ lu_star.value if lu_star.value else "─" }}）：化祿代表資源流入、機會匯聚的方向。化祿落在哪個星曜，就是那顆星在你的命盤中發揮最豐盛能量之處，往往也是你最容易得到滋養的領域。
+
+**化權**（{{ quan_star.value if quan_star.value else "─" }}）：化權代表主導力、掌控感與決策能量的強化。有化權的星曜在你的命盤中帶有強烈的自主意志，適合你在對應領域中主動掌舵。
+
+**化科**（{{ ke_star.value if ke_star.value else "─" }}）：化科代表名聲、學習力與形象的光環。化科所在的星曜具有文星能量，適合與學術、知識傳遞、形象建立相關的展現。
+
+**化忌**（{{ ji_star.value if ji_star.value else "─" }}）：化忌帶來壓力、執念與反覆的功課，但這並不是詛咒，而是深化的邀請。化忌所在的領域是你此生需要面對、轉化與精熟的重要課題——有功課才有深度。
+
+| 星曜 | 四化 |
+|------|------|
+{% for star, transform in four_trans.items() %}
+| {{ star }} | {{ transform }} |
+{% endfor %}
+
+---
+
+### 九、十二宮完整分析
 
 {% for palace in [
     report.ziwei_chart.ming_palace,
@@ -385,8 +512,8 @@ TEMPLATE_FULL = _MACROS + """
 ] %}
 #### {{ palace.name }}（{{ palace.earthly_branch }}宮）
 
-主星：{{ palace.main_stars | join('、') if palace.main_stars else "無主星" }}
-輔星：{{ palace.minor_stars | join('、') if palace.minor_stars else "無" }}
+主星：{{ palace.main_stars | join('、') if palace.main_stars else "無主星（空宮）" }}
+輔星：{{ palace.minor_stars | join('、') if palace.minor_stars else "無（輔星後續版本安置）" }}
 四化：{{ palace.transformations | join('、') if palace.transformations else "無" }}
 
 {{ palace.interpretation }}
@@ -395,16 +522,14 @@ TEMPLATE_FULL = _MACROS + """
 
 ---
 
-### 四化分析
+### 十、版本限制聲明
 
-| 星曜 | 四化 |
-|------|------|
-{% for star, transform in report.ziwei_chart.four_transformations.items() %}
-| {{ star }} | {{ transform }} |
-{% endfor %}
+V1.5 紫微斗數為第一階段正式排盤，以下功能尚未完成，解讀時請注意：
 
-四化是流動的命運之鑰：化祿帶來豐盛、化權帶來掌控力、化科帶來名聲智慧、化忌帶來考驗。
-當四化落入不同宮位，決定了人生哪些領域在特定時期成為主要舞台。
+- **輔星 / 煞星**：文昌、文曲、左輔、右弼、天魁、天鉞、擎羊、陀羅、火星、鈴星等尚未安置，因此以上宮位分析僅以主星為準。
+- **大限 / 流年 / 流月**：尚未實作，目前適合看人格主軸與宮位架構，不適合做完整流年斷事。
+- **宮干四化**：目前僅有生年四化，宮干四化待後續版本實作。
+- **閏月**：採保守處理，後續版本加入精準閏月流派設定。
 
 ---
 {% endif %}

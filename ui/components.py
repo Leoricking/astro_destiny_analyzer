@@ -104,6 +104,51 @@ def render_ziwei_palace_grid(ziwei_chart):
                     )
 
 
+def render_ziwei_formal_table(ziwei_chart):
+    """Render 12-palace data as a readable table with 宮位/地支/主星/四化/解讀摘要 columns."""
+    import pandas as pd
+    from engines.ziwei import _interpret_palace
+
+    palaces = [
+        ziwei_chart.ming_palace, ziwei_chart.brother_palace,
+        ziwei_chart.spouse_palace, ziwei_chart.children_palace,
+        ziwei_chart.wealth_palace, ziwei_chart.health_palace,
+        ziwei_chart.travel_palace, ziwei_chart.friends_palace,
+        ziwei_chart.career_palace, ziwei_chart.property_palace,
+        ziwei_chart.fortune_palace, ziwei_chart.parents_palace,
+    ]
+
+    sihua_display = {
+        "化祿": "化祿（機會）", "化權": "化權（主導）",
+        "化科": "化科（名聲）", "化忌": "化忌（課題）",
+    }
+    four_trans = ziwei_chart.four_transformations or {}
+
+    rows = []
+    for p in palaces:
+        stars = "、".join(p.main_stars) if p.main_stars else "—"
+        tx_strs = []
+        for s in p.main_stars:
+            if s in four_trans:
+                tx = four_trans[s]
+                tx_strs.append(sihua_display.get(tx, tx))
+        tx_display = " ".join(tx_strs) if tx_strs else "—"
+        interp = _interpret_palace(p.name, p.main_stars, four_trans)
+        interp_short = interp.split("\n")[0]
+        if len(interp_short) > 60:
+            interp_short = interp_short[:60] + "…"
+        rows.append({
+            "宮位": p.name,
+            "地支": p.earthly_branch,
+            "主星": stars,
+            "四化": tx_display,
+            "解讀摘要": interp_short,
+        })
+
+    df = pd.DataFrame(rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
 def render_numerology_card(num_chart):
     col1, col2, col3, col4 = st.columns(4)
     with col1:
