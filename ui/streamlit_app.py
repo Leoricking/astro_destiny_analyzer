@@ -671,8 +671,33 @@ elif page == "🔮 計算命盤":
         with tab_z:
             zc = report.ziwei_chart
             if zc:
-                if zc.is_mock:
+                mode = getattr(zc, "calculation_mode", "mock_fallback")
+                if mode == "formal_layout_phase1":
+                    st.success(
+                        "紫微斗數 V1.5 第一階段正式排盤：十四主星與四化已安置；"
+                        "輔星、煞星、大限、流年待後續版本。"
+                    )
+                elif mode == "partial_lunar_only":
+                    st.warning("⚠️ 出生時間未知，命宮與主星位置不可視為精準排盤。")
+                else:
                     st.caption("⚠️ 紫微斗數目前為 Mock 布局。完整排盤演算法開發中。")
+                if getattr(zc, "accuracy_note", ""):
+                    st.caption(f"ℹ️ {zc.accuracy_note}")
+                # Lunar / Ming / Shen / Bureau info
+                info_cols = st.columns(4)
+                with info_cols[0]:
+                    if zc.lunar_year:
+                        st.metric("農曆年月日",
+                                  f"{zc.lunar_year}/{zc.lunar_month}/{zc.lunar_day}")
+                with info_cols[1]:
+                    if zc.ming_branch:
+                        st.metric("命宮", zc.ming_branch)
+                with info_cols[2]:
+                    if zc.shen_branch:
+                        st.metric("身宮", zc.shen_branch)
+                with info_cols[3]:
+                    if zc.five_element_bureau:
+                        st.metric("五行局", zc.five_element_bureau)
                 render_ziwei_palace_grid(zc)
 
         with tab_n:

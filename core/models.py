@@ -298,6 +298,18 @@ class ZiWeiChart(BaseModel):
     main_stars: List[str] = Field(default_factory=list)
     four_transformations: Dict[str, str] = Field(default_factory=dict)  # star -> 化祿/化權/化科/化忌
     is_mock: bool = True
+    # V1.5: formal layout fields
+    calculation_mode: str = "mock_fallback"
+    accuracy_note: str = ""
+    lunar_year: Optional[int] = None
+    lunar_month: Optional[int] = None
+    lunar_day: Optional[int] = None
+    lunar_is_leap_month: Optional[bool] = None
+    birth_hour_branch: Optional[str] = None
+    ming_branch: Optional[str] = None
+    shen_branch: Optional[str] = None
+    five_element_bureau: Optional[str] = None
+    five_element_bureau_number: Optional[int] = None
 
 
 # ── Blood Type Models ─────────────────────────────────────────────────────────
