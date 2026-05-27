@@ -903,3 +903,69 @@ V1.6 建議優先使用 HTML / Word 交付，待環境就緒後再啟用 PDF。
 - 廟旺陷流派細節
 
 以上功能待後續版本實作。
+
+---
+
+## 20. V1.7.0 — 合盤分析功能（Compatibility / Relationship Analysis）
+
+### 20.1 新功能
+
+新增雙人關係分析模組，支援以下關係類型：
+
+| 關係類型 | 說明 |
+|----------|------|
+| 情侶 / 伴侶 | 感情吸引、情緒共鳴、長期潛力 |
+| 婚姻 | 穩定性、夫妻宮互動 |
+| 合作夥伴 | 官祿宮、財帛宮、協作效能 |
+| 親子 | 父母宮、子女宮、溝通模式 |
+| 朋友 | 交友宮、互動風格 |
+| 同事 | 官祿宮、溝通與分工 |
+| 一般關係 | 通用互動分析 |
+
+### 20.2 合盤分析包含
+
+- 西洋占星互動：太陽、月亮、水星、金星火星、上升配對，含主要星象相位
+- 八字五行互補：日主關係、喜用神互補、忌神放大
+- 紫微宮位互動：命宮主星、身宮、關係類型重點宮位、主星共鳴、大限背景
+- 生命靈數：生命靈數配對、共鳴主題、挑戰主題
+- 血型：互動風格、衝突模式、建議
+- 關係總分（7 維度）：情感、溝通、吸引力、穩定、成長、衝突強度、協作
+- 30 天關係練習
+
+### 20.3 架構
+
+新增 `compatibility/` 模組：
+
+```
+compatibility/
+  __init__.py
+  models.py      # 資料模型（RelationshipType, CompatibilityInput, CompatibilityReport 等）
+  engine.py      # CompatibilityEngine.generate()
+  report.py      # render_compatibility_report()
+  templates.py   # build_compatibility_markdown()
+  exporters.py   # HTML / DOCX 匯出，make_compat_filename()
+```
+
+### 20.4 Demo 範例
+
+`demo/sample_profiles.py` 新增 `SAMPLE_COUPLES`：
+- Demo 情侶合盤：新竹科技職涯 × 高雄創意
+- Demo 合作夥伴合盤：台北策略 × 台中執行
+
+### 20.5 UI
+
+Streamlit 左側新增「💕 合盤分析」頁面，支援：
+- 手動輸入 A / B 方資料
+- 載入目前命盤作為 A 方
+- Demo 情侶 / 合作夥伴快速體驗
+- 合盤結果分 tabs 顯示
+- Markdown / HTML / Word 匯出
+
+### 20.6 V1.7.0 不包含的功能（Phase 1 限制）
+
+- 完整 Composite Chart / Davison Chart / 中點盤
+- 精準 Synastry 全相位矩陣
+- 紫微雙盤飛化
+- 八字完整合婚神煞
+- 流年合盤、婚期選日
+- 合盤歷史記錄（SQLite）

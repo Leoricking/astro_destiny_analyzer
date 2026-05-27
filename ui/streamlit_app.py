@@ -29,7 +29,7 @@ from reports.generator import ReportGenerator
 from reports.pdf_exporter import PdfExporter
 from reports.docx_exporter import DocxExporter
 from reports.utils import make_export_filename
-from demo.sample_profiles import SAMPLE_PROFILES, SAMPLE_LABELS
+from demo.sample_profiles import SAMPLE_PROFILES, SAMPLE_LABELS, SAMPLE_COUPLES
 from core.database import (
     list_reports, get_report, delete_report,
     list_birth_profiles, get_setting, set_setting,
@@ -51,7 +51,7 @@ st.set_page_config(
 
 _PAGES = [
     "🏠 首頁", "📝 輸入資料", "🔮 計算命盤",
-    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "⚙️ 設定",
+    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析", "⚙️ 設定",
 ]
 
 _DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
@@ -1120,6 +1120,408 @@ elif page == "📤 匯出":
                 "Windows 可能需要額外系統依賴（GTK / Pango）。\n"
                 "建議優先使用 HTML 或 Word 格式交付。"
             )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: 合盤分析
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "💕 合盤分析":
+    st.title("💕 合盤分析")
+    st.caption("情侶、伴侶、合作夥伴、親子、朋友、同事 — 多系統關係互動分析")
+
+    from compatibility.engine import CompatibilityEngine
+    from compatibility.models import CompatibilityInput, RelationshipType
+    from compatibility.exporters import make_compat_filename, export_compat_to_html, export_compat_to_docx
+    from reports.docx_exporter import DocxExporter as _DocxExporter
+
+    # ── Intro ─────────────────────────────────────────────────────────────────
+    with st.expander("📖 合盤分析說明", expanded=False):
+        st.markdown("""
+合盤分析整合以下五套系統，從多個角度理解兩人之間的互動模式：
+
+| 系統 | 分析內容 |
+|------|---------|
+| 🌟 西洋占星 | 太陽、月亮、水星、金星火星、上升配對 |
+| ☯️ 八字 | 日主五行互動、喜用神互補、忌神放大 |
+| 🏮 紫微 | 命宮主星、身宮、關係宮位互動 |
+| 🔢 生命靈數 | 生命靈數配對、共鳴主題 |
+| 🩸 血型 | 互動風格、衝突模式 |
+
+> ⚠️ 本分析為關係理解與溝通參考，不代表「一定適合」或「一定不適合」。
+""")
+
+    # ── Relationship type ─────────────────────────────────────────────────────
+    st.subheader("關係類型")
+    _RT_OPTIONS = {
+        "情侶 / 伴侶": "romantic",
+        "婚姻": "marriage",
+        "合作夥伴": "business",
+        "親子": "parent_child",
+        "朋友": "friendship",
+        "同事": "colleague",
+        "一般關係": "general",
+    }
+    rt_label_sel = st.selectbox(
+        "選擇關係類型",
+        list(_RT_OPTIONS.keys()),
+        key="compat_rel_type",
+    )
+    selected_rt = RelationshipType(_RT_OPTIONS[rt_label_sel])
+
+    # ── Person A ──────────────────────────────────────────────────────────────
+    st.subheader("A 方資料")
+    use_current = st.session_state.get("profile") is not None
+    if use_current:
+        if st.button("📋 使用目前命盤作為 A 方", key="compat_use_current_as_a"):
+            st.session_state["compat_a_profile"] = st.session_state["profile"]
+            st.success(f"已載入：{st.session_state['profile'].name}")
+
+    with st.expander("手動輸入 A 方資料", expanded=(not use_current)):
+        ca1, ca2 = st.columns(2)
+        with ca1:
+            st.text_input("A 姓名 *", key="compat_a_name", placeholder="例：小明")
+        with ca2:
+            st.selectbox("A 性別", ["不填寫", "男", "女", "其他"], key="compat_a_gender")
+        ca3, ca4, ca5 = st.columns(3)
+        with ca3:
+            st.number_input("A 出生年 *", min_value=1900, max_value=date.today().year,
+                            step=1, key="compat_a_year", value=1989)
+        with ca4:
+            st.number_input("A 月 *", min_value=1, max_value=12, step=1,
+                            key="compat_a_month", value=9)
+        with ca5:
+            st.number_input("A 日 *", min_value=1, max_value=31, step=1,
+                            key="compat_a_day", value=21)
+        st.checkbox("A 方知道精確出生時間", key="compat_a_time_known")
+        if st.session_state.get("compat_a_time_known"):
+            cah, cam = st.columns(2)
+            with cah:
+                st.number_input("A 時（24H）", min_value=0, max_value=23,
+                                step=1, key="compat_a_hour", value=11)
+            with cam:
+                st.number_input("A 分", min_value=0, max_value=59,
+                                step=1, key="compat_a_minute", value=5)
+        ca6, ca7 = st.columns(2)
+        with ca6:
+            st.text_input("A 出生城市 *", key="compat_a_city", placeholder="例：新竹")
+        with ca7:
+            st.text_input("A 出生國家", key="compat_a_country", value="台灣")
+        st.selectbox("A 血型", ["Unknown", "A", "B", "O", "AB"],
+                     key="compat_a_blood")
+
+        if st.button("確認 A 方資料", key="compat_a_confirm"):
+            try:
+                _a_name = st.session_state.get("compat_a_name", "").strip()
+                if not _a_name:
+                    st.error("請填寫 A 方姓名")
+                else:
+                    _a_time = None
+                    _a_time_known = bool(st.session_state.get("compat_a_time_known"))
+                    if _a_time_known:
+                        _a_time = time(
+                            int(st.session_state.get("compat_a_hour", 12)),
+                            int(st.session_state.get("compat_a_minute", 0)),
+                        )
+                    _a_gender_map = {"男": "male", "女": "female", "其他": "other", "不填寫": "unknown"}
+                    _a_gender_val = _a_gender_map.get(st.session_state.get("compat_a_gender", "不填寫"), "unknown")
+                    _a_city = st.session_state.get("compat_a_city", "台北").strip() or "台北"
+                    _a_country = st.session_state.get("compat_a_country", "台灣").strip() or "台灣"
+                    _loc_a = lookup_location(_a_city)
+                    st.session_state["compat_a_profile"] = BirthProfile(
+                        name=_a_name,
+                        gender=Gender(_a_gender_val),
+                        birth_date=date(
+                            int(st.session_state.get("compat_a_year", 1989)),
+                            int(st.session_state.get("compat_a_month", 1)),
+                            int(st.session_state.get("compat_a_day", 1)),
+                        ),
+                        birth_time=_a_time,
+                        birth_city=_a_city,
+                        birth_country=_a_country,
+                        blood_type=BloodType(st.session_state.get("compat_a_blood", "Unknown")),
+                        themes=list(AnalysisTheme),
+                        report_length=ReportLength.STANDARD,
+                        birth_latitude=_loc_a["lat"] if _loc_a else None,
+                        birth_longitude=_loc_a["lon"] if _loc_a else None,
+                        birth_timezone_offset=8.0,
+                        birth_time_is_known=_a_time_known,
+                    )
+                    st.success(f"A 方已確認：{_a_name}")
+            except Exception as _e:
+                st.error(f"A 方資料錯誤：{_e}")
+
+    if st.session_state.get("compat_a_profile"):
+        _pa = st.session_state["compat_a_profile"]
+        st.info(f"✅ A 方：{_pa.name}（{_pa.birth_date}，{_pa.birth_city}）")
+
+    # ── Person B ──────────────────────────────────────────────────────────────
+    st.subheader("B 方資料")
+    with st.expander("輸入 B 方資料", expanded=True):
+        cb1, cb2 = st.columns(2)
+        with cb1:
+            st.text_input("B 姓名 *", key="compat_b_name", placeholder="例：小花")
+        with cb2:
+            st.selectbox("B 性別", ["不填寫", "男", "女", "其他"], key="compat_b_gender")
+        cb3, cb4, cb5 = st.columns(3)
+        with cb3:
+            st.number_input("B 出生年 *", min_value=1900, max_value=date.today().year,
+                            step=1, key="compat_b_year", value=1991)
+        with cb4:
+            st.number_input("B 月 *", min_value=1, max_value=12, step=1,
+                            key="compat_b_month", value=3)
+        with cb5:
+            st.number_input("B 日 *", min_value=1, max_value=31, step=1,
+                            key="compat_b_day", value=8)
+        st.checkbox("B 方知道精確出生時間", key="compat_b_time_known")
+        if st.session_state.get("compat_b_time_known"):
+            cbh, cbm = st.columns(2)
+            with cbh:
+                st.number_input("B 時（24H）", min_value=0, max_value=23,
+                                step=1, key="compat_b_hour", value=9)
+            with cbm:
+                st.number_input("B 分", min_value=0, max_value=59,
+                                step=1, key="compat_b_minute", value=45)
+        cb6, cb7 = st.columns(2)
+        with cb6:
+            st.text_input("B 出生城市 *", key="compat_b_city", placeholder="例：高雄")
+        with cb7:
+            st.text_input("B 出生國家", key="compat_b_country", value="台灣")
+        st.selectbox("B 血型", ["Unknown", "A", "B", "O", "AB"],
+                     key="compat_b_blood")
+
+        if st.button("確認 B 方資料", key="compat_b_confirm"):
+            try:
+                _b_name = st.session_state.get("compat_b_name", "").strip()
+                if not _b_name:
+                    st.error("請填寫 B 方姓名")
+                else:
+                    _b_time = None
+                    _b_time_known = bool(st.session_state.get("compat_b_time_known"))
+                    if _b_time_known:
+                        _b_time = time(
+                            int(st.session_state.get("compat_b_hour", 12)),
+                            int(st.session_state.get("compat_b_minute", 0)),
+                        )
+                    _b_gender_map = {"男": "male", "女": "female", "其他": "other", "不填寫": "unknown"}
+                    _b_gender_val = _b_gender_map.get(st.session_state.get("compat_b_gender", "不填寫"), "unknown")
+                    _b_city = st.session_state.get("compat_b_city", "台北").strip() or "台北"
+                    _b_country = st.session_state.get("compat_b_country", "台灣").strip() or "台灣"
+                    _loc_b = lookup_location(_b_city)
+                    st.session_state["compat_b_profile"] = BirthProfile(
+                        name=_b_name,
+                        gender=Gender(_b_gender_val),
+                        birth_date=date(
+                            int(st.session_state.get("compat_b_year", 1991)),
+                            int(st.session_state.get("compat_b_month", 1)),
+                            int(st.session_state.get("compat_b_day", 1)),
+                        ),
+                        birth_time=_b_time,
+                        birth_city=_b_city,
+                        birth_country=_b_country,
+                        blood_type=BloodType(st.session_state.get("compat_b_blood", "Unknown")),
+                        themes=list(AnalysisTheme),
+                        report_length=ReportLength.STANDARD,
+                        birth_latitude=_loc_b["lat"] if _loc_b else None,
+                        birth_longitude=_loc_b["lon"] if _loc_b else None,
+                        birth_timezone_offset=8.0,
+                        birth_time_is_known=_b_time_known,
+                    )
+                    st.success(f"B 方已確認：{_b_name}")
+            except Exception as _e:
+                st.error(f"B 方資料錯誤：{_e}")
+
+    if st.session_state.get("compat_b_profile"):
+        _pb = st.session_state["compat_b_profile"]
+        st.info(f"✅ B 方：{_pb.name}（{_pb.birth_date}，{_pb.birth_city}）")
+
+    # ── Demo couple buttons ───────────────────────────────────────────────────
+    st.divider()
+    st.subheader("⚡ 快速體驗")
+    st.caption("直接載入範例資料，體驗合盤分析流程。")
+    dc1, dc2 = st.columns(2)
+    with dc1:
+        if st.button("💑 載入 Demo 情侶合盤", use_container_width=True, key="compat_demo_romantic"):
+            couple = SAMPLE_COUPLES[0]
+            st.session_state["compat_a_profile"] = couple["person_a"]
+            st.session_state["compat_b_profile"] = couple["person_b"]
+            st.session_state["compat_rel_type"] = "情侶 / 伴侶"
+            st.session_state["compatibility_report"] = None
+            st.rerun()
+    with dc2:
+        if st.button("🤝 載入 Demo 合作夥伴", use_container_width=True, key="compat_demo_business"):
+            couple = SAMPLE_COUPLES[1]
+            st.session_state["compat_a_profile"] = couple["person_a"]
+            st.session_state["compat_b_profile"] = couple["person_b"]
+            st.session_state["compat_rel_type"] = "合作夥伴"
+            st.session_state["compatibility_report"] = None
+            st.rerun()
+
+    # ── Generate ──────────────────────────────────────────────────────────────
+    st.divider()
+    _can_generate = (
+        st.session_state.get("compat_a_profile") is not None
+        and st.session_state.get("compat_b_profile") is not None
+    )
+    if not _can_generate:
+        st.info("請確認 A 方與 B 方資料後，再產生合盤分析。")
+
+    if st.button("💕 產生合盤分析", type="primary", use_container_width=True,
+                 disabled=not _can_generate, key="compat_generate"):
+        with st.spinner("正在計算合盤分析，請稍候…"):
+            try:
+                _ci = CompatibilityInput(
+                    person_a=st.session_state["compat_a_profile"],
+                    person_b=st.session_state["compat_b_profile"],
+                    relationship_type=selected_rt,
+                )
+                _engine = CompatibilityEngine()
+                _cr = _engine.generate(_ci)
+                st.session_state["compatibility_report"] = _cr
+                st.success("合盤分析完成！")
+            except Exception as _err:
+                st.error(f"合盤計算錯誤：{_err}")
+
+    # ── Results ───────────────────────────────────────────────────────────────
+    _cr = st.session_state.get("compatibility_report")
+    if _cr is not None:
+        sc = _cr.score_breakdown
+        st.divider()
+        st.subheader(f"🎯 合盤結果：{_cr.person_a_profile.name} × {_cr.person_b_profile.name}")
+
+        # Score overview
+        om1, om2 = st.columns([1, 3])
+        with om1:
+            st.metric("綜合評分", f"{sc.overall_score}/100")
+            st.caption(sc.score_label())
+        with om2:
+            sm1, sm2, sm3, sm4 = st.columns(4)
+            sm1.metric("情感共鳴", sc.emotional_score)
+            sm2.metric("溝通契合", sc.communication_score)
+            sm3.metric("吸引力", sc.attraction_score)
+            sm4.metric("穩定性", sc.stability_score)
+            sm5, sm6, sm7, _ = st.columns(4)
+            sm5.metric("成長潛力", sc.growth_score)
+            sm6.metric("衝突強度", sc.conflict_score)
+            sm7.metric("協作效能", sc.collaboration_score)
+
+        # Tabs
+        tab_overview, tab_astro, tab_bazi, tab_ziwei, tab_num_blood, tab_md = st.tabs(
+            ["總覽", "西洋占星", "八字", "紫微", "靈數 / 血型", "Markdown 原文"]
+        )
+
+        with tab_overview:
+            st.markdown(f"**關係總論**\n\n{_cr.synthesis.relationship_summary}")
+            st.subheader("關係優勢")
+            for s in _cr.synthesis.strengths:
+                st.markdown(f"- ✅ {s}")
+            st.subheader("關係挑戰")
+            for c in _cr.synthesis.challenges:
+                st.markdown(f"- ⚡ {c}")
+            st.subheader("溝通建議")
+            for i, a in enumerate(_cr.synthesis.practical_advice, 1):
+                st.markdown(f"{i}. {a}")
+
+        with tab_astro:
+            ast = _cr.astrology
+            st.markdown(f"- **太陽**：{ast.sun_pair}")
+            st.markdown(f"- **月亮**：{ast.moon_pair}")
+            st.markdown(f"- **水星**：{ast.mercury_pair}")
+            st.markdown(f"- **金星火星**：{ast.venus_mars_pair}")
+            st.markdown(f"- **上升**：{ast.ascendant_pair}")
+            if ast.key_aspects:
+                st.write("**主要相位：**")
+                for a in ast.key_aspects:
+                    st.write(f"- {a}")
+            st.markdown(ast.interpretation)
+            st.caption(f"準確度：{ast.accuracy_note}")
+
+        with tab_bazi:
+            bz = _cr.bazi
+            st.markdown(f"- **A 日主**：{bz.person_a_day_master}")
+            st.markdown(f"- **B 日主**：{bz.person_b_day_master}")
+            st.markdown(f"- **日主關係**：{bz.day_master_relation}")
+            st.markdown(bz.interpretation)
+            st.caption(f"準確度：{bz.accuracy_note}")
+
+        with tab_ziwei:
+            zw = _cr.ziwei
+            st.markdown(f"- **A 命宮**：{zw.person_a_ming_palace}")
+            st.markdown(f"- **B 命宮**：{zw.person_b_ming_palace}")
+            st.markdown(f"- **主星共鳴**：{zw.main_star_resonance}")
+            st.markdown(zw.interpretation)
+            st.caption(f"準確度：{zw.accuracy_note}")
+
+        with tab_num_blood:
+            num = _cr.numerology
+            st.subheader("生命靈數")
+            st.markdown(f"- **靈數配對**：{num.life_path_pair}")
+            st.markdown(num.interpretation)
+            st.divider()
+            bld = _cr.blood_type
+            st.subheader("血型")
+            st.markdown(f"- **血型配對**：{bld.blood_pair}")
+            st.markdown(f"- **互動風格**：{bld.interaction_style}")
+            st.markdown(f"- **建議**：{bld.advice}")
+
+        with tab_md:
+            st.text_area("Markdown 原文", value=_cr.markdown_body, height=500,
+                         label_visibility="collapsed")
+
+        # ── Export ────────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("📤 匯出合盤報告")
+        ex1, ex2, ex3 = st.columns(3)
+        with ex1:
+            _md_bytes = _cr.markdown_body.encode("utf-8")
+            st.download_button(
+                label="📝 下載 Markdown",
+                data=_md_bytes,
+                file_name=make_compat_filename(
+                    _cr.person_a_profile.name,
+                    _cr.person_b_profile.name,
+                    "md",
+                ),
+                mime="text/markdown",
+                use_container_width=True,
+            )
+        with ex2:
+            try:
+                _html_str = export_compat_to_html(_cr)
+                st.download_button(
+                    label="🌐 下載 HTML",
+                    data=_html_str.encode("utf-8"),
+                    file_name=make_compat_filename(
+                        _cr.person_a_profile.name,
+                        _cr.person_b_profile.name,
+                        "html",
+                    ),
+                    mime="text/html",
+                    use_container_width=True,
+                )
+            except Exception as _he:
+                st.button("🌐 HTML（錯誤）", disabled=True, use_container_width=True)
+                st.warning(str(_he))
+        with ex3:
+            if _DocxExporter().is_available():
+                try:
+                    _docx_bytes = export_compat_to_docx(_cr)
+                    st.download_button(
+                        label="📘 下載 Word",
+                        data=_docx_bytes,
+                        file_name=make_compat_filename(
+                            _cr.person_a_profile.name,
+                            _cr.person_b_profile.name,
+                            "docx",
+                        ),
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True,
+                    )
+                except Exception as _de:
+                    st.button("📘 Word（錯誤）", disabled=True, use_container_width=True)
+                    st.warning(str(_de))
+            else:
+                st.button("📘 Word（未安裝）", disabled=True, use_container_width=True)
+                st.info("pip install python-docx")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
