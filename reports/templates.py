@@ -601,13 +601,13 @@ TEMPLATE_FULL = _MACROS + """
 
 ### 十二、版本限制聲明
 
-V1.7.5 已完成核心輔星、六煞、大限 Phase 1、命主、身主、天馬、廟旺陷 Phase 1、盤面強度分數 Phase 1。以下功能尚未完成，解讀時請注意：
+V1.7.6 已完成核心輔星、六煞、大限 Phase 1、命主、身主、天馬、廟旺陷 Phase 1、盤面結構支援度 Phase 1（校準版）。以下功能尚未完成，解讀時請注意：
 
 - **大限四化 / 宮干四化**：尚未實作，目前大限僅有宮位骨架與基礎解讀。
 - **流年 / 流月 / 流日**：尚未實作，不適合做完整年份斷事。
-- **輔星安星流派差異**：V1.7.5 採用 Phase 1 常見表法，流派細節後續版本可配置。
+- **輔星安星流派差異**：V1.7.6 採用 Phase 1 常見表法，流派細節後續版本可配置。
 - **閏月精準處理**：採保守處理，後續版本加入閏月流派設定。
-- **盤面強度分數**：Phase 1 指標，不等同外部網站好運指數。
+- **盤面結構支援度**：Phase 1 校準指標，不等同外部網站好運指數，不代表命運好壞。
 
 ---
 
@@ -628,12 +628,22 @@ V1.7.5 已完成核心輔星、六煞、大限 Phase 1、命主、身主、天�
 {% endif %}
 
 {% if report.ziwei_chart.ziwei_score is not none %}
-### 十四、盤面強度分數 Phase 1（V1.7.5）
+### 十四、紫微盤面結構支援度（V1.7.6）
 
-**分數**：{{ report.ziwei_chart.ziwei_score }} / 100（{{ report.ziwei_chart.ziwei_score_label or "" }}）
+**盤面結構支援度**：{{ report.ziwei_chart.ziwei_score }} / 100（{{ report.ziwei_chart.ziwei_score_label or "" }}）
+
+{% if report.ziwei_chart.ziwei_score_components %}
+**分數組成摘要**：基準 {{ report.ziwei_chart.ziwei_score_components.get('base', 50) }}，命宮 {{ '{:+d}'.format(report.ziwei_chart.ziwei_score_components.get('ming_palace', 0)) }}，官祿財帛福德 {{ '{:+d}'.format(report.ziwei_chart.ziwei_score_components.get('career_wealth_fortune', 0)) }}，四化 {{ '{:+d}'.format(report.ziwei_chart.ziwei_score_components.get('transformations', 0)) }}，輔星 {{ '{:+d}'.format(report.ziwei_chart.ziwei_score_components.get('auxiliary_support', 0)) }}，六煞 {{ '{:+d}'.format(report.ziwei_chart.ziwei_score_components.get('malefic_tension', 0)) }}。
+{% endif %}
+
+> **聲明**：此分數不等同外部網站好運指數，也不代表命運好壞、絕對成敗或人生保證。它是本系統 Phase 1 的結構支援度模型，供自我探索參考。
 
 {% if report.ziwei_chart.ziwei_score_explanation %}
 > {{ report.ziwei_chart.ziwei_score_explanation }}
+{% endif %}
+
+{% if report.ziwei_chart.ziwei_score >= 85 %}
+> **高分提醒**：高分代表盤面資源集中，不代表人生沒有壓力；反而通常意味著需要承載更高期待與更強責任。
 {% endif %}
 
 ---

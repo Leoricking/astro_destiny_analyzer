@@ -528,18 +528,18 @@ def _calc_brightness_map(palaces: list) -> Dict[str, Dict[str, str]]:
     return result
 
 
-# ── 盤面強度分數 Phase 1 (V1.7.5) ────────────────────────────────────────────
+# ── 盤面結構支援度 Phase 1 (V1.7.6 calibrated) ───────────────────────────────
 
-_SCORE_BRIGHTNESS_BONUS: Dict[str, int] = {
-    "廟": 8, "旺": 6, "得": 5, "利": 4, "平": 0, "陷": 0,
+_SCORE_BRIGHTNESS_CALIBRATED: Dict[str, int] = {
+    "廟": 5, "旺": 4, "利": 3, "得": 2, "平": 0, "陷": -3,
 }
 
 _SCORE_LABELS: list = [
-    (85, "高支援盤"),
-    (70, "結構良好"),
-    (55, "中性可塑"),
-    (40, "張力偏高"),
-    (0,  "高壓磨練盤"),
+    (85, "高支援但需承載張力"),
+    (75, "結構良好"),
+    (60, "中性可塑"),
+    (45, "張力偏高"),
+    (30, "高壓磨練盤"),
 ]
 
 
@@ -547,78 +547,134 @@ def _calc_ziwei_score(
     palaces: list,
     brightness_map: Dict[str, Dict[str, str]],
     four_trans: Dict[str, str],
-) -> Tuple[int, str, str]:
+) -> Tuple[int, str, str, Dict[str, int]]:
     """
-    Calculate Phase 1 盤面強度分數 (0–100).
+    Calculate Phase 1 盤面結構支援度 (30–92, calibrated V1.7.6).
     Deterministic. NOT equivalent to any external site's 好運指數.
-    Returns (score, label, explanation).
+    Returns (score, label, explanation, components).
     """
-    score = 60  # baseline
+    score = 50  # base
+    components: Dict[str, int] = {"base": 50}
 
-    # 命宮
+    _key_palaces = {"命宮", "官祿宮", "財帛宮", "遷移宮"}
+    _key_palaces_cwf = {"命宮", "官祿宮", "財帛宮"}
+    _malefic_stars = {"擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"}
+    _auspicious_stars = {"左輔", "右弼", "文昌", "文曲", "天魁", "天鉞", "祿存"}
+
+    # 1. 命宮結構 max +14
     ming = next((p for p in palaces if p.name == "命宮"), None)
-    if ming:
-        if ming.main_stars:
-            score += 6
-        for star in ming.main_stars:
-            b = brightness_map.get("命宮", {}).get(star, "平")
-            score += _SCORE_BRIGHTNESS_BONUS.get(b, 0)
-        for star in ming.main_stars:
-            if four_trans.get(star) in ("化祿", "化權", "化科"):
-                score += 6
-                break
-        if any(four_trans.get(star) == "化忌" for star in ming.main_stars):
-            score -= 6
-        # Malefic stars in 命宮
-        malefic_in_ming = sum(
-            1 for s in ming.minor_stars
-            if s in {"擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"}
+    ming_bonus = 0
+    if ming and ming.main_stars:
+        ming_bonus += 4
+        if len(ming.main_stars) >= 2:
+            ming_bonus += 2
+        bright_sum = sum(
+            _SCORE_BRIGHTNESS_CALIBRATED.get(
+                brightness_map.get("命宮", {}).get(s, "平"), 0
+            )
+            for s in ming.main_stars
         )
-        score -= malefic_in_ming * 3
+        ming_bonus += max(-8, min(bright_sum, 8))
+    ming_bonus = min(ming_bonus, 14)
+    score += ming_bonus
+    components["ming_palace"] = ming_bonus
 
-    # 官祿宮
+    # 2. 官祿 / 財帛 / 福德 + 三方四正 max +16
     career = next((p for p in palaces if p.name == "官祿宮"), None)
-    if career and career.main_stars:
-        score += 5
-        best_b = max(
-            (_SCORE_BRIGHTNESS_BONUS.get(brightness_map.get("官祿宮", {}).get(s, "平"), 0)
-             for s in career.main_stars),
-            default=0,
-        )
-        score += min(best_b, 5)
-
-    # 財帛宮
     wealth = next((p for p in palaces if p.name == "財帛宮"), None)
-    if wealth and wealth.main_stars:
-        score += 4
-        malefic_in_wealth = sum(
-            1 for s in wealth.minor_stars
-            if s in {"擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"}
-        )
-        score -= malefic_in_wealth * 3
-
-    # 福德宮 化祿/化權/化科
     fortune = next((p for p in palaces if p.name == "福德宮"), None)
-    if fortune:
-        if any(four_trans.get(s) in ("化祿", "化權", "化科") for s in fortune.main_stars):
-            score += 4
-
-    # 輔星在命/官/財
-    auspicious_stars = {"左輔", "右弼", "文昌", "文曲", "天魁", "天鉞", "祿存"}
+    cwf_bonus = 0
+    if career and career.main_stars:
+        cwf_bonus += 4
+    if wealth and wealth.main_stars:
+        cwf_bonus += 4
+    if fortune and fortune.main_stars:
+        cwf_bonus += 3
+    strong_bonus = 0
     for p in palaces:
-        if p.name in ("命宮", "官祿宮", "財帛宮"):
-            bonus = sum(2 for s in p.minor_stars if s in auspicious_stars)
-            score += min(bonus, 4)
+        if p.name in _key_palaces and p.main_stars:
+            for s in p.main_stars:
+                b = brightness_map.get(p.name, {}).get(s, "平")
+                if b in ("廟", "旺"):
+                    strong_bonus += 2
+                elif b in ("利", "得"):
+                    strong_bonus += 1
+    cwf_bonus += min(strong_bonus, 5)
+    cwf_bonus = min(cwf_bonus, 16)
+    score += cwf_bonus
+    components["career_wealth_fortune"] = cwf_bonus
 
-    # 六煞在命/官/財
-    malefic_stars = {"擎羊", "陀羅", "火星", "鈴星", "地空", "地劫"}
+    # 3. 四化 max ±12
+    sihua_bonus = 0
     for p in palaces:
-        if p.name in ("命宮", "官祿宮", "財帛宮"):
-            penalty = sum(2 for s in p.minor_stars if s in malefic_stars)
-            score -= min(penalty, 4)
+        is_key = p.name in _key_palaces
+        for s in p.main_stars:
+            trans = four_trans.get(s)
+            if trans == "化祿":
+                sihua_bonus += 5 if is_key else 2
+            elif trans == "化權":
+                sihua_bonus += 4 if is_key else 2
+            elif trans == "化科":
+                sihua_bonus += 3 if is_key else 1
+            elif trans == "化忌":
+                sihua_bonus -= 5 if is_key else 2
+    sihua_bonus = max(-12, min(sihua_bonus, 12))
+    score += sihua_bonus
+    components["transformations"] = sihua_bonus
+
+    # 4. 天馬 / 輔星 max +5
+    aux_bonus = 0
+    _tian_ma_palaces = {"財帛宮", "遷移宮", "官祿宮"}
+    for p in palaces:
+        if p.name in _tian_ma_palaces and "天馬" in p.minor_stars:
+            aux_bonus += 2
+            break
+    aux_star = sum(
+        1
+        for p in palaces if p.name in _key_palaces_cwf
+        for s in p.minor_stars if s in _auspicious_stars
+    )
+    aux_bonus += min(aux_star, 3)
+    aux_bonus = min(aux_bonus, 5)
+    score += aux_bonus
+    components["auxiliary_support"] = aux_bonus
+
+    # 5. 六煞張力 max -10
+    has_ji_hua_in_key = any(
+        four_trans.get(s) in ("化祿", "化科", "化權")
+        for p in palaces if p.name in _key_palaces
+        for s in p.main_stars
+    )
+    malefic_penalty = 0
+    for p in palaces:
+        if p.name in _key_palaces:
+            for s in p.minor_stars:
+                if s in _malefic_stars:
+                    malefic_penalty += max(0, 2 - (1 if has_ji_hua_in_key else 0))
+    malefic_penalty = min(malefic_penalty, 10)
+    score -= malefic_penalty
+    components["malefic_tension"] = -malefic_penalty
+
+    # 6. 平衡校正（過度集中 / overconfidence penalty）
+    balance_adj = 0
+    if score > 86:
+        has_any_malefic = any(
+            s in _malefic_stars
+            for p in palaces if p.name in _key_palaces
+            for s in p.minor_stars
+        )
+        has_hua_ji = any(
+            four_trans.get(s) == "化忌"
+            for p in palaces if p.name in _key_palaces
+            for s in p.main_stars
+        )
+        if has_any_malefic or has_hua_ji:
+            balance_adj -= 5
+    score += balance_adj
+    components["balance_adjustment"] = balance_adj
 
     # Clamp
-    score = max(0, min(100, score))
+    score = max(30, min(92, score))
 
     # Label
     label = "高壓磨練盤"
@@ -627,13 +683,17 @@ def _calc_ziwei_score(
             label = lbl
             break
 
+    # Explanation
     explanation = (
-        "此分數是 Astro Destiny Analyzer 的盤面強度 Phase 1 指標，"
-        "不等同外部網站好運指數，也不代表絕對命運好壞。"
-        "分數反映盤面結構性支持程度，供自我探索參考。"
+        "這是盤面結構支援度，不是命運好壞分數。"
+        "不等同外部網站好運指數。"
+        "主要參考命宮、官祿、財帛、福德、四化、廟旺陷、天馬與輔煞張力。"
     )
+    if score >= 85:
+        explanation += "高分也代表責任與壓力承載度較高。"
+    explanation += "應搭配實際行動、環境、選擇與長期習慣，而非單靠命盤下結論。"
 
-    return score, label, explanation
+    return score, label, explanation, components
 
 
 # ── Interpretation helpers (V1.5.1) ──────────────────────────────────────────
@@ -964,7 +1024,7 @@ class ZiWeiEngine:
             if _tm_p_idx is not None and "天馬" not in palaces[_tm_p_idx].minor_stars:
                 palaces[_tm_p_idx].minor_stars.append("天馬")
         brightness_map_val = _calc_brightness_map(palaces)
-        ziwei_score_val, ziwei_score_label_val, ziwei_score_expl = _calc_ziwei_score(
+        ziwei_score_val, ziwei_score_label_val, ziwei_score_expl, ziwei_score_comps = _calc_ziwei_score(
             palaces, brightness_map_val, four_trans
         )
 
@@ -1045,4 +1105,6 @@ class ZiWeiEngine:
             ziwei_score=ziwei_score_val,
             ziwei_score_label=ziwei_score_label_val,
             ziwei_score_explanation=ziwei_score_expl,
+            ziwei_score_version="phase1_calibrated_v1",
+            ziwei_score_components=ziwei_score_comps,
         )

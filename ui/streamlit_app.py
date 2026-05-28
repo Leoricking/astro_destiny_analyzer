@@ -924,18 +924,21 @@ elif page == "🔮 計算命盤":
                             tian_ma_disp = f"{_tm_b}（{_tm_p}）" if _tm_b else "—"
                             st.metric("天馬（移動/變動能量）", tian_ma_disp)
 
-                # ── H2. 盤面強度分數 Phase 1 (V1.7.5) ───────────────────────
+                # ── H2. 紫微盤面結構支援度 Phase 1 (V1.7.6) ─────────────────
                 _zscore = getattr(zc, "ziwei_score", None)
                 if _zscore is not None:
                     with st.container(border=True):
-                        st.markdown("#### 盤面強度分數 Phase 1")
+                        st.markdown("#### 紫微盤面結構支援度")
                         st.metric(
-                            f"盤面強度：{getattr(zc, 'ziwei_score_label', '') or ''}",
+                            f"盤面支援度：{getattr(zc, 'ziwei_score_label', '') or ''}",
                             f"{_zscore} / 100",
                         )
+                        st.caption("此分數不是外部網站好運指數，也不代表命運好壞；它只是本系統 Phase 1 的結構支援度模型。")
                         _zexpl = getattr(zc, "ziwei_score_explanation", "")
                         if _zexpl:
                             st.caption(_zexpl)
+                        if _zscore >= 85:
+                            st.info("高支援也代表高承載，不宜解讀成無壓力或必定成功。")
 
                 # ── H3. 命宮主星廟旺陷 (V1.7.5) ──────────────────────────────
                 _bmap = getattr(zc, "brightness_map", {}) or {}

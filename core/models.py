@@ -339,6 +339,9 @@ class ZiWeiChart(BaseModel):
     ziwei_score: Optional[int] = None
     ziwei_score_label: Optional[str] = None
     ziwei_score_explanation: str = ""
+    ziwei_score_version: str = "phase1_calibrated_v1"
+    ziwei_score_components: Dict[str, int] = Field(default_factory=dict)
+    ziwei_score_warnings: List[str] = Field(default_factory=list)
 
 
 # ── Blood Type Models ─────────────────────────────────────────────────────────

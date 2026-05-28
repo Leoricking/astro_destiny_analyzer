@@ -461,6 +461,17 @@ accuracy_note：V1.4 使用節氣近似日期切年切月；若需專業級精�
 - 宮干四化尚未實作（目前僅生年四化）
 - 流派差異（廟旺陷、星曜細節）後續版本處理
 
+### V1.7.6 — Zi Wei Score Calibration & Explanation Polish (2026-05-28)
+
+- 紫微盤面結構支援度校準（Phase 1 calibrated v1）
+- 分數從過度膨脹（98）修正為保守解讀（max 92，Rossi 案例 78–86 區間）
+- 分數名稱從「盤面強度」明確改為「盤面結構支援度」
+- 強調不等同外部網站好運指數，不是命運好壞分數
+- 高分（>=85）自動附加責任承載提醒
+- 新增 ziwei_score_components / ziwei_score_version / ziwei_score_warnings 欄位
+- Reconciliation score 項目文字更新為「盤面結構支援度」
+- V1.7.4 / V1.7.5 校準成果（十二宮、主星、命主、身主、天馬、廟旺陷）保留
+
 ### V1.7.5 — Zi Wei Missing Features: Ming Zhu / Shen Zhu / Brightness (2026-05-28)
 - 新增命主（先天人格輔助星）依命宮地支計算
 - 新增身主（後天行動重心輔助星）依年支計算

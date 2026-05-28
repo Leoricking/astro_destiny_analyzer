@@ -110,9 +110,11 @@ def test_brightness_qisha_ming_gong_rossi(rossi_chart):
 
 
 def test_ziwei_score_range_rossi(rossi_chart):
-    """Rossi 盤面強度分數在 0–100 之間"""
+    """Rossi 盤面結構支援度在校準後範圍 78–86（V1.7.6）"""
     assert rossi_chart.ziwei_score is not None
-    assert 0 <= rossi_chart.ziwei_score <= 100
+    assert 78 <= rossi_chart.ziwei_score <= 86, (
+        f"Rossi ziwei_score 應在 78–86，實際：{rossi_chart.ziwei_score}"
+    )
 
 
 def test_ziwei_score_label_not_empty_rossi(rossi_chart):

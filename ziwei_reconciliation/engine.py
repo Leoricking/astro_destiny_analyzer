@@ -515,16 +515,27 @@ class ZiWeiReconciliationEngine:
     ) -> List[ReconciliationItem]:
         items: List[ReconciliationItem] = []
 
-        # Score / 好運指數
+        # Score / 好運指數 vs 盤面結構支援度
         if ext.luck_score is not None:
             local_score = getattr(local, "ziwei_score", None)
             if local_score is not None:
+                diff = abs(local_score - ext.luck_score)
+                if diff <= 10:
+                    score_explanation = (
+                        "本機 Phase 1 盤面結構支援度與外部好運指數量級接近，"
+                        "但兩者定義不同，不視為排盤錯誤。"
+                    )
+                else:
+                    score_explanation = (
+                        "本機 Phase 1 盤面結構支援度與外部好運指數定義不同，"
+                        "不能直接等同比較，差異屬模型差異非排盤錯誤。"
+                    )
                 items.append(_item(
-                    "score", "好運指數 vs 盤面強度",
-                    f"本機 Phase 1 盤面強度：{local_score}",
+                    "score", "好運指數 vs 盤面結構支援度",
+                    f"本機 Phase 1 盤面結構支援度：{local_score}",
                     f"外部好運指數：{ext.luck_score}",
                     "likely_school_difference", "info",
-                    "本機分數為 Astro Destiny Analyzer Phase 1 盤面強度指標，不等同外部網站好運指數，兩者演算法不同，差異屬模型差異非排盤錯誤。",
+                    score_explanation,
                 ))
             else:
                 items.append(_item(
