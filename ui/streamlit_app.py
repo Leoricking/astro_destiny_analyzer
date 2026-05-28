@@ -1564,42 +1564,126 @@ elif page == "💕 合盤分析":
             if _adv is None:
                 st.info("進階西洋合盤資料尚未計算或不可用。")
             else:
-                sc = _adv.advanced_scores
-                st.metric("進階合盤總分", f"{sc.overall_advanced_score} / 100")
-                st.markdown(f"**{sc.label}**")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("情緒連結", sc.emotional_bond)
-                    st.metric("溝通流暢度", sc.communication_flow)
-                    st.metric("吸引力 / 化學反應", sc.attraction_chemistry)
-                    st.metric("穩定潛力", sc.stability_potential)
-                with col2:
-                    st.metric("成長張力", sc.growth_intensity)
-                    st.metric("衝突強度（張力計）", sc.conflict_intensity)
-                    st.metric("長期潛力", sc.long_term_potential)
-                st.caption(sc.explanation)
+                from compatibility.advanced_astrology import (
+                    CONFLICT_CAPTION as _CONFLICT_CAP,
+                    ADVANCED_SCORE_DISCLAIMER as _ADV_DISC,
+                )
+                _adv_sc = _adv.advanced_scores
+                _label_desc = {
+                    "高度共鳴但仍需經營": "雙方在多個維度高度契合，互動通常自然流暢，但長期關係仍需持續投入與溝通設計。",
+                    "互補良好": "差異帶來活力，兩人能在各自優勢中找到平衡，合作潛力強。",
+                    "有潛力但需溝通設計": "有良好基礎，但部分面向需要刻意建立溝通節奏才能發揮最大潛力。",
+                    "張力明顯，需成熟互動": "互動中存在明顯張力，需要較高的情緒成熟度與溝通技巧才能穩固關係。",
+                    "高壓關係，需要清楚界線": "挑戰較多，建議先各自穩固個人狀態，並在關係中建立清楚的界線與修復流程。",
+                }
+                with st.container(border=True):
+                    st.subheader("📊 分數總覽")
+                    _col_total, _col_label = st.columns([1, 2])
+                    with _col_total:
+                        st.metric("進階合盤總分", f"{_adv_sc.overall_advanced_score} / 100")
+                        st.markdown(f"**{_adv_sc.label}**")
+                    with _col_label:
+                        _desc = _label_desc.get(_adv_sc.label, "")
+                        if _desc:
+                            st.info(_desc)
+                    _c1, _c2 = st.columns(2)
+                    with _c1:
+                        st.metric("情緒連結", _adv_sc.emotional_bond)
+                        st.metric("溝通流暢度", _adv_sc.communication_flow)
+                        st.metric("吸引力 / 化學反應", _adv_sc.attraction_chemistry)
+                        st.metric("穩定潛力", _adv_sc.stability_potential)
+                    with _c2:
+                        st.metric("成長張力", _adv_sc.growth_intensity)
+                        st.metric("衝突強度（張力計）", _adv_sc.conflict_intensity)
+                        st.caption(_CONFLICT_CAP)
+                        st.metric("長期潛力", _adv_sc.long_term_potential)
+                    st.caption(_adv_sc.explanation)
+                if _adv.strengths:
+                    with st.container(border=True):
+                        st.subheader("✅ 優勢")
+                        for _s in _adv.strengths:
+                            st.markdown(f"- {_s}")
+                if _adv.challenges:
+                    with st.container(border=True):
+                        st.subheader("⚡ 挑戰")
+                        for _ch in _adv.challenges:
+                            st.markdown(f"- {_ch}")
+                if _adv.repair_advice:
+                    with st.container(border=True):
+                        st.subheader("🔧 修復建議")
+                        for _ra in _adv.repair_advice:
+                            st.markdown(f"- {_ra}")
                 st.caption(_adv.accuracy_note)
+                st.caption(_ADV_DISC)
 
         with tab_synastry:
             if _adv is None:
                 st.info("相位矩陣資料尚未計算或不可用。")
             else:
+                from compatibility.advanced_astrology import (
+                    aspect_type_zh as _atz, category_zh as _cz,
+                    aspect_nature as _an, format_orb as _fo,
+                )
+                import pandas as _pd
                 sm = _adv.synastry_matrix
-                st.caption(sm.accuracy_note)
+                st.caption("相位強度代表兩人星盤互動的明顯程度，不代表好壞。張力相位通常代表需要溝通設計，和諧相位代表自然流動較多。")
                 if sm.aspects:
-                    import pandas as _pd
+                    # Top cards
+                    _top_str = sm.strongest_aspects[0] if sm.strongest_aspects else None
+                    _top_attr = next((a for a in sm.aspects if a.category == "attraction"), None)
+                    _top_emo = next((a for a in sm.aspects if a.category == "emotional"), None)
+                    _top_ten = sm.tension_aspects[0] if sm.tension_aspects else None
+                    _tc1, _tc2, _tc3, _tc4 = st.columns(4)
+                    _tc1.metric("最強相位",
+                                f"{_top_str.person_a_planet}×{_top_str.person_b_planet}" if _top_str else "暫無",
+                                f"{_atz(_top_str.aspect_type)} 強度{_top_str.strength}" if _top_str else None)
+                    _tc2.metric("最強吸引力",
+                                f"{_top_attr.person_a_planet}×{_top_attr.person_b_planet}" if _top_attr else "暫無",
+                                _atz(_top_attr.aspect_type) if _top_attr else None)
+                    _tc3.metric("最強情緒連結",
+                                f"{_top_emo.person_a_planet}×{_top_emo.person_b_planet}" if _top_emo else "暫無",
+                                _atz(_top_emo.aspect_type) if _top_emo else None)
+                    _tc4.metric("最強張力",
+                                f"{_top_ten.person_a_planet}×{_top_ten.person_b_planet}" if _top_ten else "暫無",
+                                _atz(_top_ten.aspect_type) if _top_ten else None)
+                    st.divider()
+                    # Filters
+                    _fcol1, _fcol2, _fcol3, _fcol4 = st.columns([3, 1, 1, 1])
+                    _all_cats = sorted({_cz(a.category) for a in sm.aspects})
+                    _sel_cats = _fcol1.multiselect("分類篩選", options=_all_cats, default=_all_cats, key="syn_cat_filter")
+                    _only_str = _fcol2.checkbox("只看最強", key="syn_top_filter")
+                    _only_ten = _fcol3.checkbox("只看張力", key="syn_tension_filter")
+                    _only_har = _fcol4.checkbox("只看和諧", key="syn_harmony_filter")
+                    # Sort: strongest first, then strength desc, orb asc
+                    _strong_keys = {(a.person_a_planet, a.person_b_planet, a.aspect_type) for a in sm.strongest_aspects}
+                    _sorted = sorted(
+                        sm.aspects,
+                        key=lambda a: (0 if (a.person_a_planet, a.person_b_planet, a.aspect_type) in _strong_keys else 1,
+                                       -a.strength, a.orb)
+                    )
+                    # Apply filters
+                    _filtered = _sorted
+                    if _only_str:
+                        _filtered = [a for a in _filtered
+                                     if (a.person_a_planet, a.person_b_planet, a.aspect_type) in _strong_keys]
+                    if _only_ten:
+                        _filtered = [a for a in _filtered if a.is_challenging]
+                    if _only_har:
+                        _filtered = [a for a in _filtered if a.is_harmonious]
+                    if _sel_cats != _all_cats:
+                        _filtered = [a for a in _filtered if _cz(a.category) in _sel_cats]
                     _asp_data = [{
                         "A 行星": a.person_a_planet,
                         "B 行星": a.person_b_planet,
-                        "相位": a.aspect_type,
-                        "角度": a.angle,
-                        "orb": a.orb,
+                        "相位": _atz(a.aspect_type),
+                        "容許度 orb": _fo(a.orb),
                         "強度": a.strength,
-                        "類別": a.category,
-                        "和諧": "✅" if a.is_harmonious else ("⚡" if a.is_challenging else "─"),
+                        "分類": _cz(a.category),
+                        "性質": _an(a),
                         "解讀": a.interpretation,
-                    } for a in sm.aspects]
+                    } for a in _filtered]
                     st.dataframe(_pd.DataFrame(_asp_data), use_container_width=True, hide_index=True)
+                    st.caption(sm.accuracy_note)
                 else:
                     st.info("無可計算相位（行星經度資料不足）。")
 
@@ -1607,26 +1691,46 @@ elif page == "💕 合盤分析":
             if _adv is None:
                 st.info("Composite Chart 資料尚未計算或不可用。")
             else:
+                from compatibility.advanced_astrology import COMPOSITE_INTRO as _COMP_INTRO
+                import pandas as _pd
                 cc = _adv.composite_chart
+                st.caption(_COMP_INTRO)
+                if not cc.ascendant_sign:
+                    st.info("Composite ASC / MC 需要雙方精準出生時間與出生地，本次未納入四軸解讀。")
+                # Core planet cards
+                _key_planet_roles = {
+                    "太陽": "關係核心目的",
+                    "月亮": "情緒氣候",
+                    "金星": "親密與喜好",
+                    "火星": "行動與衝突",
+                    "土星": "承諾與壓力",
+                }
+                _cp_dict = {p.planet: p for p in cc.planets}
+                with st.container(border=True):
+                    st.subheader("核心行星")
+                    for _planet_zh, _role in _key_planet_roles.items():
+                        _cp = _cp_dict.get(_planet_zh)
+                        if _cp:
+                            _pcol1, _pcol2 = st.columns([1, 3])
+                            with _pcol1:
+                                st.metric(f"Composite {_planet_zh}", _cp.sign)
+                                st.caption(_role)
+                            with _pcol2:
+                                if _cp.interpretation:
+                                    st.markdown(_cp.interpretation)
+                            st.divider()
+                # Full planet table
+                if cc.planets:
+                    _planet_data = [{
+                        "行星": p.planet,
+                        "星座": p.sign,
+                        "度數": f"{p.longitude:.1f}°",
+                        "宮位": str(p.house) if p.house is not None else "─",
+                        "解讀": p.interpretation or "─",
+                    } for p in cc.planets]
+                    with st.expander("完整行星表格"):
+                        st.dataframe(_pd.DataFrame(_planet_data), use_container_width=True, hide_index=True)
                 st.caption(cc.accuracy_note)
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Composite 太陽", cc.sun_sign or "─")
-                    st.metric("Composite 月亮", cc.moon_sign or "─")
-                with col2:
-                    st.metric("Composite 金星", cc.venus_sign or "─")
-                    st.metric("Composite 火星", cc.mars_sign or "─")
-                with col3:
-                    st.metric("Composite ASC", cc.ascendant_sign or "─")
-                st.divider()
-                st.subheader("關係核心主題")
-                st.write(cc.relationship_theme)
-                st.subheader("情緒氣候")
-                st.write(cc.emotional_climate)
-                st.subheader("吸引力風格")
-                st.write(cc.attraction_style)
-                st.subheader("衝突模式")
-                st.write(cc.conflict_style)
 
         with tab_astro:
             ast = _cr.astrology

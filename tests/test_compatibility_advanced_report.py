@@ -100,13 +100,28 @@ def test_markdown_contains_composite(romantic_report):
     assert "Composite" in romantic_report.markdown_body
 
 
-# ── 8. HTML export no crash ───────────────────────────────────────────────────
+# ── 8. HTML export quality ────────────────────────────────────────────────────
 
 def test_html_export_no_crash(romantic_report):
     """HTML export 不 crash"""
     from compatibility.exporters import export_compat_to_html
     html = export_compat_to_html(romantic_report)
     assert html and len(html) > 100
+
+
+def test_html_export_has_charset_utf8(romantic_report):
+    """HTML export 包含 charset utf-8"""
+    from compatibility.exporters import export_compat_to_html
+    html = export_compat_to_html(romantic_report)
+    assert "charset" in html.lower() and "utf-8" in html.lower(), \
+        "HTML export 應包含 charset=utf-8"
+
+
+def test_html_export_contains_advanced_astrology(romantic_report):
+    """HTML export 包含進階西洋合盤章節"""
+    from compatibility.exporters import export_compat_to_html
+    html = export_compat_to_html(romantic_report)
+    assert "進階西洋合盤" in html, "HTML export 應包含「進階西洋合盤」"
 
 
 # ── 9. Save/reload advanced report ───────────────────────────────────────────
@@ -156,3 +171,33 @@ def test_business_couple_can_export(business_report):
     """demo business couple 可以匯出 markdown"""
     assert business_report.markdown_body
     assert len(business_report.markdown_body) > 200
+
+
+# ── 13–15. Markdown content quality (V1.8.1) ─────────────────────────────────
+
+def test_markdown_contains_synastry_section(romantic_report):
+    """markdown 包含 Synastry 章節"""
+    assert "相位矩陣" in romantic_report.markdown_body or "Synastry" in romantic_report.markdown_body
+
+
+def test_markdown_contains_composite_section(romantic_report):
+    """markdown 包含 Composite Chart 章節"""
+    assert "Composite Chart" in romantic_report.markdown_body
+
+
+def test_markdown_score_disclaimer_present(romantic_report):
+    """markdown 包含進階合盤分數免責聲明"""
+    assert "不是絕對適合度" in romantic_report.markdown_body, \
+        "報告應包含「不是絕對適合度」說明"
+
+
+# ── 16. Word export no crash ─────────────────────────────────────────────────
+
+def test_word_export_no_crash_if_available(romantic_report):
+    """Word export 若 python-docx 可用，不 crash"""
+    try:
+        from compatibility.exporters import export_compat_to_docx
+        docx_bytes = export_compat_to_docx(romantic_report)
+        assert len(docx_bytes) > 0, "Word export 應產生非空 bytes"
+    except RuntimeError:
+        pytest.skip("python-docx 未安裝，跳過 Word export 測試")

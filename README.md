@@ -461,6 +461,25 @@ accuracy_note：V1.4 使用節氣近似日期切年切月；若需專業級精�
 - 宮干四化尚未實作（目前僅生年四化）
 - 流派差異（廟旺陷、星曜細節）後續版本處理
 
+### V1.8.1 — Relationship Report UI Polish & UTF-8 Encoding Fix (2026-05-28)
+
+- Windows 中文編碼修正：run.bat / setup.bat 加入 `chcp 65001`, `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, `PYTHONLEGACYWINDOWSSTDIO=0`
+- 新增 `scripts/encoding_utils.py`：`ensure_utf8_console()` — 安全 reconfigure stdout/stderr 為 UTF-8
+- 相位矩陣 UI 全面升級：中文欄位名稱、分類篩選 multiselect、最強 / 張力 / 和諧 checkbox、Top cards（最強 / 最強吸引力 / 最強情緒 / 最強張力）
+- 新增顯示 helper：`aspect_type_zh`, `category_zh`, `aspect_nature`, `format_orb`, `aspect_to_display_dict`
+- 進階合盤分數 UI 分區：分數總覽（`border=True` container）、優勢、挑戰、修復建議
+- 衝突強度加 caption：「衝突張力高不等於不適合，而是代表需要明確修復流程。」
+- Label 說明：5 種 label 對應詳細中文描述
+- Composite Chart UI 升級：核心行星卡片（太陽 / 月亮 / 金星 / 火星 / 土星 + 角色說明）、完整行星展開表格
+- ASC/MC 說明：精確時間不足時顯示「Composite ASC / MC 需要雙方精準出生時間與出生地，本次未納入四軸解讀。」
+- 報告 Synastry 章節：加入 Synastry 概念說明、Top 8 改為 Markdown 表格、使用中文相位 / 分類名稱
+- 報告 Composite 章節：加入共同場域說明、核心行星加 role 標籤
+- 進階分數章節：加入「不是絕對適合度」免責聲明、表格新增說明欄
+- HTML export 確認包含 `<meta charset="UTF-8">`
+- 限制說明：
+  - Synastry / Composite 不是絕對適合度，也不代表一定在一起或分開
+  - Composite ASC / MC 需要雙方精準時間與地點
+
 ### V1.8.0 — Advanced Synastry & Composite Chart (2026-05-28)
 
 - 新增進階西洋合盤：Synastry 相位矩陣（6 種主要相位 × 10 行星）

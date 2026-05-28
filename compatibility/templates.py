@@ -510,60 +510,44 @@ def build_compatibility_markdown(report: "CompatibilityReport") -> str:
     # ── V1.8.0 Advanced Astrology ─────────────────────────────────────────────
     adv = getattr(report, "advanced_astrology", None)
     if adv is not None:
+        from compatibility.advanced_astrology import (
+            aspect_type_zh as _atz, category_zh as _cz, format_orb as _fo,
+            SYNASTRY_INTRO, COMPOSITE_INTRO, ADVANCED_SCORE_DISCLAIMER, CONFLICT_CAPTION,
+        )
         sm = adv.synastry_matrix
         cc = adv.composite_chart
-        sc = adv.advanced_scores
+        adv_sc = adv.advanced_scores
 
         # ── Synastry Matrix ────────────────────────────────────────────────────
         lines += [
             "## 進階西洋合盤：Synastry 相位矩陣",
             "",
+            SYNASTRY_INTRO,
+            "",
             adv.summary,
             "",
         ]
         if sm.strongest_aspects:
-            lines += ["### 最強相位 Top 8", ""]
-            for i, a in enumerate(sm.strongest_aspects, 1):
-                aspect_zh = {
-                    "conjunction": "合相(0°)", "sextile": "六合(60°)",
-                    "square": "刑相(90°)", "trine": "三合(120°)",
-                    "quincunx": "補五(150°)", "opposition": "對分(180°)",
-                }.get(a.aspect_type, a.aspect_type)
-                harmony_icon = "✅" if a.is_harmonious else "⚡"
+            lines += [
+                "### 最強相位 Top 8",
+                "",
+                "| A 行星 | B 行星 | 相位 | orb | 強度 | 分類 | 解讀 |",
+                "|--------|--------|------|-----|------|------|------|",
+            ]
+            for a in sm.strongest_aspects:
+                interp_short = a.interpretation[:40] + "…" if len(a.interpretation) > 40 else a.interpretation
                 lines.append(
-                    f"{i}. {harmony_icon} **{a.person_a_planet}（A）× {a.person_b_planet}（B）** "
-                    f"{aspect_zh}｜orb {a.orb:.1f}°｜強度 {a.strength}"
+                    f"| {a.person_a_planet} | {a.person_b_planet} | {_atz(a.aspect_type)} "
+                    f"| {_fo(a.orb)} | {a.strength} | {_cz(a.category)} | {interp_short} |"
                 )
-                if a.interpretation:
-                    lines.append(f"   > {a.interpretation}")
             lines.append("")
         if sm.harmony_aspects:
-            lines += ["### 和諧相位", ""]
-            for a in sm.harmony_aspects[:6]:
-                aspect_zh = {
-                    "conjunction": "合相(0°)", "sextile": "六合(60°)",
-                    "square": "刑相(90°)", "trine": "三合(120°)",
-                    "quincunx": "補五(150°)", "opposition": "對分(180°)",
-                }.get(a.aspect_type, a.aspect_type)
-                lines.append(f"- ✅ {a.person_a_planet}（A）× {a.person_b_planet}（B）{aspect_zh}")
-            lines.append("")
-        if sm.tension_aspects:
-            lines += ["### 張力相位", ""]
-            for a in sm.tension_aspects[:6]:
-                aspect_zh = {
-                    "conjunction": "合相(0°)", "sextile": "六合(60°)",
-                    "square": "刑相(90°)", "trine": "三合(120°)",
-                    "quincunx": "補五(150°)", "opposition": "對分(180°)",
-                }.get(a.aspect_type, a.aspect_type)
-                lines.append(f"- ⚡ {a.person_a_planet}（A）× {a.person_b_planet}（B）{aspect_zh}")
-            lines.append("")
-        if sm.emotional_aspects:
             lines += ["### 情緒連結相位", ""]
             for a in sm.emotional_aspects[:4]:
                 lines.append(f"- {a.interpretation}")
             lines.append("")
         if sm.communication_aspects:
-            lines += ["### 溝通模式相位", ""]
+            lines += ["### 溝通相位", ""]
             for a in sm.communication_aspects[:4]:
                 lines.append(f"- {a.interpretation}")
             lines.append("")
@@ -572,13 +556,21 @@ def build_compatibility_markdown(report: "CompatibilityReport") -> str:
             for a in sm.attraction_aspects[:4]:
                 lines.append(f"- {a.interpretation}")
             lines.append("")
+        if sm.tension_aspects:
+            lines += ["### 張力相位", ""]
+            for a in sm.tension_aspects[:6]:
+                lines.append(
+                    f"- ⚡ {a.person_a_planet}（A）× {a.person_b_planet}（B）"
+                    f"{_atz(a.aspect_type)}｜{_fo(a.orb)}"
+                )
+            lines.append("")
         if sm.stability_aspects:
             lines += ["### 穩定與責任相位", ""]
             for a in sm.stability_aspects[:4]:
                 lines.append(f"- {a.interpretation}")
             lines.append("")
         if adv.repair_advice:
-            lines += ["### 衝突修復建議", ""]
+            lines += ["### 修復建議", ""]
             for tip in adv.repair_advice:
                 lines.append(f"- {tip}")
             lines.append("")
@@ -588,14 +580,24 @@ def build_compatibility_markdown(report: "CompatibilityReport") -> str:
         lines += [
             "## Composite Chart 中點盤",
             "",
+            COMPOSITE_INTRO,
+            "",
             f"*計算模式：{cc.calculation_mode}*",
             "",
         ]
         key_planets = ["太陽", "月亮", "金星", "火星", "土星"]
+        _key_planet_roles = {
+            "太陽": "關係核心目的",
+            "月亮": "情緒氣候",
+            "金星": "親密與喜好",
+            "火星": "行動與衝突",
+            "土星": "承諾與壓力",
+        }
         for cp in cc.planets:
             if cp.planet in key_planets and cp.interpretation:
+                role = _key_planet_roles.get(cp.planet, "")
                 lines += [
-                    f"### Composite {cp.planet}（{cp.sign}）",
+                    f"### Composite {cp.planet}（{cp.sign}）{'— ' + role if role else ''}",
                     "",
                     cp.interpretation,
                     "",
@@ -608,25 +610,32 @@ def build_compatibility_markdown(report: "CompatibilityReport") -> str:
         ]
         if cc.ascendant_sign:
             lines += [f"**Composite ASC**：{cc.ascendant_sign}", ""]
+        else:
+            lines += [
+                "> Composite ASC / MC 需要雙方精準出生時間與出生地，本次未納入四軸解讀。",
+                "",
+            ]
         lines += [f"*{cc.accuracy_note}*", ""]
 
         # ── Advanced Scores ───────────────────────────────────────────────────
         lines += [
             "## 進階合盤分數",
             "",
-            f"**進階合盤總分：{sc.overall_advanced_score} / 100 — {sc.label}**",
+            f"**進階合盤總分：{adv_sc.overall_advanced_score} / 100 — {adv_sc.label}**",
             "",
-            f"| 項目 | 分數 |",
-            f"|------|------|",
-            f"| 情緒連結 | {sc.emotional_bond} |",
-            f"| 溝通流暢度 | {sc.communication_flow} |",
-            f"| 吸引力 / 化學反應 | {sc.attraction_chemistry} |",
-            f"| 穩定潛力 | {sc.stability_potential} |",
-            f"| 成長張力 | {sc.growth_intensity} |",
-            f"| 衝突強度（張力計） | {sc.conflict_intensity} |",
-            f"| 長期潛力 | {sc.long_term_potential} |",
+            f"> {ADVANCED_SCORE_DISCLAIMER}",
             "",
-            f"> {sc.explanation}",
+            f"| 項目 | 分數 | 說明 |",
+            f"|------|------|------|",
+            f"| 情緒連結 | {adv_sc.emotional_bond} | 情感共鳴與情緒安全感 |",
+            f"| 溝通流暢度 | {adv_sc.communication_flow} | 思維契合與表達節奏 |",
+            f"| 吸引力 / 化學反應 | {adv_sc.attraction_chemistry} | 自然吸引力與磁場 |",
+            f"| 穩定潛力 | {adv_sc.stability_potential} | 長期穩定的結構基礎 |",
+            f"| 成長張力 | {adv_sc.growth_intensity} | 激勵彼此突破成長 |",
+            f"| 衝突強度（張力計） | {adv_sc.conflict_intensity} | {CONFLICT_CAPTION} |",
+            f"| 長期潛力 | {adv_sc.long_term_potential} | 長期關係的綜合評估 |",
+            "",
+            f"> {adv_sc.explanation}",
             "",
             f"*{adv.accuracy_note}*",
             "",

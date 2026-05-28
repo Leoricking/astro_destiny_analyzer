@@ -661,6 +661,81 @@ def _build_advanced_summary(
     return summary, strengths, challenges, repair_advice
 
 
+# ── Display helpers (V1.8.1) ─────────────────────────────────────────────────
+
+_ASPECT_TYPE_ZH: Dict[str, str] = {
+    "conjunction": "合相",
+    "sextile": "六合",
+    "square": "四分相",
+    "trine": "三分相",
+    "quincunx": "梅花相",
+    "opposition": "對分相",
+}
+
+_CATEGORY_ZH: Dict[str, str] = {
+    "emotional": "情緒連結",
+    "communication": "溝通理解",
+    "attraction": "吸引力",
+    "stability": "穩定責任",
+    "growth": "成長推進",
+    "conflict": "衝突張力",
+    "general": "一般",
+}
+
+# Key UI text constants (used by templates, UI, and tests)
+CONFLICT_CAPTION = "衝突張力高不等於不適合，而是代表需要明確修復流程。"
+COMPOSITE_INTRO = (
+    "Composite Chart 是兩人星盤的中點盤，用來觀察關係本身形成的共同場域；"
+    "它不是任何一方個人命盤，也不是絕對結局。"
+)
+ADVANCED_SCORE_DISCLAIMER = (
+    "進階合盤分數不是絕對適合度，不代表一定在一起或一定分開。"
+    "它是兩人互動模式的結構化參考。"
+)
+SYNASTRY_INTRO = (
+    "Synastry（星盤疊合）分析兩人行星之間的角度關係（相位），"
+    "用於了解兩人互動的能量模式。相位不代表命運，而是提供理解互動風格的結構化框架。"
+)
+
+
+def aspect_type_zh(aspect_type: str) -> str:
+    """Return Chinese display name for an aspect type."""
+    return _ASPECT_TYPE_ZH.get(aspect_type, aspect_type)
+
+
+def category_zh(category: str) -> str:
+    """Return Chinese display name for an aspect category."""
+    return _CATEGORY_ZH.get(category, category)
+
+
+def aspect_nature(aspect: "SynastryAspect") -> str:
+    """Return nature string: 和諧 / 張力 / 混合."""
+    if aspect.is_harmonious and not aspect.is_challenging:
+        return "和諧"
+    if aspect.is_challenging and not aspect.is_harmonious:
+        return "張力"
+    return "混合"
+
+
+def format_orb(orb: float) -> str:
+    """Return formatted orb string, e.g. '2.3°'."""
+    return f"{orb:.1f}°"
+
+
+def aspect_to_display_dict(aspect: "SynastryAspect") -> Dict[str, str]:
+    """Return a display dict with Chinese column names for UI/report use."""
+    return {
+        "A 行星": aspect.person_a_planet,
+        "B 行星": aspect.person_b_planet,
+        "相位": aspect_type_zh(aspect.aspect_type),
+        "容許度 orb": format_orb(aspect.orb),
+        "強度": str(aspect.strength),
+        "分類": category_zh(aspect.category),
+        "性質": aspect_nature(aspect),
+        "解讀": aspect.interpretation,
+    }
+
+
 # ── Main engine ───────────────────────────────────────────────────────────────
 
 class AdvancedAstrologyEngine:
