@@ -6,6 +6,53 @@
 
 ---
 
+## V1.9.6 更新說明 — Free Report Lead Magnet & Email Capture Mock
+
+### 免費報告 Lead Magnet、Email 留資 Mock、轉換漏斗
+
+本版新增「🎁 免費報告」頁面（客戶模式與開發者模式均可見），支援免費簡版報告生成與本機 Email 留資。
+**不串接真實 Email API、不串接付款、不外送資料。**
+
+**支援報告類型：**
+
+| 類型 | 說明 |
+|------|------|
+| 星座速覽 | 太陽星座速覽，含關係提示與完整命盤導流 |
+| 人類圖 Type 速覽 | 若有精確出生時間可計算 Type；否則說明需求 |
+| 合盤初評 | 雙方資料初步關係探索，Synastry/Composite 導流 |
+| 整合命盤摘要 | 四套系統（占星、八字、紫微、人類圖）入門說明 |
+
+**Email Capture Mock：**
+
+| 行為 | 說明 |
+|------|------|
+| 本機儲存 | `data/leads_mock.json` |
+| 不外送 | 不串接任何 Email API |
+| Consent 必填 | 未勾同意不儲存 lead |
+| 匯出 CSV | 開發者模式可下載（不含出生細節） |
+
+**客戶模式 vs 開發者模式：**
+
+| 功能 | 客戶模式 | 開發者模式 |
+|------|----------|-----------|
+| 免費報告頁 | ✅ | ✅ |
+| 填表 / 生成報告 | ✅ | ✅ |
+| Leads 列表 | ❌ | ✅ |
+| 匯出 CSV | ❌ | ✅ |
+| 清除 Leads | ❌ | ✅（二次確認）|
+
+**新增模組 `lead_magnet/`：**
+
+- `models.py` — LeadProfile / PartnerProfile / LeadCapture / FreeReportResult / FreeReportSection / LeadStorageSnapshot
+- `storage.py` — validate_email / make_lead_id / load_leads / save_leads / append_lead / export_leads_csv / delete_all_leads
+- `engine.py` — generate_free_report（4 種類型分流）
+- `templates.py` — render_free_report_markdown / html / render_lead_capture_copy / render_upgrade_cta
+- `exporters.py` — export functions + safe_free_report_filename
+
+**隱私提醒：目前為本機 mock。正式上線前需加入隱私政策 / 服務條款 / Email provider / 資料刪除流程。**
+
+---
+
 ## V1.9.5 更新說明 — Public Content Landing Pages
 
 ### 免費內容入口：星座 / 人類圖 / 合盤 / 紫微 / 八字 / 靈數 / 整合指南

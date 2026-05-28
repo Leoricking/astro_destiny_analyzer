@@ -115,3 +115,17 @@ class TestPublicContentUIPageContent:
     def test_ui_has_download_buttons_dev_mode(self):
         block = _get_public_page_block(_app_src())
         assert "download_button" in block
+
+
+# ── V1.9.6 — Free Report CTA integration ─────────────────────────────────────
+
+class TestPublicContentFreeReportCta:
+    def test_public_content_contains_free_report_cta(self):
+        src = _app_src()
+        block = _get_public_page_block(src)
+        assert "free_report" in block.lower() or "免費報告" in block
+
+    def test_free_report_target_exists(self):
+        src = _app_src()
+        block = _get_public_page_block(src)
+        assert "🎁 免費報告" in block or "free_report_cta_slug" in block

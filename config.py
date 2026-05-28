@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.9.5"
+APP_VERSION = "1.9.6"
 APP_SUBTITLE = "命盤整合分析系統"
 
 # ── Brand / Delivery settings ─────────────────────────────────────────────────
@@ -79,6 +79,14 @@ HOUSE_SYSTEM: bytes = b"P"               # P=Placidus; W=Whole Sign; K=Koch
 
 # Human Design calibration dataset path
 HUMAN_DESIGN_CALIBRATION_DATASET_PATH = DATA_DIR / "human_design_calibration_cases.json"
+
+# Lead Magnet / Email Capture Mock (V1.9.6)
+LEAD_MAGNET_ENABLED: bool = os.getenv("ASTRO_LEAD_MAGNET_ENABLED", "1").strip().lower() in (
+    "1", "true", "yes", "on"
+)
+LEAD_STORAGE_PATH = DATA_DIR / "leads_mock.json"
+LEAD_EXPORT_DIR = DATA_DIR / "lead_exports"
+FREE_REPORT_VERSION: str = "v1"
 
 # Human Design calibration settings
 # Design date calculation method: "solar_arc_88" (exact) or "minus_88_days" (MVP approximation)

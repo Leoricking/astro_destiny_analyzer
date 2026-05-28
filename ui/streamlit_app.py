@@ -55,12 +55,12 @@ st.set_page_config(
 )
 
 _PAGES_BASE = [
-    "🏠 首頁", "🌐 免費內容入口", "📝 輸入資料", "🔮 計算命盤",
+    "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
     "⚙️ 設定",
 ]
 _PAGES_DEV = [
-    "🏠 首頁", "🌐 免費內容入口", "📝 輸入資料", "🔮 計算命盤",
+    "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
     "🧭 紫微校準", "🔷 人類圖校準", "⚙️ 設定",
 ]
@@ -471,14 +471,26 @@ elif page == "🌐 免費內容入口":
         if _sel_page:
             st.markdown(render_public_page_markdown(_sel_page))
             # CTA navigation
+            _cta_col1, _cta_col2 = st.columns(2)
             if _sel_page.cta_button_label and _sel_page.cta_target:
-                if st.button(
-                    f"→ {_sel_page.cta_button_label}",
-                    key="public_content_cta_nav",
-                    type="primary",
-                ):
-                    st.session_state["nav_page"] = _sel_page.cta_target
-                    st.rerun()
+                with _cta_col1:
+                    if st.button(
+                        f"→ {_sel_page.cta_button_label}",
+                        key="public_content_cta_nav",
+                        type="primary",
+                    ):
+                        st.session_state["nav_page"] = _sel_page.cta_target
+                        st.rerun()
+            # Free report secondary CTA
+            if _sel_page.free_report_cta_slug:
+                with _cta_col2:
+                    if st.button(
+                        "🎁 先領免費摘要",
+                        key="public_content_free_report_cta",
+                    ):
+                        st.session_state["nav_page"] = "🎁 免費報告"
+                        st.session_state["free_report_type_preset"] = _sel_page.free_report_cta_slug
+                        st.rerun()
 
             # ── E. Export (developer mode only) ───────────────────────────────
             if DEVELOPER_MODE:
@@ -534,6 +546,180 @@ elif page == "🌐 免費內容入口":
                     )
     else:
         st.info("此分類目前沒有內容頁面。")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: 免費報告
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🎁 免費報告":
+    from lead_magnet.models import LeadProfile, PartnerProfile, LeadCapture
+    from lead_magnet.storage import validate_email, append_lead, load_leads, export_leads_csv, delete_all_leads
+    from lead_magnet.engine import generate_free_report
+    from lead_magnet.templates import render_lead_capture_copy, render_upgrade_cta
+    from lead_magnet.exporters import export_free_report_markdown, export_free_report_html, safe_free_report_filename
+    import config as _lcfg
+
+    st.title("🎁 取得免費命盤摘要")
+    st.caption("先用免費摘要了解方向，再決定是否建立完整整合報告。")
+
+    # ── B. Report type selector ───────────────────────────────────────────────
+    _REPORT_TYPE_LABELS = {
+        "星座速覽": "zodiac_free_summary",
+        "人類圖 Type 速覽": "human_design_free_summary",
+        "合盤初評": "compatibility_free_summary",
+        "整合命盤摘要": "integrated_free_summary",
+    }
+    _preset = st.session_state.pop("free_report_type_preset", None)
+    _preset_label = None
+    if _preset:
+        for _lbl, _slug in _REPORT_TYPE_LABELS.items():
+            if _slug == _preset:
+                _preset_label = _lbl
+                break
+    _rt_label = st.selectbox(
+        "選擇免費報告類型",
+        options=list(_REPORT_TYPE_LABELS.keys()),
+        index=list(_REPORT_TYPE_LABELS.keys()).index(_preset_label) if _preset_label else 0,
+        key="free_report_type_select",
+    )
+    _rt = _REPORT_TYPE_LABELS[_rt_label]
+    _copy = render_lead_capture_copy(_rt)
+    st.subheader(_copy["title"])
+    st.caption(_copy["description"])
+
+    # ── C. Lead form ──────────────────────────────────────────────────────────
+    with st.form("free_report_form"):
+        _fm_name = st.text_input("姓名", key="fr_name")
+        _fm_email = st.text_input("Email *", key="fr_email")
+        _fm_date = st.text_input("出生日期（YYYY-MM-DD）", key="fr_birth_date")
+        _fm_time = st.text_input("出生時間（HH:MM，選填）", key="fr_birth_time")
+        _fm_loc = st.text_input("出生地點（選填）", key="fr_birth_loc")
+        _show_partner = _rt == "compatibility_free_summary"
+        if _show_partner:
+            st.markdown("**對方資料**")
+            _fm_partner_name = st.text_input("對方姓名", key="fr_partner_name")
+            _fm_partner_date = st.text_input("對方出生日期（YYYY-MM-DD）", key="fr_partner_date")
+            _fm_partner_time = st.text_input("對方出生時間（HH:MM，選填）", key="fr_partner_time")
+        _fm_consent = st.checkbox(_copy["consent_text"], key="fr_consent")
+        _fm_mkt = st.checkbox("我願意接收後續完整報告或諮詢服務資訊。（選填）", key="fr_marketing")
+        _submitted = st.form_submit_button(_copy["button_label"], type="primary")
+
+    if _submitted:
+        _err = False
+        if not validate_email(_fm_email):
+            st.error("❌ 請輸入有效的 Email 地址。")
+            _err = True
+        if not _fm_consent:
+            st.warning("⚠️ 請勾選同意聲明，才能產生並儲存免費摘要。")
+            _err = True
+        if not _err:
+            _profile = LeadProfile(
+                name=_fm_name,
+                email=_fm_email,
+                birth_date=_fm_date or None,
+                birth_time=_fm_time or None,
+                birth_location=_fm_loc,
+            )
+            _partner = None
+            if _show_partner:
+                _partner = PartnerProfile(
+                    name=_fm_partner_name,
+                    birth_date=_fm_partner_date or None,
+                    birth_time=_fm_partner_time or None,
+                )
+            _lead = LeadCapture(
+                profile=_profile,
+                partner=_partner,
+                report_type=_rt,
+                source_page_slug="free_report_page",
+                consent_given=True,
+                marketing_consent=_fm_mkt,
+            )
+            try:
+                _lead = append_lead(_lead, _lcfg.LEAD_STORAGE_PATH)
+                st.success("✅ 資料已儲存（本機）。正在產生免費摘要……")
+            except Exception as _e:
+                st.warning(f"儲存提示：{_e}")
+            # Generate and display report
+            _result = generate_free_report(_lead)
+            st.markdown("---")
+            st.markdown(export_free_report_markdown(_result))
+            # CTA
+            _ucta = render_upgrade_cta(_rt)
+            st.info(f"**{_ucta['title']}** — {_ucta['description']}")
+            _uc1, _uc2, _uc3 = st.columns(3)
+            with _uc1:
+                if st.button(f"→ {_ucta['button_label']}", key="fr_upgrade_cta"):
+                    st.session_state["nav_page"] = _ucta["target"]
+                    st.rerun()
+            with _uc2:
+                st.download_button(
+                    "下載免費摘要 Markdown",
+                    data=export_free_report_markdown(_result).encode("utf-8"),
+                    file_name=safe_free_report_filename(_fm_name, _rt, "md"),
+                    mime="text/markdown",
+                    key="fr_dl_md",
+                )
+            with _uc3:
+                st.download_button(
+                    "下載免費摘要 HTML",
+                    data=export_free_report_html(_result).encode("utf-8"),
+                    file_name=safe_free_report_filename(_fm_name, _rt, "html"),
+                    mime="text/html",
+                    key="fr_dl_html",
+                )
+
+    # ── E. Developer mode area ────────────────────────────────────────────────
+    if DEVELOPER_MODE:
+        st.divider()
+        st.subheader("開發者工具：Leads 管理")
+        try:
+            _snap = load_leads(_lcfg.LEAD_STORAGE_PATH)
+        except Exception as _le:
+            st.error(f"Leads 載入失敗：{_le}")
+            _snap = None
+        if _snap is not None:
+            st.metric("Lead 總數", len(_snap.leads))
+            st.caption(f"儲存路徑：{_lcfg.LEAD_STORAGE_PATH}")
+            if _snap.leads:
+                import pandas as _pd
+                _leads_df = _pd.DataFrame([
+                    {
+                        "lead_id": ld.lead_id,
+                        "name": ld.profile.name,
+                        "email": ld.profile.email,
+                        "report_type": ld.report_type,
+                        "created_at": ld.created_at,
+                        "consent": ld.consent_given,
+                    }
+                    for ld in _snap.leads
+                ])
+                st.dataframe(_leads_df, use_container_width=True)
+                _csv_str = export_leads_csv(_snap)
+                st.download_button(
+                    "下載 Leads CSV",
+                    data=_csv_str.encode("utf-8"),
+                    file_name="leads_export.csv",
+                    mime="text/csv",
+                )
+            # Clear leads with confirmation
+            if "fr_confirm_clear" not in st.session_state:
+                st.session_state["fr_confirm_clear"] = False
+            if st.button("🗑️ 清除所有 Leads", key="fr_clear_btn"):
+                st.session_state["fr_confirm_clear"] = True
+            if st.session_state.get("fr_confirm_clear"):
+                st.warning("確認要清除所有 leads 資料？此操作不可復原。")
+                _cc1, _cc2 = st.columns(2)
+                with _cc1:
+                    if st.button("確認清除", key="fr_confirm_yes"):
+                        delete_all_leads(_lcfg.LEAD_STORAGE_PATH)
+                        st.session_state["fr_confirm_clear"] = False
+                        st.success("Leads 已清除。")
+                        st.rerun()
+                with _cc2:
+                    if st.button("取消", key="fr_confirm_no"):
+                        st.session_state["fr_confirm_clear"] = False
+                        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

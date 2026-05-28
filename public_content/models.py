@@ -44,6 +44,7 @@ class PublicContentPage(BaseModel):
     is_public: bool = True
     is_featured: bool = False
     tags: List[str] = Field(default_factory=list)
+    free_report_cta_slug: str = ""
 
 
 class PublicContentCatalog(BaseModel):

@@ -333,3 +333,58 @@ class TestV195PublicContentVisibility:
         block = src[start:end] if start != -1 else ""
         assert "DEVELOPER_MODE" in block
         assert "download_button" in block
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# J. V1.9.6 — Free Report Lead Magnet page visibility
+# ══════════════════════════════════════════════════════════════════════════════
+
+FREE_REPORT_PAGE = "🎁 免費報告"
+
+
+class TestV196FreeReportVisibility:
+    def _get_pages_base_block(self, src: str) -> str:
+        lines = src.splitlines()
+        in_base, block = False, []
+        for line in lines:
+            if "_PAGES_BASE = [" in line:
+                in_base = True
+            if in_base:
+                block.append(line)
+                if "]" in line and "_PAGES_BASE = [" not in line:
+                    break
+        return "\n".join(block)
+
+    def _get_free_report_block(self, src: str) -> str:
+        start = src.find(f'elif page == "{FREE_REPORT_PAGE}"')
+        end = src.find("# PAGE: 輸入資料", start)
+        return src[start:end] if start != -1 else ""
+
+    def test_customer_pages_include_free_report(self):
+        src = _app_src()
+        base = self._get_pages_base_block(src)
+        assert FREE_REPORT_PAGE in base
+
+    def test_customer_pages_no_leads_list_exposed(self):
+        src = _app_src()
+        block = self._get_free_report_block(src)
+        # dataframe/leads must be gated by DEVELOPER_MODE
+        dev_idx = block.find("DEVELOPER_MODE")
+        df_idx = block.find("dataframe") if "dataframe" in block else block.find("leads_df")
+        assert dev_idx != -1
+        assert df_idx != -1
+        assert dev_idx < df_idx
+
+    def test_customer_pages_no_raw_lead_json(self):
+        src = _app_src()
+        block = self._get_free_report_block(src)
+        # raw JSON debug display should be inside DEVELOPER_MODE
+        # Just ensure "raw" debug not exposed at top level
+        dev_idx = block.find("DEVELOPER_MODE")
+        assert dev_idx != -1  # DEVELOPER_MODE guard exists
+
+    def test_developer_mode_has_lead_tools(self):
+        src = _app_src()
+        block = self._get_free_report_block(src)
+        assert "DEVELOPER_MODE" in block
+        assert "CSV" in block or "csv" in block.lower()

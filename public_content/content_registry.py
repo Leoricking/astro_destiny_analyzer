@@ -69,6 +69,7 @@ _REGISTRY: List[PublicContentPage] = [
         is_public=True,
         is_featured=False,
         tags=["zodiac", "beginner", "overview"],
+        free_report_cta_slug="zodiac_free_summary",
     ),
 
     PublicContentPage(
@@ -127,6 +128,7 @@ _REGISTRY: List[PublicContentPage] = [
         is_public=True,
         is_featured=False,
         tags=["zodiac", "compatibility", "synastry"],
+        free_report_cta_slug="compatibility_free_summary",
     ),
 
     # ── B. Human Design 入口 ──────────────────────────────────────────────────
@@ -189,6 +191,7 @@ _REGISTRY: List[PublicContentPage] = [
         is_public=True,
         is_featured=True,
         tags=["human_design", "beginner", "overview"],
+        free_report_cta_slug="human_design_free_summary",
     ),
 
     PublicContentPage(
@@ -240,6 +243,7 @@ _REGISTRY: List[PublicContentPage] = [
         is_public=True,
         is_featured=False,
         tags=["human_design", "types", "beginner"],
+        free_report_cta_slug="human_design_free_summary",
     ),
 
     # ── C. 合盤入口 ───────────────────────────────────────────────────────────
@@ -303,6 +307,7 @@ _REGISTRY: List[PublicContentPage] = [
         is_public=True,
         is_featured=True,
         tags=["compatibility", "synastry", "composite"],
+        free_report_cta_slug="compatibility_free_summary",
     ),
 
     # ── D. 紫微入口 ───────────────────────────────────────────────────────────
@@ -565,6 +570,7 @@ _REGISTRY: List[PublicContentPage] = [
         is_public=True,
         is_featured=True,
         tags=["guide", "overview", "integration"],
+        free_report_cta_slug="integrated_free_summary",
     ),
 ]
 
