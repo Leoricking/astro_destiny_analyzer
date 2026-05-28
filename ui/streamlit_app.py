@@ -2312,7 +2312,7 @@ elif page == "🔷 人類圖校準":
     )
     st.divider()
 
-    # ── A. Local chart summary ────────────────────────────────────────────────
+    # ── Local chart summary ───────────────────────────────────────────────────
     _hd_rpt = st.session_state.get("report")
     _hd_local = _hd_rpt.human_design_chart if _hd_rpt else None
 
@@ -2334,7 +2334,6 @@ elif page == "🔷 人類圖校準":
             st.metric("計算模式", _hd_local.calculation_mode[:15])
         st.markdown(f"**策略**：{_hd_local.strategy}")
         st.markdown(f"**輪迴交叉**：{_hd_local.incarnation_cross}")
-        # Conscious Sun / Earth
         _cs = next((a for a in _hd_local.conscious_activations if "sun" in a.planet.lower()), None)
         _ce = next((a for a in _hd_local.conscious_activations if "earth" in a.planet.lower()), None)
         _ds = next((a for a in _hd_local.design_activations if "sun" in a.planet.lower()), None)
@@ -2353,165 +2352,335 @@ elif page == "🔷 人類圖校準":
             f"**啟動閘門**：{len(_hd_local.activated_gates)} 個"
         )
 
-    # ── A2. Offset diagnostics (V1.9.3) ──────────────────────────────────────
     with st.expander("🔬 Gate Wheel Offset 診斷", expanded=False):
         from config import HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES, HUMAN_DESIGN_DESIGN_DATE_METHOD
         _cur_offset = getattr(_hd_local, "gate_wheel_offset_degrees", 0.0)
         _cur_method = getattr(_hd_local, "design_date_method", "unknown")
         _solar_arc_err = getattr(_hd_local, "design_solar_arc_error_degrees", None)
-
         st.markdown(f"**現行設定**：Design Date Method = `{HUMAN_DESIGN_DESIGN_DATE_METHOD}` ｜ Gate Wheel Offset = `{HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES:+.3f}°`")
         st.markdown(f"**本機圖使用**：Method = `{_cur_method}` ｜ Offset = `{_cur_offset:+.3f}°`")
         if _solar_arc_err is not None:
-            st.markdown(f"**Solar Arc 誤差**：{_solar_arc_err:.4f}°")
             if _solar_arc_err > 0.1:
-                st.warning(f"⚠️ Solar arc 誤差 {_solar_arc_err:.4f}° 較大（>0.1°）。可能影響設計面閘門。")
+                st.warning(f"⚠️ Solar arc 誤差 {_solar_arc_err:.4f}°（>0.1°）。可能影響設計面閘門。")
             else:
                 st.success(f"✅ Solar arc 誤差 {_solar_arc_err:.4f}° — 精準。")
         else:
-            st.info("Solar arc 誤差未記錄（可能使用 mock fallback 或 minus-88-days 模式）。")
-
+            st.info("Solar arc 誤差未記錄（mock fallback 或 minus-88-days 模式）。")
         if _hd_local.design_activations:
-            st.markdown("**偏移模擬（Sun 黃經在不同 offset 下的閘門）**")
             _sun_act = next((a for a in _hd_local.design_activations if "sun" in a.planet.lower()), None)
             if _sun_act:
                 from human_design.calibration import simulate_gate_offset_for_activations
-                _offsets_to_test = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0]
                 _sim_results = simulate_gate_offset_for_activations(
-                    {"Design Sun": _sun_act.longitude},
-                    _offsets_to_test,
+                    {"Design Sun": _sun_act.longitude}, [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0],
                 )
                 import pandas as _cal_pd
                 st.dataframe(_cal_pd.DataFrame(_sim_results), hide_index=True, use_container_width=True)
-                st.caption(
-                    "此表顯示 Design Sun 黃經在不同 Gate Wheel Offset 下的閘門分配。"
-                    "若外部排盤顯示不同閘門，可參考此表推算所需 offset。"
-                )
-
         if getattr(_hd_local, "calibration_notes", []):
-            st.markdown("**校準備註**")
             for _cn in _hd_local.calibration_notes:
                 st.write(f"- {_cn}")
 
     st.divider()
 
-    # ── B. External input ─────────────────────────────────────────────────────
+    # ── Four main tabs ────────────────────────────────────────────────────────
+    from human_design_reconciliation.models import (
+        ExternalHumanDesignChart, STATUS_ZH, SEVERITY_ZH, OVERALL_STATUS_ZH,
+    )
+    from human_design_reconciliation.templates import render_reconciliation_markdown
     from human_design_reconciliation.examples import (
         BLANK_EXTERNAL_HD_JSON, EXAMPLE_ROSSI_EXTERNAL_HD_JSON,
+        BLANK_CALIBRATION_CASE_TEMPLATE, BLANK_DATASET_TEMPLATE, EXAMPLE_MINIMAL_EXTERNAL_CASE,
     )
-    from human_design_reconciliation.models import ExternalHumanDesignChart
-
-    _hd_template_col1, _hd_template_col2 = st.columns(2)
-    with _hd_template_col1:
-        if st.button("載入空白模板"):
-            st.session_state["hd_rec_json_input"] = BLANK_EXTERNAL_HD_JSON
-    with _hd_template_col2:
-        if st.button("載入 Rossi template"):
-            st.session_state["hd_rec_json_input"] = EXAMPLE_ROSSI_EXTERNAL_HD_JSON
-
-    _hd_json_input = st.text_area(
-        "外部盤 JSON（貼入外部人類圖資料）",
-        value=st.session_state.get("hd_rec_json_input", BLANK_EXTERNAL_HD_JSON),
-        height=300,
-        key="hd_rec_json_input",
+    from human_design_reconciliation.dataset import (
+        parse_external_chart_json, parse_calibration_case_json, parse_calibration_dataset_json,
+        save_dataset, load_dataset, append_case_to_dataset,
     )
-    st.caption("請依格式填入外部網站資料，不確定的欄位請留 null 或空白。")
+    from human_design_reconciliation.exporters import (
+        export_reconciliation_markdown, export_batch_summary_markdown,
+        export_reconciliation_html, export_dataset_json, safe_calibration_filename,
+    )
+    from human_design_reconciliation.engine import HumanDesignReconciliationEngine, reconcile_dataset
+    import config as _hd_cfg
 
-    _hd_ext_chart = None
-    _hd_parse_error = ""
-    if _hd_json_input and _hd_json_input.strip():
-        try:
-            import json as _json
-            _parsed = _json.loads(_hd_json_input)
-            _hd_ext_chart = ExternalHumanDesignChart(**_parsed)
-        except Exception as _e:
-            _hd_parse_error = str(_e)
+    _hd_main_tabs = st.tabs(["單案例比對", "外部案例匯入", "多案例資料集", "校準報告匯出"])
 
-    if _hd_parse_error:
-        st.error(f"JSON 解析失敗：{_hd_parse_error}")
-        st.caption('格式範例：{"type_name": "Projector", "authority": "Splenic", "profile": "4/6", ...}')
+    # ══ Tab 1: 單案例比對 ═════════════════════════════════════════════════════
+    with _hd_main_tabs[0]:
+        st.subheader("單案例外部排盤比對")
 
-    # ── C. Run reconciliation ──────────────────────────────────────────────────
-    if st.button("🔍 開始人類圖校準比對", disabled=(_hd_ext_chart is None), type="primary"):
-        from human_design_reconciliation.engine import HumanDesignReconciliationEngine
-        with st.spinner("比對中…"):
-            _hd_rec_report = HumanDesignReconciliationEngine().reconcile(_hd_local, _hd_ext_chart)
-        st.session_state["hd_rec_report"] = _hd_rec_report
+        _hd_tpl_col1, _hd_tpl_col2 = st.columns(2)
+        with _hd_tpl_col1:
+            if st.button("載入空白模板", key="hd_single_blank"):
+                st.session_state["hd_rec_json_input"] = BLANK_EXTERNAL_HD_JSON
+        with _hd_tpl_col2:
+            if st.button("載入 Rossi template", key="hd_single_rossi"):
+                st.session_state["hd_rec_json_input"] = EXAMPLE_ROSSI_EXTERNAL_HD_JSON
 
-    _hd_rec_report = st.session_state.get("hd_rec_report")
-
-    if _hd_rec_report is None:
-        st.info("填寫外部盤資料後，按「開始人類圖校準比對」。")
-        st.stop()
-
-    # ── D. Display results ────────────────────────────────────────────────────
-    from human_design_reconciliation.models import STATUS_ZH, SEVERITY_ZH, OVERALL_STATUS_ZH
-    from human_design_reconciliation.templates import render_reconciliation_markdown
-
-    _hd_overall_zh = OVERALL_STATUS_ZH.get(_hd_rec_report.overall_status, _hd_rec_report.overall_status)
-    _hrc1, _hrc2, _hrc3, _hrc4, _hrc5 = st.columns(5)
-    with _hrc1:
-        st.metric("整體狀態", _hd_overall_zh)
-    with _hrc2:
-        st.metric("✅ 一致", _hd_rec_report.match_count)
-    with _hrc3:
-        st.metric("❌ 不一致", _hd_rec_report.mismatch_count)
-    with _hrc4:
-        st.metric("🏫 方法差異", _hd_rec_report.method_difference_count)
-    with _hrc5:
-        st.metric("⬜ 缺少外部", _hd_rec_report.missing_count)
-
-    st.caption(_hd_rec_report.summary)
-
-    _hd_rtabs = st.tabs(["總覽", "一致項", "差異項", "方法差異", "Markdown 報告"])
-
-    with _hd_rtabs[0]:
-        st.markdown("### 下一步建議")
-        for _a in _hd_rec_report.next_actions:
-            st.write(f"• {_a}")
-
-    with _hd_rtabs[1]:
-        _match_items = [i for i in _hd_rec_report.items if i.status == "match"]
-        if _match_items:
-            st.dataframe(_pd.DataFrame([{
-                "類別": i.category, "欄位": i.field,
-                "本機": i.local_value, "外部": i.external_value,
-            } for i in _match_items]), use_container_width=True, hide_index=True)
-        else:
-            st.info("無一致項（可能外部資料為空）。")
-
-    with _hd_rtabs[2]:
-        _mm_items = [i for i in _hd_rec_report.items if i.status == "mismatch"]
-        if _mm_items:
-            st.dataframe(_pd.DataFrame([{
-                "類別": i.category, "欄位": i.field,
-                "本機": i.local_value, "外部": i.external_value,
-                "嚴重度": SEVERITY_ZH.get(i.severity, i.severity),
-                "說明": i.explanation,
-            } for i in _mm_items]), use_container_width=True, hide_index=True)
-        else:
-            st.success("無不一致項。")
-
-    with _hd_rtabs[3]:
-        _md_items = [i for i in _hd_rec_report.items if i.status == "likely_method_difference"]
-        if _md_items:
-            st.dataframe(_pd.DataFrame([{
-                "類別": i.category, "欄位": i.field,
-                "本機": i.local_value, "外部": i.external_value,
-                "說明": i.explanation,
-            } for i in _md_items]), use_container_width=True, hide_index=True)
-        else:
-            st.info("無方法差異項。")
-
-    with _hd_rtabs[4]:
-        _hd_md_report = render_reconciliation_markdown(_hd_rec_report)
-        st.markdown(_hd_md_report)
-        st.download_button(
-            "📥 下載 Markdown 校準報告",
-            data=_hd_md_report.encode("utf-8"),
-            file_name="human_design_reconciliation_report.md",
-            mime="text/markdown",
+        _hd_json_input = st.text_area(
+            "外部盤 JSON（貼入外部人類圖資料）",
+            value=st.session_state.get("hd_rec_json_input", BLANK_EXTERNAL_HD_JSON),
+            height=280,
+            key="hd_rec_json_input",
         )
+        st.caption("請依格式填入外部網站資料，不確定的欄位請留 null 或空白。")
+
+        _hd_ext_chart = None
+        _hd_parse_error = ""
+        if _hd_json_input and _hd_json_input.strip():
+            try:
+                _hd_ext_chart = parse_external_chart_json(_hd_json_input)
+            except ValueError as _e:
+                _hd_parse_error = str(_e)
+
+        if _hd_parse_error:
+            st.error(f"JSON 解析失敗：{_hd_parse_error}")
+
+        if st.button("🔍 開始人類圖校準比對", disabled=(_hd_ext_chart is None), type="primary"):
+            with st.spinner("比對中…"):
+                _hd_rec_report = HumanDesignReconciliationEngine().reconcile(_hd_local, _hd_ext_chart)
+            st.session_state["hd_rec_report"] = _hd_rec_report
+
+        _hd_rec_report = st.session_state.get("hd_rec_report")
+        if _hd_rec_report is None:
+            st.info("填寫外部盤資料後，按「開始人類圖校準比對」。")
+        else:
+            _hd_overall_zh = OVERALL_STATUS_ZH.get(_hd_rec_report.overall_status, _hd_rec_report.overall_status)
+            _hrc1, _hrc2, _hrc3, _hrc4, _hrc5 = st.columns(5)
+            with _hrc1:
+                st.metric("整體狀態", _hd_overall_zh)
+            with _hrc2:
+                st.metric("✅ 一致", _hd_rec_report.match_count)
+            with _hrc3:
+                st.metric("❌ 不一致", _hd_rec_report.mismatch_count)
+            with _hrc4:
+                st.metric("🏫 方法差異", _hd_rec_report.method_difference_count)
+            with _hrc5:
+                st.metric("⬜ 缺少外部", _hd_rec_report.missing_count)
+            st.caption(_hd_rec_report.summary)
+
+            _single_rtabs = st.tabs(["總覽", "一致項", "差異項", "方法差異", "Markdown 報告"])
+            with _single_rtabs[0]:
+                for _a in _hd_rec_report.next_actions:
+                    st.write(f"• {_a}")
+            with _single_rtabs[1]:
+                _match_items = [i for i in _hd_rec_report.items if i.status == "match"]
+                if _match_items:
+                    st.dataframe(_pd.DataFrame([{"類別": i.category, "欄位": i.field, "本機": i.local_value, "外部": i.external_value} for i in _match_items]), use_container_width=True, hide_index=True)
+                else:
+                    st.info("無一致項。")
+            with _single_rtabs[2]:
+                _mm_items = [i for i in _hd_rec_report.items if i.status == "mismatch"]
+                if _mm_items:
+                    st.dataframe(_pd.DataFrame([{"類別": i.category, "欄位": i.field, "本機": i.local_value, "外部": i.external_value, "嚴重度": SEVERITY_ZH.get(i.severity, i.severity), "說明": i.explanation} for i in _mm_items]), use_container_width=True, hide_index=True)
+                else:
+                    st.success("無不一致項。")
+            with _single_rtabs[3]:
+                _md_items = [i for i in _hd_rec_report.items if i.status == "likely_method_difference"]
+                if _md_items:
+                    st.dataframe(_pd.DataFrame([{"類別": i.category, "欄位": i.field, "本機": i.local_value, "外部": i.external_value, "說明": i.explanation} for i in _md_items]), use_container_width=True, hide_index=True)
+                else:
+                    st.info("無方法差異項。")
+            with _single_rtabs[4]:
+                _hd_md_report = render_reconciliation_markdown(_hd_rec_report)
+                st.markdown(_hd_md_report)
+                st.download_button(
+                    "📥 下載 Markdown 校準報告",
+                    data=_hd_md_report.encode("utf-8"),
+                    file_name="human_design_reconciliation_report.md",
+                    mime="text/markdown",
+                )
+
+    # ══ Tab 2: 外部案例匯入 ═══════════════════════════════════════════════════
+    with _hd_main_tabs[1]:
+        st.subheader("外部案例匯入")
+        st.caption("將外部人類圖案例儲存至校準資料集，供批次比對使用。")
+
+        _imp_col1, _imp_col2, _imp_col3 = st.columns(3)
+        with _imp_col1:
+            if st.button("載入空白案例模板", key="hd_imp_blank"):
+                st.session_state["hd_case_json_input"] = BLANK_CALIBRATION_CASE_TEMPLATE
+        with _imp_col2:
+            if st.button("載入 Sample 案例", key="hd_imp_sample"):
+                st.session_state["hd_case_json_input"] = EXAMPLE_MINIMAL_EXTERNAL_CASE
+        with _imp_col3:
+            _uploaded_file = st.file_uploader("上傳 .json 案例檔", type=["json"], key="hd_case_uploader")
+            if _uploaded_file is not None:
+                try:
+                    _uploaded_text = _uploaded_file.read().decode("utf-8")
+                    st.session_state["hd_case_json_input"] = _uploaded_text
+                except Exception as _ue:
+                    st.error(f"檔案讀取失敗：{_ue}")
+
+        _hd_case_json = st.text_area(
+            "案例 JSON（貼入或上傳 HumanDesignCalibrationCase JSON）",
+            value=st.session_state.get("hd_case_json_input", BLANK_CALIBRATION_CASE_TEMPLATE),
+            height=300,
+            key="hd_case_json_input",
+        )
+
+        _parsed_case = None
+        _case_parse_error = ""
+        if st.button("🔍 解析案例 JSON", key="hd_parse_case"):
+            try:
+                _parsed_case = parse_calibration_case_json(_hd_case_json)
+                st.session_state["hd_parsed_case"] = _parsed_case
+                st.success(f"解析成功：{_parsed_case.label} （ID: {_parsed_case.case_id}）")
+            except ValueError as _ce:
+                _case_parse_error = str(_ce)
+                st.session_state["hd_parsed_case"] = None
+
+        if _case_parse_error:
+            st.error(f"案例解析失敗：{_case_parse_error}")
+
+        _parsed_case = st.session_state.get("hd_parsed_case")
+        if _parsed_case is not None:
+            with st.expander("📋 已解析案例預覽", expanded=True):
+                st.write(f"**ID**：{_parsed_case.case_id}")
+                st.write(f"**Label**：{_parsed_case.label}")
+                st.write(f"**Birth Date**：{_parsed_case.birth_date}")
+                st.write(f"**Location**：{_parsed_case.birth_location or '─'}")
+                ext_preview = _parsed_case.external_chart
+                st.write(f"**Type**：{ext_preview.type_name or '─'} ｜ **Authority**：{ext_preview.authority or '─'} ｜ **Profile**：{ext_preview.profile or '─'}")
+
+            _ds_path = _hd_cfg.HUMAN_DESIGN_CALIBRATION_DATASET_PATH
+            _cur_ds = load_dataset(_ds_path)
+            st.caption(f"目前資料集：{len(_cur_ds.cases)} 個案例 ｜ 路徑：{_ds_path}")
+
+            if st.button("➕ 加入資料集並儲存", type="primary", key="hd_append_case"):
+                _cur_ds = append_case_to_dataset(_cur_ds, _parsed_case)
+                try:
+                    save_dataset(_cur_ds, _ds_path)
+                    st.success(f"已儲存！資料集現有 {len(_cur_ds.cases)} 個案例。")
+                    st.session_state["hd_dataset"] = _cur_ds
+                except Exception as _save_e:
+                    st.error(f"儲存失敗：{_save_e}")
+
+    # ══ Tab 3: 多案例資料集 ═══════════════════════════════════════════════════
+    with _hd_main_tabs[2]:
+        st.subheader("多案例資料集")
+
+        _ds_path = _hd_cfg.HUMAN_DESIGN_CALIBRATION_DATASET_PATH
+        if st.button("🔄 載入資料集", key="hd_load_ds"):
+            _loaded_ds = load_dataset(_ds_path)
+            st.session_state["hd_dataset"] = _loaded_ds
+
+        _hd_ds = st.session_state.get("hd_dataset")
+        if _hd_ds is None:
+            _hd_ds = load_dataset(_ds_path)
+            st.session_state["hd_dataset"] = _hd_ds
+
+        st.caption(f"資料集路徑：{_ds_path} ｜ 案例數：{len(_hd_ds.cases)}")
+
+        if _hd_ds.cases:
+            _ds_rows = [
+                {
+                    "ID": c.case_id,
+                    "Label": c.label,
+                    "Birth Date": c.birth_date,
+                    "Location": c.birth_location,
+                    "Type": c.external_chart.type_name or "─",
+                    "Profile": c.external_chart.profile or "─",
+                }
+                for c in _hd_ds.cases
+            ]
+            st.dataframe(_pd.DataFrame(_ds_rows), hide_index=True, use_container_width=True)
+
+            if st.button("▶️ 執行批次校準比對", type="primary", key="hd_batch_run"):
+                with st.spinner(f"批次比對 {len(_hd_ds.cases)} 個案例…"):
+                    _batch_summary = reconcile_dataset(_hd_local, _hd_ds)
+                st.session_state["hd_batch_summary"] = _batch_summary
+                st.success(f"完成！已處理 {_batch_summary.processed_cases}/{_batch_summary.total_cases} 案例。")
+
+            _batch_summary = st.session_state.get("hd_batch_summary")
+            if _batch_summary:
+                st.markdown("### 批次比對摘要")
+                _bs1, _bs2, _bs3, _bs4 = st.columns(4)
+                with _bs1:
+                    st.metric("✅ 大致一致", _batch_summary.mostly_match_count)
+                with _bs2:
+                    st.metric("⚠️ 輕微差異", _batch_summary.minor_difference_count)
+                with _bs3:
+                    st.metric("❌ 重大差異", _batch_summary.major_difference_count)
+                with _bs4:
+                    st.metric("⬜ 資料不足", _batch_summary.insufficient_data_count)
+                st.caption(_batch_summary.summary)
+                if _batch_summary.most_common_mismatch_categories:
+                    st.write(f"最常見差異類別：{', '.join(_batch_summary.most_common_mismatch_categories)}")
+        else:
+            st.info("資料集為空。請先在「外部案例匯入」頁面新增案例。")
+
+    # ══ Tab 4: 校準報告匯出 ═══════════════════════════════════════════════════
+    with _hd_main_tabs[3]:
+        st.subheader("校準報告匯出")
+
+        _hd_ds_exp = st.session_state.get("hd_dataset") or load_dataset(_hd_cfg.HUMAN_DESIGN_CALIBRATION_DATASET_PATH)
+        _hd_single_rpt = st.session_state.get("hd_rec_report")
+        _hd_batch_exp = st.session_state.get("hd_batch_summary")
+
+        st.markdown("**單案例報告**")
+        if _hd_single_rpt:
+            _exp_md = export_reconciliation_markdown(_hd_single_rpt)
+            _exp_html = export_reconciliation_html(_exp_md)
+            _exp_fn_md = safe_calibration_filename("single_report", "md")
+            _exp_fn_html = safe_calibration_filename("single_report", "html")
+            _dl1, _dl2 = st.columns(2)
+            with _dl1:
+                st.download_button(
+                    "📥 下載 Markdown 報告",
+                    data=_exp_md.encode("utf-8"),
+                    file_name=_exp_fn_md,
+                    mime="text/markdown",
+                    key="dl_single_md",
+                )
+            with _dl2:
+                st.download_button(
+                    "📥 下載 HTML 報告",
+                    data=_exp_html.encode("utf-8"),
+                    file_name=_exp_fn_html,
+                    mime="text/html",
+                    key="dl_single_html",
+                )
+        else:
+            st.info("尚無單案例報告，請先在「單案例比對」執行比對。")
+
+        st.markdown("**批次摘要報告**")
+        if _hd_batch_exp:
+            _exp_batch_md = export_batch_summary_markdown(_hd_batch_exp)
+            _exp_batch_html = export_reconciliation_html(_exp_batch_md)
+            _exp_fn_batch_md = safe_calibration_filename("batch_summary", "md")
+            _exp_fn_batch_html = safe_calibration_filename("batch_summary", "html")
+            _bdl1, _bdl2 = st.columns(2)
+            with _bdl1:
+                st.download_button(
+                    "📥 下載批次摘要 Markdown",
+                    data=_exp_batch_md.encode("utf-8"),
+                    file_name=_exp_fn_batch_md,
+                    mime="text/markdown",
+                    key="dl_batch_md",
+                )
+            with _bdl2:
+                st.download_button(
+                    "📥 下載批次摘要 HTML",
+                    data=_exp_batch_html.encode("utf-8"),
+                    file_name=_exp_fn_batch_html,
+                    mime="text/html",
+                    key="dl_batch_html",
+                )
+        else:
+            st.info("尚無批次摘要，請先在「多案例資料集」執行批次比對。")
+
+        st.markdown("**資料集 JSON**")
+        if _hd_ds_exp and _hd_ds_exp.cases:
+            _exp_ds_json = export_dataset_json(_hd_ds_exp)
+            _exp_fn_ds = safe_calibration_filename("dataset", "json")
+            st.download_button(
+                "📥 下載資料集 JSON",
+                data=_exp_ds_json.encode("utf-8"),
+                file_name=_exp_fn_ds,
+                mime="application/json",
+                key="dl_dataset_json",
+            )
+        else:
+            st.info("資料集為空，無可匯出的 JSON。")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

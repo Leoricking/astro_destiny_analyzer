@@ -227,3 +227,45 @@ class TestHDReconciliationPageGating:
                     break
         dev_block = "\n".join(block)
         assert HD_REC_PAGE in dev_block
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# H. V1.9.4 — Customer mode hides calibration dataset UI
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestV194CustomerModeHidesCalibration:
+    def _get_hd_page_block(self) -> str:
+        src = _app_src()
+        start = src.find(f'elif page == "{HD_REC_PAGE}"')
+        end = src.find("# PAGE: 設定", start)
+        return src[start:end] if start != -1 else ""
+
+    def test_customer_pages_no_case_import_label(self):
+        """外部案例匯入 should only appear inside dev-gated page, not in _PAGES_BASE."""
+        src = _app_src()
+        lines = src.splitlines()
+        in_base, block = False, []
+        for line in lines:
+            if "_PAGES_BASE = [" in line:
+                in_base = True
+            if in_base:
+                block.append(line)
+                if "]" in line and "_PAGES_BASE = [" not in line:
+                    break
+        base_block = "\n".join(block)
+        assert "外部案例匯入" not in base_block
+
+    def test_customer_pages_no_dataset_label(self):
+        """多案例資料集 should not appear in _PAGES_BASE."""
+        src = _app_src()
+        lines = src.splitlines()
+        in_base, block = False, []
+        for line in lines:
+            if "_PAGES_BASE = [" in line:
+                in_base = True
+            if in_base:
+                block.append(line)
+                if "]" in line and "_PAGES_BASE = [" not in line:
+                    break
+        base_block = "\n".join(block)
+        assert "多案例資料集" not in base_block

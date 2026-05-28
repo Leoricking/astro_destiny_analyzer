@@ -8,10 +8,15 @@ from __future__ import annotations
 import re
 from typing import Optional, List, Set
 
+from collections import Counter
+
 from human_design_reconciliation.models import (
     ExternalHumanDesignChart,
     HDReconciliationItem,
     HDReconciliationReport,
+    HumanDesignCalibrationCase,
+    HumanDesignCalibrationDataset,
+    BatchReconciliationSummary,
 )
 
 
@@ -698,3 +703,115 @@ class HumanDesignReconciliationEngine:
             actions.append("人類圖計算結果良好，無需立即調整")
             actions.append("建議定期與外部資料對照，確保 Gate Wheel 持續校準")
         return actions
+
+    def reconcile_case(
+        self,
+        local,
+        case: HumanDesignCalibrationCase,
+    ) -> HDReconciliationReport:
+        """
+        Reconcile a local HumanDesignChart against a HumanDesignCalibrationCase.
+        Convenience wrapper around reconcile().
+        """
+        return self.reconcile(local, case.external_chart)
+
+
+def reconcile_dataset(
+    local_chart,
+    dataset: HumanDesignCalibrationDataset,
+) -> BatchReconciliationSummary:
+    """
+    Run reconciliation of a single local HumanDesignChart against all cases
+    in a dataset and return a BatchReconciliationSummary.
+
+    local_chart: HumanDesignChart instance to compare against all cases.
+    """
+    engine = HumanDesignReconciliationEngine()
+    case_reports: List[HDReconciliationReport] = []
+    mostly_match = 0
+    minor_diff = 0
+    major_diff = 0
+    insufficient = 0
+    total_match = 0
+    total_mismatch = 0
+    total_method_diff = 0
+    mismatch_category_counter: Counter = Counter()
+
+    for case in dataset.cases:
+        try:
+            report = engine.reconcile_case(local_chart, case)
+        except Exception as exc:
+            report = HDReconciliationReport(
+                overall_status="insufficient_external_data",
+                summary=f"比對失敗：{exc}",
+            )
+
+        case_reports.append(report)
+
+        if report.overall_status == "mostly_match":
+            mostly_match += 1
+        elif report.overall_status == "minor_difference":
+            minor_diff += 1
+        elif report.overall_status == "major_difference":
+            major_diff += 1
+        else:
+            insufficient += 1
+
+        total_match += report.match_count
+        total_mismatch += report.mismatch_count
+        total_method_diff += report.method_difference_count
+
+        for item in report.items:
+            if item.status == "mismatch":
+                mismatch_category_counter[item.category] += 1
+
+    total = len(dataset.cases)
+    processed = sum(
+        1 for r in case_reports if r.overall_status != "insufficient_external_data"
+    )
+
+    # Most common mismatch categories (top 5)
+    most_common = [cat for cat, _ in mismatch_category_counter.most_common(5)]
+
+    # Design date method notes
+    design_method = getattr(local_chart, "design_date_method", "unknown")
+    wheel_offset = getattr(local_chart, "gate_wheel_offset_degrees", 0.0)
+    design_date_notes = [
+        f"本機 Design Date Method: {design_method}",
+        f"Solar arc 誤差: {getattr(local_chart, 'design_solar_arc_error_degrees', None)}°"
+        if getattr(local_chart, "design_solar_arc_error_degrees", None) is not None
+        else "Solar arc 誤差: 未記錄（mock 或 fallback 模式）",
+    ]
+    gate_offset_notes = [
+        f"本機 Gate Wheel Offset: {wheel_offset:+.3f}°",
+        "Offset 0° = Phase 1 預設（無偏移）" if wheel_offset == 0.0
+        else f"Offset {wheel_offset:+.3f}° 已套用至所有行星計算",
+    ]
+
+    if total_mismatch > 0 and most_common:
+        summary_text = (
+            f"共 {total} 案例，已處理 {processed} 案例。"
+            f"一致 {mostly_match}，輕微差異 {minor_diff}，重大差異 {major_diff}，資料不足 {insufficient}。"
+            f"最常見差異：{', '.join(most_common)}。"
+        )
+    elif processed > 0:
+        summary_text = f"共 {total} 案例，已處理 {processed} 案例。整體差異偏少。"
+    else:
+        summary_text = "無案例可處理，請確認資料集是否含有效外部資料。"
+
+    return BatchReconciliationSummary(
+        total_cases=total,
+        processed_cases=processed,
+        mostly_match_count=mostly_match,
+        minor_difference_count=minor_diff,
+        major_difference_count=major_diff,
+        insufficient_data_count=insufficient,
+        total_match_items=total_match,
+        total_mismatch_items=total_mismatch,
+        total_method_difference_items=total_method_diff,
+        most_common_mismatch_categories=most_common,
+        design_date_method_notes=design_date_notes,
+        gate_offset_notes=gate_offset_notes,
+        case_reports=case_reports,
+        summary=summary_text,
+    )

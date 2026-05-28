@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.9.3"
+APP_VERSION = "1.9.4"
 APP_SUBTITLE = "命盤整合分析系統"
 
 # ── Brand / Delivery settings ─────────────────────────────────────────────────
@@ -76,6 +76,9 @@ SWISSEPH_DATA_PATH: str = os.environ.get("SWISSEPH_DATA_PATH", "")
 DEFAULT_TIMEZONE: str = "Asia/Taipei"
 DEFAULT_TIMEZONE_OFFSET: int = 8          # hours ahead of UTC (Asia/Taipei = UTC+8)
 HOUSE_SYSTEM: bytes = b"P"               # P=Placidus; W=Whole Sign; K=Koch
+
+# Human Design calibration dataset path
+HUMAN_DESIGN_CALIBRATION_DATASET_PATH = DATA_DIR / "human_design_calibration_cases.json"
 
 # Human Design calibration settings
 # Design date calculation method: "solar_arc_88" (exact) or "minus_88_days" (MVP approximation)

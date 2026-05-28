@@ -6,6 +6,46 @@
 
 ---
 
+## V1.9.4 更新說明 — Human Design External Case Import & Calibration Report Export
+
+### 外部案例匯入 / 校準資料集 / 批次比對 / 報告匯出
+
+本版在「🔷 人類圖校準」頁新增四個 tab，支援外部案例管理、批次比對與多格式匯出。
+
+**新增功能：**
+
+| 功能 | 說明 |
+|------|------|
+| 外部案例匯入 | JSON 貼上 / .json 檔案上傳，解析後預覽並存入資料集 |
+| 校準資料集 | 儲存至 `data/human_design_calibration_cases.json`，支援載入/追加/批次比對 |
+| 批次比對 | 一鍵對資料集所有案例執行 reconciliation，輸出 BatchReconciliationSummary |
+| Markdown 匯出 | 單案例報告 + 批次摘要 |
+| HTML 匯出 | 無 JS / CDN，含 UTF-8 + footer，可直接開啟 |
+| JSON 匯出 | 完整資料集 JSON（ensure_ascii=False） |
+
+**新增模組：**
+- `human_design_reconciliation/dataset.py` — 解析、儲存、載入、追加案例
+- `human_design_reconciliation/exporters.py` — Markdown / HTML / JSON 匯出
+- `human_design_reconciliation/models.py` — 3 新模型：`HumanDesignCalibrationCase`, `HumanDesignCalibrationDataset`, `BatchReconciliationSummary`
+
+**資料集路徑：**`data/human_design_calibration_cases.json`（由 `config.HUMAN_DESIGN_CALIBRATION_DATASET_PATH` 控制）
+
+**UI Tab 結構（人類圖校準頁）：**
+1. 單案例比對（原有功能）
+2. 外部案例匯入（新）
+3. 多案例資料集（新）
+4. 校準報告匯出（新）
+
+**限制：**
+- 所有功能僅 DEVELOPER_MODE 可用
+- 本工具不自動修正核心演算法
+- 差異需人工審核
+- 不可為單一案例硬調 offset
+
+**config.py：**`APP_VERSION = "1.9.4"`
+
+---
+
 ## V1.9.3 更新說明 — Human Design Exact Design Date & Gate Wheel Calibration
 
 ### 人類圖精準設計日期 & Gate Wheel Offset 校準

@@ -113,3 +113,33 @@ class TestHDRecUIContent:
         src = _app_src()
         base_block = _get_pages_base_block(src)
         assert HD_REC_PAGE not in base_block
+
+
+# ── C. V1.9.4 UI content ─────────────────────────────────────────────────────
+
+class TestHDRecV194UIContent:
+    def _get_page_block(self) -> str:
+        src = _app_src()
+        start = src.find(f'elif page == "{HD_REC_PAGE}"')
+        end = src.find("# PAGE: 設定", start)
+        return src[start:end] if start != -1 else ""
+
+    def test_page_has_case_import_tab(self):
+        block = self._get_page_block()
+        assert "外部案例匯入" in block
+
+    def test_page_has_dataset_tab(self):
+        block = self._get_page_block()
+        assert "多案例資料集" in block
+
+    def test_page_has_export_tab(self):
+        block = self._get_page_block()
+        assert "校準報告匯出" in block
+
+    def test_page_has_file_uploader(self):
+        block = self._get_page_block()
+        assert "file_uploader" in block
+
+    def test_page_has_download_button(self):
+        block = self._get_page_block()
+        assert "download_button" in block

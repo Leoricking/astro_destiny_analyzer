@@ -1,7 +1,8 @@
 """
-Astro Destiny Analyzer — Human Design Reconciliation Models (V1.9.2)
+Astro Destiny Analyzer — Human Design Reconciliation Models (V1.9.4)
 
-Pydantic models for external chart input and reconciliation reports.
+Pydantic models for external chart input, reconciliation reports,
+calibration cases, datasets, and batch summaries.
 """
 from __future__ import annotations
 from pydantic import BaseModel, Field
@@ -84,6 +85,54 @@ class HDReconciliationReport(BaseModel):
     local_accuracy_note: str = ""
     external_source_note: str = ""
     method_info_note: str = ""
+
+
+# ── V1.9.4 Calibration models ────────────────────────────────────────────────
+
+class HumanDesignCalibrationCase(BaseModel):
+    """A single external Human Design case for calibration comparison."""
+    case_id: str = ""
+    label: str = ""
+    birth_date: str = ""
+    birth_time: Optional[str] = None
+    birth_location: str = ""
+    timezone: str = "Asia/Taipei"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    gender: Optional[str] = None
+    external_chart: ExternalHumanDesignChart = Field(default_factory=ExternalHumanDesignChart)
+    source_name: str = "manual_external"
+    source_url: Optional[str] = None
+    imported_at: Optional[str] = None
+    notes: str = ""
+    tags: List[str] = Field(default_factory=list)
+
+
+class HumanDesignCalibrationDataset(BaseModel):
+    """A collection of external Human Design cases for batch calibration."""
+    dataset_version: str = "1.9.4"
+    cases: List[HumanDesignCalibrationCase] = Field(default_factory=list)
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    notes: str = ""
+
+
+class BatchReconciliationSummary(BaseModel):
+    """Aggregated results of batch reconciliation across multiple cases."""
+    total_cases: int = 0
+    processed_cases: int = 0
+    mostly_match_count: int = 0
+    minor_difference_count: int = 0
+    major_difference_count: int = 0
+    insufficient_data_count: int = 0
+    total_match_items: int = 0
+    total_mismatch_items: int = 0
+    total_method_difference_items: int = 0
+    most_common_mismatch_categories: List[str] = Field(default_factory=list)
+    design_date_method_notes: List[str] = Field(default_factory=list)
+    gate_offset_notes: List[str] = Field(default_factory=list)
+    case_reports: List[HDReconciliationReport] = Field(default_factory=list)
+    summary: str = ""
 
 
 # ── Display helpers ────────────────────────────────────────────────────────────
