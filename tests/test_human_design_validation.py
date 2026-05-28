@@ -122,3 +122,16 @@ class TestRenderValidationMarkdown:
         status = build_validation_status(chart)
         result = render_validation_markdown(status)
         assert "phase1_internal" in result
+
+    def test_validation_notes_mention_external_sources(self):
+        from human_design.validation import build_validation_status
+        chart = _make_mock_chart()
+        status = build_validation_status(chart)
+        all_notes = " ".join(status.notes)
+        # V1.9.2: validation notes should reference external cross-reference sources
+        assert (
+            "Jovian Archive" in all_notes
+            or "Genetic Matrix" in all_notes
+            or "MyBodyGraph" in all_notes
+            or "external" in all_notes.lower()
+        )

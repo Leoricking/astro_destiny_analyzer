@@ -190,3 +190,40 @@ class TestStaleFallback:
         assert idx != -1
         snippet = src[idx: idx + 600]
         assert "st.stop()" in snippet
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# G. V1.9.2 — Human Design Reconciliation page gating
+# ══════════════════════════════════════════════════════════════════════════════
+
+HD_REC_PAGE = "🔷 人類圖校準"
+
+
+class TestHDReconciliationPageGating:
+    def test_customer_pages_no_hd_reconciliation(self):
+        src = _app_src()
+        lines = src.splitlines()
+        in_base, block = False, []
+        for line in lines:
+            if "_PAGES_BASE = [" in line:
+                in_base = True
+            if in_base:
+                block.append(line)
+                if "]" in line and "_PAGES_BASE = [" not in line:
+                    break
+        base_block = "\n".join(block)
+        assert HD_REC_PAGE not in base_block
+
+    def test_developer_pages_has_hd_reconciliation(self):
+        src = _app_src()
+        lines = src.splitlines()
+        in_dev, block = False, []
+        for line in lines:
+            if "_PAGES_DEV = [" in line:
+                in_dev = True
+            if in_dev:
+                block.append(line)
+                if "]" in line and "_PAGES_DEV = [" not in line:
+                    break
+        dev_block = "\n".join(block)
+        assert HD_REC_PAGE in dev_block

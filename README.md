@@ -6,6 +6,55 @@
 
 ---
 
+## V1.9.2 更新說明 — Human Design External Chart Reconciliation
+
+### 人類圖外部排盤校準工具
+
+本版新增 `human_design_reconciliation/` 模組，提供開發者模式人類圖外部排盤比對工具。
+
+**可比對欄位：**
+
+| 欄位 | 說明 |
+|------|------|
+| Type | 類型（含中英文 normalize） |
+| Strategy | 策略 |
+| Authority | 內在權威（含中英文 normalize） |
+| Profile | 人生角色（支援 4/6、4-6、4｜6 等格式） |
+| Incarnation Cross | 輪迴交叉（標記方法差異，不強行比對） |
+| Conscious Sun / Earth | 意識面太陽 / 地球 gate / line |
+| Design Sun / Earth | 設計面太陽 / 地球 gate / line |
+| Gates | 啟動閘門 set 比對 |
+| Channels | 定義通道 set 比對（含雙向 normalize） |
+| Centers | 定義中心 set 比對（含中英文 normalize） |
+
+**使用方式：**
+
+1. 開發者模式啟動（`run_dev.bat` 或 `set ASTRO_DEVELOPER_MODE=1`）
+2. 計算命盤後前往「🔷 人類圖校準」頁
+3. 從外部人類圖系統取得資料並填入 JSON 模板
+4. 點擊「開始人類圖校準比對」
+
+**重要說明：**
+
+- 本工具不代表已完成外部校準
+- 需使用者輸入真實外部資料（Jovian Archive / Genetic Matrix / MyBodyGraph）後才能比對
+- 不直接聲稱完全一致；若發現差異，輸出差異原因與修正建議，不自動修改計算核心
+- 客戶模式不顯示「人類圖校準」頁
+
+**差異原因分析：**
+
+- Gate 差異 → I-Ching wheel order、黃經 offset、timezone
+- Design planets 差異 → 本機使用 88-day 近似；商業軟體使用精準 88° solar arc
+- Centers/Authority 差異 → 通常由 gate/channel 差異造成
+- Profile 差異 → 出生時間精確度、timezone
+
+**下一步（V1.9.3 預告）：**
+> 人類圖精準 Design Date：太陽回推 88° exact solar arc / Gate Wheel Offset 校準
+
+**config.py：**`APP_VERSION = "1.9.2"`
+
+---
+
 ## V1.9.1 更新說明 — Human Design 報告深化與外部校準說明
 
 ### 新增模組

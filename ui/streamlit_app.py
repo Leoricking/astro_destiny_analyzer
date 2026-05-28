@@ -62,7 +62,7 @@ _PAGES_BASE = [
 _PAGES_DEV = [
     "🏠 首頁", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
-    "🧭 紫微校準", "⚙️ 設定",
+    "🧭 紫微校準", "🔷 人類圖校準", "⚙️ 設定",
 ]
 _PAGES = _PAGES_DEV if DEVELOPER_MODE else _PAGES_BASE
 
@@ -307,6 +307,8 @@ if "_pending_nav_page" in st.session_state:
 
 # Guard: if a stale session has nav_page pointing to a dev-only page, reset to home.
 if not DEVELOPER_MODE and st.session_state.get("nav_page") == "🧭 紫微校準":
+    st.session_state["nav_page"] = "🏠 首頁"
+if not DEVELOPER_MODE and st.session_state.get("nav_page") == "🔷 人類圖校準":
     st.session_state["nav_page"] = "🏠 首頁"
 
 
@@ -2255,6 +2257,192 @@ elif page == "🧭 紫微校準":
             "📥 下載 Markdown 報告",
             data=_rec_report.markdown_body.encode("utf-8"),
             file_name=f"ziwei_reconciliation_{_rec_report.created_at[:10]}.md",
+            mime="text/markdown",
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: 人類圖校準
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🔷 人類圖校準":
+    if not DEVELOPER_MODE:
+        st.warning("此頁面僅開發人員模式可用。")
+        st.info(
+            "若為開發者，請以開發者模式啟動：\n\n"
+            "**Windows CMD：** `set ASTRO_DEVELOPER_MODE=1` 後執行 `run_dev.bat`\n\n"
+            "**PowerShell：** `$env:ASTRO_DEVELOPER_MODE=\"1\"` 後執行 `run_dev.bat`"
+        )
+        st.stop()
+    st.title("🔷 人類圖外部排盤校準")
+    st.caption(
+        "此工具用於開發者比對外部人類圖網站結果（Jovian Archive / Genetic Matrix / MyBodyGraph）。"
+        "客戶版不顯示。不應直接提供給客戶。"
+    )
+    st.info(
+        "本工具不代表已完成外部校準。"
+        "需從外部人類圖系統取得結果並輸入後，才能進行比對。"
+        "如發現差異，本工具輸出差異原因與修正建議，不自動修改計算核心。"
+    )
+    st.divider()
+
+    # ── A. Local chart summary ────────────────────────────────────────────────
+    _hd_rpt = st.session_state.get("report")
+    _hd_local = _hd_rpt.human_design_chart if _hd_rpt else None
+
+    if _hd_local is None:
+        st.warning("⚠️ 尚無本機人類圖，請先在「📝 輸入資料」填寫資料並計算命盤。")
+        if st.button("前往輸入資料"):
+            _go_to_page("📝 輸入資料")
+        st.stop()
+
+    with st.expander("📋 本機人類圖摘要", expanded=True):
+        _hd_c1, _hd_c2, _hd_c3, _hd_c4 = st.columns(4)
+        with _hd_c1:
+            st.metric("類型", _hd_local.type_name_zh)
+        with _hd_c2:
+            st.metric("Authority", _hd_local.authority[:20] if _hd_local.authority else "─")
+        with _hd_c3:
+            st.metric("Profile", _hd_local.profile)
+        with _hd_c4:
+            st.metric("計算模式", _hd_local.calculation_mode[:15])
+        st.markdown(f"**策略**：{_hd_local.strategy}")
+        st.markdown(f"**輪迴交叉**：{_hd_local.incarnation_cross}")
+        # Conscious Sun / Earth
+        _cs = next((a for a in _hd_local.conscious_activations if "sun" in a.planet.lower()), None)
+        _ce = next((a for a in _hd_local.conscious_activations if "earth" in a.planet.lower()), None)
+        _ds = next((a for a in _hd_local.design_activations if "sun" in a.planet.lower()), None)
+        _de = next((a for a in _hd_local.design_activations if "earth" in a.planet.lower()), None)
+        import pandas as _pd
+        _summary_rows = [
+            {"Side": "Conscious", "Planet": "Sun", "Gate": _cs.gate if _cs else "─", "Line": _cs.line if _cs else "─"},
+            {"Side": "Conscious", "Planet": "Earth", "Gate": _ce.gate if _ce else "─", "Line": _ce.line if _ce else "─"},
+            {"Side": "Design", "Planet": "Sun", "Gate": _ds.gate if _ds else "─", "Line": _ds.line if _ds else "─"},
+            {"Side": "Design", "Planet": "Earth", "Gate": _de.gate if _de else "─", "Line": _de.line if _de else "─"},
+        ]
+        st.dataframe(_pd.DataFrame(_summary_rows), hide_index=True, use_container_width=True)
+        st.markdown(
+            f"**已定義中心**：{', '.join(_hd_local.defined_centers) or '無'}  \n"
+            f"**已定義通道**：{len(_hd_local.defined_channels)} 個  \n"
+            f"**啟動閘門**：{len(_hd_local.activated_gates)} 個"
+        )
+
+    st.divider()
+
+    # ── B. External input ─────────────────────────────────────────────────────
+    from human_design_reconciliation.examples import (
+        BLANK_EXTERNAL_HD_JSON, EXAMPLE_ROSSI_EXTERNAL_HD_JSON,
+    )
+    from human_design_reconciliation.models import ExternalHumanDesignChart
+
+    _hd_template_col1, _hd_template_col2 = st.columns(2)
+    with _hd_template_col1:
+        if st.button("載入空白模板"):
+            st.session_state["hd_rec_json_input"] = BLANK_EXTERNAL_HD_JSON
+    with _hd_template_col2:
+        if st.button("載入 Rossi template"):
+            st.session_state["hd_rec_json_input"] = EXAMPLE_ROSSI_EXTERNAL_HD_JSON
+
+    _hd_json_input = st.text_area(
+        "外部盤 JSON（貼入外部人類圖資料）",
+        value=st.session_state.get("hd_rec_json_input", BLANK_EXTERNAL_HD_JSON),
+        height=300,
+        key="hd_rec_json_input",
+    )
+    st.caption("請依格式填入外部網站資料，不確定的欄位請留 null 或空白。")
+
+    _hd_ext_chart = None
+    _hd_parse_error = ""
+    if _hd_json_input and _hd_json_input.strip():
+        try:
+            import json as _json
+            _parsed = _json.loads(_hd_json_input)
+            _hd_ext_chart = ExternalHumanDesignChart(**_parsed)
+        except Exception as _e:
+            _hd_parse_error = str(_e)
+
+    if _hd_parse_error:
+        st.error(f"JSON 解析失敗：{_hd_parse_error}")
+        st.caption('格式範例：{"type_name": "Projector", "authority": "Splenic", "profile": "4/6", ...}')
+
+    # ── C. Run reconciliation ──────────────────────────────────────────────────
+    if st.button("🔍 開始人類圖校準比對", disabled=(_hd_ext_chart is None), type="primary"):
+        from human_design_reconciliation.engine import HumanDesignReconciliationEngine
+        with st.spinner("比對中…"):
+            _hd_rec_report = HumanDesignReconciliationEngine().reconcile(_hd_local, _hd_ext_chart)
+        st.session_state["hd_rec_report"] = _hd_rec_report
+
+    _hd_rec_report = st.session_state.get("hd_rec_report")
+
+    if _hd_rec_report is None:
+        st.info("填寫外部盤資料後，按「開始人類圖校準比對」。")
+        st.stop()
+
+    # ── D. Display results ────────────────────────────────────────────────────
+    from human_design_reconciliation.models import STATUS_ZH, SEVERITY_ZH, OVERALL_STATUS_ZH
+    from human_design_reconciliation.templates import render_reconciliation_markdown
+
+    _hd_overall_zh = OVERALL_STATUS_ZH.get(_hd_rec_report.overall_status, _hd_rec_report.overall_status)
+    _hrc1, _hrc2, _hrc3, _hrc4, _hrc5 = st.columns(5)
+    with _hrc1:
+        st.metric("整體狀態", _hd_overall_zh)
+    with _hrc2:
+        st.metric("✅ 一致", _hd_rec_report.match_count)
+    with _hrc3:
+        st.metric("❌ 不一致", _hd_rec_report.mismatch_count)
+    with _hrc4:
+        st.metric("🏫 方法差異", _hd_rec_report.method_difference_count)
+    with _hrc5:
+        st.metric("⬜ 缺少外部", _hd_rec_report.missing_count)
+
+    st.caption(_hd_rec_report.summary)
+
+    _hd_rtabs = st.tabs(["總覽", "一致項", "差異項", "方法差異", "Markdown 報告"])
+
+    with _hd_rtabs[0]:
+        st.markdown("### 下一步建議")
+        for _a in _hd_rec_report.next_actions:
+            st.write(f"• {_a}")
+
+    with _hd_rtabs[1]:
+        _match_items = [i for i in _hd_rec_report.items if i.status == "match"]
+        if _match_items:
+            st.dataframe(_pd.DataFrame([{
+                "類別": i.category, "欄位": i.field,
+                "本機": i.local_value, "外部": i.external_value,
+            } for i in _match_items]), use_container_width=True, hide_index=True)
+        else:
+            st.info("無一致項（可能外部資料為空）。")
+
+    with _hd_rtabs[2]:
+        _mm_items = [i for i in _hd_rec_report.items if i.status == "mismatch"]
+        if _mm_items:
+            st.dataframe(_pd.DataFrame([{
+                "類別": i.category, "欄位": i.field,
+                "本機": i.local_value, "外部": i.external_value,
+                "嚴重度": SEVERITY_ZH.get(i.severity, i.severity),
+                "說明": i.explanation,
+            } for i in _mm_items]), use_container_width=True, hide_index=True)
+        else:
+            st.success("無不一致項。")
+
+    with _hd_rtabs[3]:
+        _md_items = [i for i in _hd_rec_report.items if i.status == "likely_method_difference"]
+        if _md_items:
+            st.dataframe(_pd.DataFrame([{
+                "類別": i.category, "欄位": i.field,
+                "本機": i.local_value, "外部": i.external_value,
+                "說明": i.explanation,
+            } for i in _md_items]), use_container_width=True, hide_index=True)
+        else:
+            st.info("無方法差異項。")
+
+    with _hd_rtabs[4]:
+        _hd_md_report = render_reconciliation_markdown(_hd_rec_report)
+        st.markdown(_hd_md_report)
+        st.download_button(
+            "📥 下載 Markdown 校準報告",
+            data=_hd_md_report.encode("utf-8"),
+            file_name="human_design_reconciliation_report.md",
             mime="text/markdown",
         )
 
