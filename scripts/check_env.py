@@ -33,6 +33,17 @@ def main() -> int:
     """Run all environment checks. Returns 0 on success, 1 on failure."""
     errors = 0
 
+    # ── App info ──────────────────────────────────────────────────────────────
+    try:
+        import sys as _sys
+        _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from config import APP_VERSION, CUSTOMER_MODE, DEVELOPER_MODE
+        _customer = "Customer Mode" if CUSTOMER_MODE else "—"
+        _dev = "DEV MODE" if DEVELOPER_MODE else "—"
+        print(f"[INFO] Astro Destiny Analyzer v{APP_VERSION}  {_customer}  {_dev}")
+    except Exception:
+        print("[INFO] Astro Destiny Analyzer (version unknown)")
+
     # ── Python version ────────────────────────────────────────────────────────
     major, minor, patch = sys.version_info[:3]
     version_str = f"Python {major}.{minor}.{patch}"

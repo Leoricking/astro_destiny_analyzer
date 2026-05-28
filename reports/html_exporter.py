@@ -7,7 +7,7 @@ No external CDN or CSS dependencies. Supports Traditional Chinese.
 from core.models import FullReport
 from reports.templates import render_report
 from reports.utils import build_report_meta
-from config import APP_VERSION, APP_NAME
+import config as _cfg
 
 try:
     import markdown as _md_lib
@@ -115,8 +115,8 @@ def _build_pre_body(meta: dict) -> str:
     m = {k: _h(str(v)) for k, v in meta.items()}
     cover = (
         '<div class="cover">'
-        f'<h1>{m["app_name"]}</h1>'
-        '<div class="subtitle">命盤整合分析報告</div>'
+        f'<h1>{_h(_cfg.BRAND_NAME)}</h1>'
+        f'<div class="subtitle">{_h(_cfg.BRAND_TAGLINE)}</div>'
         '<table class="meta-tbl">'
         f'<tr><td><strong>姓名</strong></td><td>{m["name"]}</td></tr>'
         f'<tr><td><strong>出生日期</strong></td><td>{m["birth_date"]}</td></tr>'
@@ -185,7 +185,7 @@ def _build_pre_body(meta: dict) -> str:
 class HtmlExporter:
     def export(self, report: FullReport) -> str:
         meta = build_report_meta(report)
-        markdown_text = render_report(report, version=APP_VERSION)
+        markdown_text = render_report(report, version=_cfg.APP_VERSION)
 
         if _MD_AVAILABLE:
             try:
@@ -200,7 +200,7 @@ class HtmlExporter:
 
         pre_body = _build_pre_body(meta)
         title = _h(f"{meta['name']} 命盤整合分析報告")
-        footer_txt = _h(f"{APP_NAME} v{APP_VERSION} ｜ {meta['created_at']}")
+        footer_txt = _h(f"{_cfg.REPORT_WATERMARK} · v{_cfg.APP_VERSION} ｜ {meta['created_at']}")
 
         return (
             '<!DOCTYPE html>\n'

@@ -239,3 +239,21 @@ class TestInstallPdfSupportBat:
 
     def test_has_venv_check(self):
         assert ".venv" in _read("install_pdf_support.bat")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# I. V1.8.4 — Customer delivery mode flags in launchers
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestCustomerDeliveryFlags:
+    def test_run_bat_has_customer_mode_on(self):
+        assert "ASTRO_CUSTOMER_MODE=1" in _read("run.bat")
+
+    def test_run_bat_has_show_demo_data_off(self):
+        assert "ASTRO_SHOW_DEMO_DATA=0" in _read("run.bat")
+
+    def test_run_dev_bat_has_customer_mode_off(self):
+        assert "ASTRO_CUSTOMER_MODE=0" in _read("run_dev.bat")
+
+    def test_run_dev_bat_has_show_demo_data_on(self):
+        assert "ASTRO_SHOW_DEMO_DATA=1" in _read("run_dev.bat")

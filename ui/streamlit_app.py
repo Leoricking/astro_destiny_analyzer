@@ -19,7 +19,12 @@ from datetime import date, time
 from core.database import init_db
 init_db()
 
-from config import APP_NAME, APP_SUBTITLE, APP_VERSION, TAIWAN_CITY_DISPLAY_NAMES, lookup_location, DEVELOPER_MODE
+from config import (
+    APP_NAME, APP_SUBTITLE, APP_VERSION,
+    TAIWAN_CITY_DISPLAY_NAMES, lookup_location,
+    DEVELOPER_MODE, CUSTOMER_MODE, SHOW_DEMO_DATA, SHOW_INTERNAL_VERSION_INFO,
+    BRAND_NAME, BRAND_TAGLINE, REPORT_WATERMARK,
+)
 from core.models import (
     BirthProfile, Gender, BloodType, AnalysisTheme,
     ReportLanguage, ReportLength,
@@ -317,7 +322,11 @@ with st.sidebar:
         label_visibility="collapsed",
     )
     st.divider()
-    st.caption(f"v{APP_VERSION}")
+    if DEVELOPER_MODE:
+        st.caption(f"v{APP_VERSION} · DEV MODE")
+        st.caption(f"DEVELOPER_MODE=True")
+    else:
+        st.caption(f"v{APP_VERSION}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -355,29 +364,38 @@ if page == "🏠 首頁":
     with col3:
         st.metric("報告格式", "Markdown / HTML / Word")
 
-    if st.button("🚀 立即開始分析", type="primary", use_container_width=True):
-        _go_to_page("📝 輸入資料")
+    _home_c1, _home_c2, _home_c3 = st.columns(3)
+    with _home_c1:
+        if st.button("🚀 開始建立個人命盤", type="primary", use_container_width=True):
+            _go_to_page("📝 輸入資料")
+    with _home_c2:
+        if st.button("💕 建立合盤報告", use_container_width=True):
+            _go_to_page("💕 合盤分析")
+    with _home_c3:
+        if st.button("📚 查看歷史報告", use_container_width=True):
+            _go_to_page("📚 歷史報告")
 
-    st.divider()
-    st.subheader("⚡ 快速體驗")
-    st.caption("不需要手動輸入，直接使用範例資料體驗完整分析流程。")
-    demo_c1, demo_c2, demo_c3 = st.columns(3)
-    with demo_c1:
-        if st.button("🏙️ Demo 台北精準時間", use_container_width=True):
-            _load_sample(0)
-            st.rerun()
-    with demo_c2:
-        if st.button("💼 Demo 新竹科技職涯", use_container_width=True):
-            _load_sample(1)
-            st.rerun()
-    with demo_c3:
-        if st.button("❓ Demo 未知出生時間", use_container_width=True):
-            _load_sample(2)
-            st.rerun()
+    if SHOW_DEMO_DATA:
+        st.divider()
+        st.subheader("⚡ 快速體驗")
+        st.caption("不需要手動輸入，直接使用範例資料體驗完整分析流程。")
+        demo_c1, demo_c2, demo_c3 = st.columns(3)
+        with demo_c1:
+            if st.button("🏙️ Demo 台北精準時間", use_container_width=True):
+                _load_sample(0)
+                st.rerun()
+        with demo_c2:
+            if st.button("💼 Demo 新竹科技職涯", use_container_width=True):
+                _load_sample(1)
+                st.rerun()
+        with demo_c3:
+            if st.button("❓ Demo 未知出生時間", use_container_width=True):
+                _load_sample(2)
+                st.rerun()
 
-    if st.session_state.get("_demo_loaded"):
-        st.info("✅ 已載入範例資料，可直接計算，也可返回輸入頁修改。")
-        st.session_state["_demo_loaded"] = False
+        if st.session_state.get("_demo_loaded"):
+            st.info("✅ 已載入範例資料，可直接計算，也可返回輸入頁修改。")
+            st.session_state["_demo_loaded"] = False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1435,31 +1453,32 @@ elif page == "💕 合盤分析":
         _pb = st.session_state["compat_b_profile"]
         st.info(f"✅ B 方：{_pb.name}（{_pb.birth_date}，{_pb.birth_city}）")
 
-    # ── Demo couple buttons ───────────────────────────────────────────────────
-    st.divider()
-    st.subheader("⚡ 快速體驗")
-    st.caption("直接載入範例資料，體驗合盤分析流程。")
-    _DEMO_RT_MAP = {"romantic": "情侶 / 伴侶", "business": "合作夥伴", "parent_child": "親子"}
-    _DEMO_ICONS = ["💑", "🤝", "👨‍👩‍👧"]
-    _demo_cols = st.columns(len(SAMPLE_COUPLES))
-    for _di, (_dcol, _couple) in enumerate(zip(_demo_cols, SAMPLE_COUPLES)):
-        with _dcol:
-            _btn_label = f"{_DEMO_ICONS[_di] if _di < len(_DEMO_ICONS) else '👥'} {_couple['label']}"
-            if st.button(_btn_label, use_container_width=True, key=f"compat_demo_{_di}"):
-                st.session_state["compat_a_profile"] = _couple["person_a"]
-                st.session_state["compat_b_profile"] = _couple["person_b"]
-                _rt_ui = _DEMO_RT_MAP.get(_couple["relationship_type"], "一般關係")
-                st.session_state["compat_rel_type"] = _rt_ui
-                st.session_state["compatibility_report"] = None
-                st.session_state[f"show_demo_info_{_di}"] = True
-                st.rerun()
-            if st.session_state.get(f"show_demo_info_{_di}"):
-                st.caption(_couple.get("description", ""))
-                _tps = _couple.get("talking_points", [])
-                if _tps:
-                    st.markdown("**展示重點：**")
-                    for _tp in _tps:
-                        st.markdown(f"- {_tp}")
+    # ── Demo couple buttons (developer/demo mode only) ────────────────────────
+    if SHOW_DEMO_DATA:
+        st.divider()
+        st.subheader("⚡ 快速體驗")
+        st.caption("直接載入範例資料，體驗合盤分析流程。")
+        _DEMO_RT_MAP = {"romantic": "情侶 / 伴侶", "business": "合作夥伴", "parent_child": "親子"}
+        _DEMO_ICONS = ["💑", "🤝", "👨‍👩‍👧"]
+        _demo_cols = st.columns(len(SAMPLE_COUPLES))
+        for _di, (_dcol, _couple) in enumerate(zip(_demo_cols, SAMPLE_COUPLES)):
+            with _dcol:
+                _btn_label = f"{_DEMO_ICONS[_di] if _di < len(_DEMO_ICONS) else '👥'} {_couple['label']}"
+                if st.button(_btn_label, use_container_width=True, key=f"compat_demo_{_di}"):
+                    st.session_state["compat_a_profile"] = _couple["person_a"]
+                    st.session_state["compat_b_profile"] = _couple["person_b"]
+                    _rt_ui = _DEMO_RT_MAP.get(_couple["relationship_type"], "一般關係")
+                    st.session_state["compat_rel_type"] = _rt_ui
+                    st.session_state["compatibility_report"] = None
+                    st.session_state[f"show_demo_info_{_di}"] = True
+                    st.rerun()
+                if st.session_state.get(f"show_demo_info_{_di}"):
+                    st.caption(_couple.get("description", ""))
+                    _tps = _couple.get("talking_points", [])
+                    if _tps:
+                        st.markdown("**展示重點：**")
+                        for _tp in _tps:
+                            st.markdown(f"- {_tp}")
 
     # ── Generate ──────────────────────────────────────────────────────────────
     st.divider()
@@ -2138,7 +2157,33 @@ elif page == "🧭 紫微校準":
 elif page == "⚙️ 設定":
     st.title("⚙️ 應用程式設定")
 
+    # ── Delivery mode status ──────────────────────────────────────────────────
+    st.subheader("交付模式狀態")
+    if DEVELOPER_MODE:
+        st.info("🛠️ **DEV MODE 啟用** — 紫微校準、Demo 資料、內部工具均可用。")
+        dm1, dm2, dm3, dm4 = st.columns(4)
+        with dm1:
+            st.metric("DEV MODE", "啟用 ✅")
+        with dm2:
+            st.metric("紫微校準", "可用 ✅")
+        with dm3:
+            st.metric("Demo 資料", "可用 ✅")
+        with dm4:
+            st.metric("客戶模式", "關閉")
+    else:
+        st.success("📦 **客戶交付模式** — 已啟用，開發工具已隱藏。")
+        dm1, dm2, dm3, dm4 = st.columns(4)
+        with dm1:
+            st.metric("客戶模式", "啟用 ✅")
+        with dm2:
+            st.metric("開發者工具", "隱藏")
+        with dm3:
+            st.metric("Demo 資料", "隱藏")
+        with dm4:
+            st.metric("紫微校準", "隱藏")
+
     # ── System info ───────────────────────────────────────────────────────────
+    st.divider()
     st.subheader("系統資訊")
     from config import DB_PATH, SWISSEPH_DATA_PATH
     si1, si2 = st.columns(2)

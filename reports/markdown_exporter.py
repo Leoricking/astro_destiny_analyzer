@@ -7,7 +7,7 @@ import re
 from core.models import FullReport
 from reports.templates import render_report
 from reports.utils import build_report_meta, DISCLAIMER
-from config import APP_VERSION
+import config as _cfg
 
 
 _COVER_TEMPLATE = """\
@@ -96,10 +96,11 @@ class MarkdownExporter:
     def export(self, report: FullReport) -> str:
         meta = build_report_meta(report)
         cover = _COVER_TEMPLATE.format(**meta)
-        body = render_report(report, version=APP_VERSION)
+        body = render_report(report, version=_cfg.APP_VERSION)
         # Clean up excessive blank lines (4+ → 3)
         body = re.sub(r'\n{4,}', '\n\n\n', body)
-        return cover + body
+        footer = f"\n\n---\n\n*{_cfg.REPORT_WATERMARK} · v{_cfg.APP_VERSION}*\n"
+        return cover + body + footer
 
     def save(self, report: FullReport, path: str) -> None:
         content = self.export(report)

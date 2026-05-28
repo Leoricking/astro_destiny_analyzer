@@ -10,21 +10,37 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import re as _re
 from reports.utils import sanitize_filename
 
 if TYPE_CHECKING:
     from compatibility.models import CompatibilityReport
 
 
+def _sanitize_compat_name(name: str) -> str:
+    """Sanitize a name for use in compatibility export filenames.
+    Strips emoji, converts spaces to underscores, removes Windows-illegal chars,
+    truncates to 40 chars.
+    """
+    # Strip emoji and non-printable symbols (Unicode category So/Sm above U+2600)
+    cleaned = _re.sub(r'[\U0001F000-\U0001FFFF\U00002600-\U000027FF\U00002B00-\U00002BFF'
+                      r'\U0000FE00-\U0000FEFF\U000E0000-\U000E01FF]', '', name)
+    # Remove Windows-illegal filename chars
+    cleaned = _re.sub(r'[\\/:*?"<>|\r\n\t]', '', cleaned)
+    # Replace spaces/hyphens with underscores
+    cleaned = _re.sub(r'[\s\-]+', '_', cleaned)
+    cleaned = cleaned.strip('_')
+    if not cleaned:
+        return "person"
+    return cleaned[:40]
+
+
 def make_compat_filename(name_a: str, name_b: str, ext: str, rel_type: str = "") -> str:
-    """Build: {safe_a}_x_{safe_b}_{rel_type}_合盤分析報告_{YYYYMMDD_HHMM}.{ext}"""
-    safe_a = sanitize_filename(name_a)
-    safe_b = sanitize_filename(name_b)
-    safe_rt = sanitize_filename(rel_type) if rel_type else ""
-    ts = datetime.now().strftime("%Y%m%d_%H%M")
-    if safe_rt:
-        return f"{safe_a}_x_{safe_b}_{safe_rt}_合盤分析報告_{ts}.{ext}"
-    return f"{safe_a}_x_{safe_b}_合盤分析報告_{ts}.{ext}"
+    """Build: relationship_report_{safe_a}_{safe_b}_{YYYYMMDD}.{ext}"""
+    safe_a = _sanitize_compat_name(name_a)
+    safe_b = _sanitize_compat_name(name_b)
+    ts = datetime.now().strftime("%Y%m%d")
+    return f"relationship_report_{safe_a}_{safe_b}_{ts}.{ext}"
 
 
 def export_compat_to_html(report: "CompatibilityReport") -> str:
@@ -50,11 +66,14 @@ def export_compat_to_html(report: "CompatibilityReport") -> str:
         text = re.sub(r"\n\n", "</p><p>", text)
         body_html = f"<p>{text}</p>"
 
+    from config import APP_VERSION, BRAND_NAME, REPORT_WATERMARK
+
     pa = report.person_a_profile
     pb = report.person_b_profile
     from compatibility.models import relationship_label
     rt_label_str = relationship_label(report.relationship_type)
     title_text = f"{pa.name} × {pb.name} {rt_label_str} 合盤分析報告"
+    footer_txt = f"{REPORT_WATERMARK} · v{APP_VERSION}"
 
     html = (
         "<!DOCTYPE html>\n"
@@ -69,6 +88,7 @@ def export_compat_to_html(report: "CompatibilityReport") -> str:
         "</head>\n"
         "<body>\n"
         + body_html + "\n"
+        f'<div class="footer">{footer_txt}</div>\n'
         "</body>\n"
         "</html>"
     )

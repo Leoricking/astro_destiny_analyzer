@@ -7,7 +7,7 @@ Falls back gracefully if python-docx is not installed.
 from core.models import FullReport
 from reports.templates import render_report
 from reports.utils import build_report_meta
-from config import APP_VERSION, APP_NAME
+from config import APP_VERSION, APP_NAME, BRAND_NAME, REPORT_WATERMARK
 
 
 def _docx_available() -> bool:
@@ -60,7 +60,7 @@ class DocxExporter:
             pass
 
         # ── Cover ─────────────────────────────────────────────────────────────
-        document.add_heading(APP_NAME, level=0)
+        document.add_heading(BRAND_NAME, level=0)
         document.add_heading("命盤整合分析報告", level=1)
 
         cover_table = document.add_table(rows=6, cols=2)
@@ -166,6 +166,14 @@ class DocxExporter:
             elif line.strip():
                 p = document.add_paragraph(line.strip())
                 _set_cjk_font(p)
+
+        # ── Brand watermark footer ────────────────────────────────────────────
+        document.add_paragraph()
+        wm_p = document.add_paragraph(f"{REPORT_WATERMARK} · v{APP_VERSION}")
+        try:
+            wm_p.style = document.styles["Caption"]
+        except Exception:
+            pass
 
         # ── Save to bytes ─────────────────────────────────────────────────────
         buf = BytesIO()

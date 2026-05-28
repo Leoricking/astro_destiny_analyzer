@@ -3,6 +3,8 @@ chcp 65001 >nul
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
 set PYTHONLEGACYWINDOWSSTDIO=0
+set ASTRO_CUSTOMER_MODE=1
+set ASTRO_SHOW_DEMO_DATA=0
 title Astro Destiny Analyzer Launcher
 cd /d "%~dp0"
 

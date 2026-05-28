@@ -3,6 +3,7 @@ Astro Destiny Analyzer — Demo Sample Profiles
 Ready-to-use BirthProfile instances for quick demo and testing.
 These profiles are NOT written to the database unless the user clicks Calculate.
 V1.7.0: Added SAMPLE_COUPLES for compatibility demo.
+V1.8.4: Added get_sample_labels() / get_sample_couples() for customer-mode gating.
 """
 from datetime import date, time
 from typing import List, Dict
@@ -237,3 +238,32 @@ SAMPLE_COUPLES: List[Dict] = [
         "relationship_type": "parent_child",
     },
 ]
+
+
+# ── Customer-mode gating helpers ───────────────────────────────────────────────
+
+def get_sample_labels(show_internal: bool = False) -> List[str]:
+    """Return sample profile labels.
+    Only returns internal demo labels when show_internal=True (developer/demo mode).
+    """
+    if show_internal:
+        return SAMPLE_LABELS
+    return []
+
+
+def get_sample_profiles_list(show_internal: bool = False) -> "List[BirthProfile]":
+    """Return sample profiles list.
+    Only returns profiles when show_internal=True (developer/demo mode).
+    """
+    if show_internal:
+        return SAMPLE_PROFILES
+    return []
+
+
+def get_sample_couples(show_internal: bool = False) -> List[Dict]:
+    """Return sample couples list.
+    Only returns demo couples when show_internal=True (developer/demo mode).
+    """
+    if show_internal:
+        return SAMPLE_COUPLES
+    return []
