@@ -269,3 +269,67 @@ class TestV194CustomerModeHidesCalibration:
                     break
         base_block = "\n".join(block)
         assert "多案例資料集" not in base_block
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# I. V1.9.5 — Public Content Landing Page visibility
+# ══════════════════════════════════════════════════════════════════════════════
+
+PUBLIC_CONTENT_PAGE = "🌐 免費內容入口"
+
+
+class TestV195PublicContentVisibility:
+    def _get_pages_base_block(self, src: str) -> str:
+        lines = src.splitlines()
+        in_base, block = False, []
+        for line in lines:
+            if "_PAGES_BASE = [" in line:
+                in_base = True
+            if in_base:
+                block.append(line)
+                if "]" in line and "_PAGES_BASE = [" not in line:
+                    break
+        return "\n".join(block)
+
+    def _get_pages_dev_block(self, src: str) -> str:
+        lines = src.splitlines()
+        in_dev, block = False, []
+        for line in lines:
+            if "_PAGES_DEV = [" in line:
+                in_dev = True
+            if in_dev:
+                block.append(line)
+                if "]" in line and "_PAGES_DEV = [" not in line:
+                    break
+        return "\n".join(block)
+
+    def test_customer_pages_include_public_content(self):
+        src = _app_src()
+        base = self._get_pages_base_block(src)
+        assert PUBLIC_CONTENT_PAGE in base
+
+    def test_developer_pages_include_public_content(self):
+        src = _app_src()
+        dev = self._get_pages_dev_block(src)
+        assert PUBLIC_CONTENT_PAGE in dev
+
+    def test_customer_pages_no_seo_debug(self):
+        """SEO debug section must be gated by DEVELOPER_MODE in the page block."""
+        src = _app_src()
+        start = src.find(f'elif page == "{PUBLIC_CONTENT_PAGE}"')
+        end = src.find("# PAGE: 輸入資料", start)
+        block = src[start:end] if start != -1 else ""
+        # validate_seo_data must be inside DEVELOPER_MODE guard
+        dev_idx = block.find("DEVELOPER_MODE")
+        seo_idx = block.find("validate_seo_data")
+        assert dev_idx != -1
+        assert seo_idx != -1
+        assert dev_idx < seo_idx
+
+    def test_developer_mode_public_content_tools_present(self):
+        src = _app_src()
+        start = src.find(f'elif page == "{PUBLIC_CONTENT_PAGE}"')
+        end = src.find("# PAGE: 輸入資料", start)
+        block = src[start:end] if start != -1 else ""
+        assert "DEVELOPER_MODE" in block
+        assert "download_button" in block

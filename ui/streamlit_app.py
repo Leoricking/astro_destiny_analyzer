@@ -55,12 +55,12 @@ st.set_page_config(
 )
 
 _PAGES_BASE = [
-    "🏠 首頁", "📝 輸入資料", "🔮 計算命盤",
+    "🏠 首頁", "🌐 免費內容入口", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
     "⚙️ 設定",
 ]
 _PAGES_DEV = [
-    "🏠 首頁", "📝 輸入資料", "🔮 計算命盤",
+    "🏠 首頁", "🌐 免費內容入口", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
     "🧭 紫微校準", "🔷 人類圖校準", "⚙️ 設定",
 ]
@@ -398,6 +398,142 @@ if page == "🏠 首頁":
         if st.session_state.get("_demo_loaded"):
             st.info("✅ 已載入範例資料，可直接計算，也可返回輸入頁修改。")
             st.session_state["_demo_loaded"] = False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: 免費內容入口
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🌐 免費內容入口":
+    from public_content.content_registry import (
+        get_public_content_catalog, get_public_page, list_public_pages, list_featured_pages,
+    )
+    from public_content.templates import (
+        render_public_page_markdown, render_public_page_excerpt,
+        render_public_catalog_markdown, render_public_catalog_html,
+    )
+    from public_content.exporters import (
+        export_public_page_html, export_public_page_markdown,
+        export_public_catalog_markdown, export_public_catalog_html,
+        safe_public_content_filename,
+    )
+
+    _catalog = get_public_content_catalog()
+
+    # ── A. Header ─────────────────────────────────────────────────────────────
+    st.title("🌐 免費內容入口")
+    st.caption("從星座、人類圖、合盤、紫微、八字開始，快速了解自己，再建立完整整合報告。")
+
+    # ── B. Featured cards ─────────────────────────────────────────────────────
+    _featured = list_featured_pages()
+    if _featured:
+        st.subheader("精選內容")
+        _fcols = st.columns(min(len(_featured), 3))
+        for _i, _fp in enumerate(_featured):
+            with _fcols[_i % 3]:
+                st.markdown(f"**{_fp.title}**")
+                if _fp.summary:
+                    st.caption(_fp.summary[:120] + ("…" if len(_fp.summary) > 120 else ""))
+                if _fp.tags:
+                    st.caption("標籤：" + " · ".join(_fp.tags))
+                if _fp.cta_button_label:
+                    if st.button(_fp.cta_button_label, key=f"feat_cta_{_fp.slug}"):
+                        st.session_state["nav_page"] = _fp.cta_target
+                        st.rerun()
+        st.divider()
+
+    # ── C. Category filter ────────────────────────────────────────────────────
+    _CAT_LABELS = {
+        "全部": None,
+        "星座": "zodiac",
+        "人類圖": "human_design",
+        "合盤": "compatibility",
+        "紫微": "ziwei",
+        "八字": "bazi",
+        "靈數": "numerology",
+        "指南": "guide",
+    }
+    _cat_choice = st.selectbox(
+        "分類篩選",
+        options=list(_CAT_LABELS.keys()),
+        key="public_content_cat_filter",
+    )
+    _filtered_pages = list_public_pages(category=_CAT_LABELS[_cat_choice])
+
+    # ── D. Page detail ────────────────────────────────────────────────────────
+    _page_titles = [p.title for p in _filtered_pages]
+    if _page_titles:
+        _selected_title = st.selectbox(
+            "選擇內容頁面",
+            options=_page_titles,
+            key="public_content_page_select",
+        )
+        _sel_page = next((p for p in _filtered_pages if p.title == _selected_title), None)
+        if _sel_page:
+            st.markdown(render_public_page_markdown(_sel_page))
+            # CTA navigation
+            if _sel_page.cta_button_label and _sel_page.cta_target:
+                if st.button(
+                    f"→ {_sel_page.cta_button_label}",
+                    key="public_content_cta_nav",
+                    type="primary",
+                ):
+                    st.session_state["nav_page"] = _sel_page.cta_target
+                    st.rerun()
+
+            # ── E. Export (developer mode only) ───────────────────────────────
+            if DEVELOPER_MODE:
+                from public_content.seo import validate_seo_data, build_meta_tags
+                st.divider()
+                st.subheader("開發者工具：SEO & 匯出")
+                # SEO warnings
+                _seo_warnings = validate_seo_data(_sel_page)
+                if _seo_warnings:
+                    st.warning("SEO warnings:\n" + "\n".join(f"- {w}" for w in _seo_warnings))
+                else:
+                    st.success("SEO 驗證通過")
+                # Meta tags preview
+                with st.expander("Meta Tags 預覽"):
+                    st.code(build_meta_tags(_sel_page), language="html")
+                # Download buttons
+                _md_content = export_public_page_markdown(_sel_page)
+                _html_content = export_public_page_html(_sel_page)
+                _dl1, _dl2 = st.columns(2)
+                with _dl1:
+                    st.download_button(
+                        "下載 Markdown",
+                        data=_md_content.encode("utf-8"),
+                        file_name=safe_public_content_filename(_sel_page.slug, "md"),
+                        mime="text/markdown",
+                    )
+                with _dl2:
+                    st.download_button(
+                        "下載 HTML",
+                        data=_html_content.encode("utf-8"),
+                        file_name=safe_public_content_filename(_sel_page.slug, "html"),
+                        mime="text/html",
+                    )
+                # Catalog export
+                st.divider()
+                st.caption("全目錄匯出")
+                _cat_md = export_public_catalog_markdown(_catalog)
+                _cat_html = export_public_catalog_html(_catalog)
+                _cl1, _cl2 = st.columns(2)
+                with _cl1:
+                    st.download_button(
+                        "下載全目錄 Markdown",
+                        data=_cat_md.encode("utf-8"),
+                        file_name="public_content_catalog.md",
+                        mime="text/markdown",
+                    )
+                with _cl2:
+                    st.download_button(
+                        "下載全目錄 HTML",
+                        data=_cat_html.encode("utf-8"),
+                        file_name="public_content_catalog.html",
+                        mime="text/html",
+                    )
+    else:
+        st.info("此分類目前沒有內容頁面。")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

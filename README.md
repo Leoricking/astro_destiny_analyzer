@@ -6,6 +6,57 @@
 
 ---
 
+## V1.9.5 更新說明 — Public Content Landing Pages
+
+### 免費內容入口：星座 / 人類圖 / 合盤 / 紫微 / 八字 / 靈數 / 整合指南
+
+本版新增「🌐 免費內容入口」頁面（客戶模式與開發者模式均可見），提供 SEO-friendly 的前台內容頁與導流 CTA。
+
+**新增功能：**
+
+| 功能 | 說明 |
+|------|------|
+| 免費內容入口 | 9 個公開內容頁，涵蓋星座、人類圖、合盤、紫微、八字、靈數、整合指南 |
+| 精選卡片 | 首頁顯示 3 張精選內容卡，含 title / summary / tags / CTA button |
+| 分類篩選 | 依星座 / 人類圖 / 合盤 / 紫微 / 八字 / 靈數 / 指南分類瀏覽 |
+| 頁面詳情 | Markdown 渲染頁面內容與 CTA 導流按鈕 |
+| SEO 工具（Dev） | validate_seo_data / build_meta_tags / SEO warnings（開發者模式限定） |
+| 匯出（Dev） | 單頁 Markdown / HTML 下載，全目錄 Markdown / HTML 下載 |
+
+**導流策略：**
+
+| 內容頁 | 導流目標 |
+|--------|----------|
+| 星座 / 八字 / 紫微 / 靈數 / 指南 | 📝 輸入資料 → 完整命盤報告 |
+| 合盤 | 💕 合盤分析 → 完整合盤報告 |
+| 人類圖 | 📝 輸入資料 → 完整人類圖報告 |
+
+**客戶模式 vs 開發者模式：**
+
+| 功能 | 客戶模式 | 開發者模式 |
+|------|----------|-----------|
+| 免費內容入口 | ✅ 可見 | ✅ 可見 |
+| 內容頁 / CTA | ✅ | ✅ |
+| SEO warnings | ❌ 不顯示 | ✅ 可見 |
+| Meta tags 預覽 | ❌ 不顯示 | ✅ 可見 |
+| 匯出 HTML / Markdown | ❌ 不顯示 | ✅ 可見 |
+
+**新增模組 `public_content/`：**
+
+- `models.py` — PublicContentPage / PublicContentSection / SEOData / PublicContentCatalog
+- `content_registry.py` — 9 個公開內容頁 + get_public_content_catalog / list_public_pages / list_featured_pages
+- `templates.py` — render_public_page_markdown / html / catalog / excerpt
+- `exporters.py` — export 函式 + safe_public_content_filename
+- `seo.py` — make_slug / validate_seo_data / build_meta_tags / check_forbidden_phrases
+
+**限制：**
+
+- 免費內容只做初步探索
+- 不做絕對命運斷語（一定成功 / 必然 / 保證 等均禁止）
+- 不取代完整報告
+
+---
+
 ## V1.9.4 更新說明 — Human Design External Case Import & Calibration Report Export
 
 ### 外部案例匯入 / 校準資料集 / 批次比對 / 報告匯出
