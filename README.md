@@ -6,6 +6,48 @@
 
 ---
 
+## V1.9.3 更新說明 — Human Design Exact Design Date & Gate Wheel Calibration
+
+### 人類圖精準設計日期 & Gate Wheel Offset 校準
+
+本版升級人類圖引擎（`human_design/engine.py`），將設計日期計算從「出生時間 −88 天近似值」升級為**精準 88° 太陽弧回推**，並新增 Gate Wheel Offset 校準功能。
+
+**新功能：**
+
+| 功能 | 說明 |
+|------|------|
+| Exact Solar Arc Design Date | 以 Swiss Ephemeris 搜尋太陽黃經剛好回退 88° 的時刻 |
+| Gate Wheel Offset | 可透過環境變數調整 I-Ching wheel 起點偏移量 |
+| Calibration Diagnostics | 人類圖校準頁新增 offset 模擬表與 solar arc 誤差顯示 |
+| Method Summary | 命盤頁人類圖 tab 顯示方法摘要（設計日期方法、offset、設計日期） |
+
+**新增環境變數（config.py）：**
+
+```
+HUMAN_DESIGN_DESIGN_DATE_METHOD=solar_arc_88   # 預設：精準太陽弧
+HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES=0.0     # 預設：無偏移
+HUMAN_DESIGN_ENABLE_OFFSET_DEBUG=0             # 開發者模式自動啟用
+```
+
+**搜尋演算法（三階段）：**
+1. Coarse：−100 至 −80 天，每 6 小時一步
+2. Refine：最佳候選 ±12 小時，每 1 小時一步
+3. Fine：最終 ±1 小時，每 10 分鐘一步
+- 目標精度：≤0.1° solar arc 誤差
+
+**新增模組：**
+- `human_design/calibration.py` — `simulate_gate_offset_for_activations()` 模擬工具
+- `human_design/engine.py` — `_calculate_design_datetime_solar_arc()`, `_angular_distance()`, `apply_gate_wheel_offset()`
+
+**HumanDesignChart 新欄位：**
+`design_date_method`, `design_date_fallback_used`, `design_solar_arc_target_longitude`,
+`design_solar_arc_actual_longitude`, `design_solar_arc_error_degrees`,
+`gate_wheel_offset_degrees`, `gate_wheel_version`, `calibration_notes`
+
+**config.py：**`APP_VERSION = "1.9.3"`
+
+---
+
 ## V1.9.2 更新說明 — Human Design External Chart Reconciliation
 
 ### 人類圖外部排盤校準工具

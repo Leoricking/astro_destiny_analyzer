@@ -1029,6 +1029,20 @@ elif page == "🔮 計算命盤":
                 st.markdown(f"**內在權威**：{hd.authority}")
                 st.markdown(f"**輪迴交叉**：{hd.incarnation_cross}")
 
+                # ── Method summary (V1.9.3) ────────────────────────────────────
+                _design_method_label = {
+                    "solar_arc_88": "精準太陽弧 88°",
+                    "minus_88_days": "近似 −88 天",
+                    "minus_88_days_fallback": "近似 −88 天（回退）",
+                }.get(getattr(hd, "design_date_method", ""), getattr(hd, "design_date_method", "─"))
+                _wheel_offset = getattr(hd, "gate_wheel_offset_degrees", 0.0)
+                _offset_label = f"{_wheel_offset:+.3f}°" if _wheel_offset != 0.0 else "無偏移（Phase 1 預設）"
+                st.caption(
+                    f"設計日期方法：{_design_method_label} ｜ "
+                    f"Gate Wheel Offset：{_offset_label} ｜ "
+                    f"設計日期：{hd.design_datetime or '─'}"
+                )
+
                 # ── Centers Visual Bundle ─────────────────────────────────────
                 from human_design.visuals import build_hd_visuals
                 _hd_bundle = build_hd_visuals(hd)
@@ -1110,6 +1124,19 @@ elif page == "🔮 計算命盤":
                         st.write(f"raw gate count: {len(hd.activated_gates)}")
                         st.write(f"validation_level: {_hd_vs.validation_level}")
                         st.write(f"ephemeris_status: {_hd_vs.ephemeris_status}")
+                        st.markdown("**V1.9.3 校準欄位**")
+                        st.write(f"design_date_method: {hd.design_date_method}")
+                        st.write(f"design_date_fallback_used: {hd.design_date_fallback_used}")
+                        if hd.design_solar_arc_target_longitude is not None:
+                            st.write(f"solar_arc_target_lon: {hd.design_solar_arc_target_longitude:.4f}°")
+                            st.write(f"solar_arc_actual_lon: {hd.design_solar_arc_actual_longitude:.4f}°")
+                            st.write(f"solar_arc_error: {hd.design_solar_arc_error_degrees:.4f}°")
+                        st.write(f"gate_wheel_offset: {hd.gate_wheel_offset_degrees:+.3f}°")
+                        st.write(f"gate_wheel_version: {hd.gate_wheel_version}")
+                        if hd.calibration_notes:
+                            st.markdown("**calibration_notes:**")
+                            for cn in hd.calibration_notes:
+                                st.write(f"- {cn}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2325,6 +2352,46 @@ elif page == "🔷 人類圖校準":
             f"**已定義通道**：{len(_hd_local.defined_channels)} 個  \n"
             f"**啟動閘門**：{len(_hd_local.activated_gates)} 個"
         )
+
+    # ── A2. Offset diagnostics (V1.9.3) ──────────────────────────────────────
+    with st.expander("🔬 Gate Wheel Offset 診斷", expanded=False):
+        from config import HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES, HUMAN_DESIGN_DESIGN_DATE_METHOD
+        _cur_offset = getattr(_hd_local, "gate_wheel_offset_degrees", 0.0)
+        _cur_method = getattr(_hd_local, "design_date_method", "unknown")
+        _solar_arc_err = getattr(_hd_local, "design_solar_arc_error_degrees", None)
+
+        st.markdown(f"**現行設定**：Design Date Method = `{HUMAN_DESIGN_DESIGN_DATE_METHOD}` ｜ Gate Wheel Offset = `{HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES:+.3f}°`")
+        st.markdown(f"**本機圖使用**：Method = `{_cur_method}` ｜ Offset = `{_cur_offset:+.3f}°`")
+        if _solar_arc_err is not None:
+            st.markdown(f"**Solar Arc 誤差**：{_solar_arc_err:.4f}°")
+            if _solar_arc_err > 0.1:
+                st.warning(f"⚠️ Solar arc 誤差 {_solar_arc_err:.4f}° 較大（>0.1°）。可能影響設計面閘門。")
+            else:
+                st.success(f"✅ Solar arc 誤差 {_solar_arc_err:.4f}° — 精準。")
+        else:
+            st.info("Solar arc 誤差未記錄（可能使用 mock fallback 或 minus-88-days 模式）。")
+
+        if _hd_local.design_activations:
+            st.markdown("**偏移模擬（Sun 黃經在不同 offset 下的閘門）**")
+            _sun_act = next((a for a in _hd_local.design_activations if "sun" in a.planet.lower()), None)
+            if _sun_act:
+                from human_design.calibration import simulate_gate_offset_for_activations
+                _offsets_to_test = [-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0]
+                _sim_results = simulate_gate_offset_for_activations(
+                    {"Design Sun": _sun_act.longitude},
+                    _offsets_to_test,
+                )
+                import pandas as _cal_pd
+                st.dataframe(_cal_pd.DataFrame(_sim_results), hide_index=True, use_container_width=True)
+                st.caption(
+                    "此表顯示 Design Sun 黃經在不同 Gate Wheel Offset 下的閘門分配。"
+                    "若外部排盤顯示不同閘門，可參考此表推算所需 offset。"
+                )
+
+        if getattr(_hd_local, "calibration_notes", []):
+            st.markdown("**校準備註**")
+            for _cn in _hd_local.calibration_notes:
+                st.write(f"- {_cn}")
 
     st.divider()
 

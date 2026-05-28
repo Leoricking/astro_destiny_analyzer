@@ -83,6 +83,7 @@ class HDReconciliationReport(BaseModel):
 
     local_accuracy_note: str = ""
     external_source_note: str = ""
+    method_info_note: str = ""
 
 
 # ── Display helpers ────────────────────────────────────────────────────────────

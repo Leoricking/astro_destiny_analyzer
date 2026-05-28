@@ -135,3 +135,40 @@ class TestRenderValidationMarkdown:
             or "MyBodyGraph" in all_notes
             or "external" in all_notes.lower()
         )
+
+
+# ── C. V1.9.3 new fields ──────────────────────────────────────────────────────
+
+class TestV193ValidationFields:
+    def test_status_has_design_date_method_field(self):
+        from human_design.validation import build_validation_status, HDValidationStatus
+        chart = _make_mock_chart()
+        status = build_validation_status(chart)
+        assert hasattr(status, "design_date_method")
+
+    def test_status_has_gate_wheel_offset_field(self):
+        from human_design.validation import build_validation_status
+        chart = _make_mock_chart()
+        status = build_validation_status(chart)
+        assert hasattr(status, "gate_wheel_offset_degrees")
+        assert isinstance(status.gate_wheel_offset_degrees, float)
+
+    def test_status_has_solar_arc_error_field(self):
+        from human_design.validation import build_validation_status
+        chart = _make_mock_chart()
+        status = build_validation_status(chart)
+        assert hasattr(status, "solar_arc_error_degrees")
+
+    def test_render_contains_method_info(self):
+        from human_design.validation import build_validation_status, render_validation_markdown
+        chart = _make_mock_chart()
+        status = build_validation_status(chart)
+        result = render_validation_markdown(status)
+        assert "方法資訊" in result
+
+    def test_render_contains_gate_wheel_offset_label(self):
+        from human_design.validation import build_validation_status, render_validation_markdown
+        chart = _make_mock_chart()
+        status = build_validation_status(chart)
+        result = render_validation_markdown(status)
+        assert "Gate Wheel Offset" in result

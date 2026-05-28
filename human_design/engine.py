@@ -1,15 +1,15 @@
 """
-Astro Destiny Analyzer — Human Design Engine (V1.9.0 MVP)
+Astro Destiny Analyzer — Human Design Engine (V1.9.3)
 
 Calculation flow:
   1. Conscious planets: birth datetime via Swiss Ephemeris
-  2. Design planets: birth datetime − 88 days (MVP approximation)
-  3. longitude → gate / line via I-Ching wheel
+  2. Design planets: exact 88° solar arc retrogression (with 88-day fallback)
+  3. longitude → gate / line via I-Ching wheel (with optional offset)
   4. Activated gates → defined channels → defined centers
   5. Type / Strategy / Authority / Profile / Incarnation Cross
 
 Accuracy notes:
-  - Design date uses birth_time − 88 days (not exact solar arc).
+  - Design date uses exact 88° solar arc when Swiss Ephemeris is available.
   - Gate wheel table is Phase 1 — external validation recommended.
   - birth_time_is_known=False → calculation_mode="partial"
 """
@@ -35,7 +35,7 @@ except ImportError:
     _swe = None
     _SWE_AVAILABLE = False
 
-from config import SWISSEPH_DATA_PATH, DEFAULT_TIMEZONE_OFFSET
+import config as _cfg
 
 # ── Planet mapping to Swiss Ephemeris IDs ─────────────────────────────────────
 _HD_PLANETS = [
@@ -66,12 +66,13 @@ _SIGN_NAMES = [
 
 # ── Gate / Line calculation ───────────────────────────────────────────────────
 
-def longitude_to_gate_line(longitude: float) -> Tuple[int, int]:
+def longitude_to_gate_line(longitude: float, offset_degrees: float = 0.0) -> Tuple[int, int]:
     """
     Convert ecliptic longitude (0–360) to (gate, line).
     gate_size = 360/64 = 5.625°, line_size = 5.625/6 = 0.9375°
+    offset_degrees shifts the wheel origin (positive = counterclockwise shift).
     """
-    lon = longitude % 360.0
+    lon = (longitude + offset_degrees) % 360.0
     gate_size = 360.0 / 64.0        # 5.625
     line_size = gate_size / 6.0     # 0.9375
     idx = int(lon / gate_size) % 64
@@ -79,6 +80,16 @@ def longitude_to_gate_line(longitude: float) -> Tuple[int, int]:
     raw_line = int((lon % gate_size) / line_size) + 1
     line = max(1, min(6, raw_line))
     return gate, line
+
+
+def apply_gate_wheel_offset(longitude: float, offset_degrees: float) -> float:
+    """Return adjusted longitude after applying gate wheel offset."""
+    return (longitude + offset_degrees) % 360.0
+
+
+def _angular_distance(a: float, b: float) -> float:
+    """Minimum angular distance between two longitudes (0–360 wrap-safe)."""
+    return abs((a - b + 180.0) % 360.0 - 180.0)
 
 
 def _longitude_to_sign(lon: float) -> str:
@@ -99,6 +110,87 @@ def _get_julian_day(dt: datetime, tz_offset: float) -> float:
     return _swe.julday(d.year, d.month, d.day, hour_ut)
 
 
+def _calculate_design_datetime_solar_arc(
+    birth_dt: datetime,
+    tz_offset: float,
+) -> Tuple[datetime, float, float, float]:
+    """
+    Find the design datetime by searching backwards from birth_dt until
+    the Sun's ecliptic longitude is exactly 88° less than at birth.
+
+    Returns (design_dt, target_longitude, actual_longitude, error_degrees).
+    Raises RuntimeError if Swiss Ephemeris is unavailable.
+    """
+    if not _SWE_AVAILABLE:
+        raise RuntimeError("Swiss Ephemeris unavailable")
+
+    if _cfg.SWISSEPH_DATA_PATH:
+        _swe.set_ephe_path(_cfg.SWISSEPH_DATA_PATH)
+
+    jd_birth = _get_julian_day(birth_dt, tz_offset)
+    birth_sun = _calc_planet_longitude(jd_birth, "Sun")
+    if birth_sun is None:
+        raise RuntimeError("Could not calculate birth Sun longitude")
+
+    target_lon = (birth_sun - 88.0) % 360.0
+
+    # Coarse search: 6-hour steps over -100 to -80 days
+    best_dt: Optional[datetime] = None
+    best_dist = float("inf")
+    step_hours = 6
+    start_offset_days = -100
+    end_offset_days = -80
+
+    current = birth_dt + timedelta(days=start_offset_days)
+    end_dt = birth_dt + timedelta(days=end_offset_days)
+    while current <= end_dt:
+        jd = _get_julian_day(current, tz_offset)
+        lon = _calc_planet_longitude(jd, "Sun")
+        if lon is not None:
+            dist = _angular_distance(lon, target_lon)
+            if dist < best_dist:
+                best_dist = dist
+                best_dt = current
+        current += timedelta(hours=step_hours)
+
+    if best_dt is None:
+        raise RuntimeError("Solar arc coarse search found no candidates")
+
+    # Refine: ±12 hours in 1-hour steps
+    refine_start = best_dt - timedelta(hours=12)
+    refine_end = best_dt + timedelta(hours=12)
+    current = refine_start
+    while current <= refine_end:
+        jd = _get_julian_day(current, tz_offset)
+        lon = _calc_planet_longitude(jd, "Sun")
+        if lon is not None:
+            dist = _angular_distance(lon, target_lon)
+            if dist < best_dist:
+                best_dist = dist
+                best_dt = current
+        current += timedelta(hours=1)
+
+    # Final fine pass: ±1 hour in 10-minute steps
+    final_start = best_dt - timedelta(hours=1)
+    final_end = best_dt + timedelta(hours=1)
+    current = final_start
+    while current <= final_end:
+        jd = _get_julian_day(current, tz_offset)
+        lon = _calc_planet_longitude(jd, "Sun")
+        if lon is not None:
+            dist = _angular_distance(lon, target_lon)
+            if dist < best_dist:
+                best_dist = dist
+                best_dt = current
+        current += timedelta(minutes=10)
+
+    jd_final = _get_julian_day(best_dt, tz_offset)
+    actual_lon = _calc_planet_longitude(jd_final, "Sun") or target_lon
+    error = _angular_distance(actual_lon, target_lon)
+
+    return best_dt, target_lon, actual_lon, error
+
+
 def _calc_planet_longitude(jd: float, planet_name: str) -> Optional[float]:
     """Return ecliptic longitude for a planet at given Julian Day."""
     if planet_name == "Earth":
@@ -117,13 +209,13 @@ def _calc_planet_longitude(jd: float, planet_name: str) -> Optional[float]:
         return None
 
 
-def _calc_all_planets(jd: float, side: str) -> List[HDPlanetActivation]:
+def _calc_all_planets(jd: float, side: str, offset_degrees: float = 0.0) -> List[HDPlanetActivation]:
     activations = []
     for planet in _HD_PLANETS:
         lon = _calc_planet_longitude(jd, planet)
         if lon is None:
             continue
-        gate, line = longitude_to_gate_line(lon)
+        gate, line = longitude_to_gate_line(lon, offset_degrees)
         sign = _longitude_to_sign(lon)
         gate_info = GATE_INFO.get(gate, {})
         interp = gate_info.get("interpretation", "")
@@ -143,7 +235,7 @@ def _calc_all_planets(jd: float, side: str) -> List[HDPlanetActivation]:
 
 # ── Mock layer ────────────────────────────────────────────────────────────────
 
-def _mock_activations(birth_date: date, side: str) -> List[HDPlanetActivation]:
+def _mock_activations(birth_date: date, side: str, offset_degrees: float = 0.0) -> List[HDPlanetActivation]:
     """Deterministic mock when swe not available."""
     import hashlib
     seed_str = f"{birth_date.isoformat()}{side}"
@@ -151,7 +243,7 @@ def _mock_activations(birth_date: date, side: str) -> List[HDPlanetActivation]:
     activations = []
     for i, planet in enumerate(_HD_PLANETS):
         lon = ((seed * (i + 1) * 37 + i * 53) % 36000) / 100.0
-        gate, line = longitude_to_gate_line(lon)
+        gate, line = longitude_to_gate_line(lon, offset_degrees)
         sign = _longitude_to_sign(lon)
         gate_info = GATE_INFO.get(gate, {})
         activations.append(HDPlanetActivation(
@@ -401,7 +493,7 @@ class HumanDesignEngine:
         tz_offset: float = (
             profile.birth_timezone_offset
             if profile.birth_timezone_offset is not None
-            else DEFAULT_TIMEZONE_OFFSET
+            else _cfg.DEFAULT_TIMEZONE_OFFSET
         )
         time_is_known: bool = getattr(profile, "birth_time_is_known", False) and birth_time_val is not None
 
@@ -413,7 +505,17 @@ class HumanDesignEngine:
         else:
             birth_dt = datetime(birth_date.year, birth_date.month, birth_date.day, 12, 0, 0)
 
-        design_dt = birth_dt - timedelta(days=88)
+        # ── Read calibration settings ─────────────────────────────────────────
+        design_method = _cfg.HUMAN_DESIGN_DESIGN_DATE_METHOD
+        wheel_offset = _cfg.HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES
+
+        # ── Design date calculation ───────────────────────────────────────────
+        design_dt = birth_dt - timedelta(days=88)   # fallback default
+        design_date_method_used = design_method
+        design_date_fallback_used = False
+        design_solar_arc_target: Optional[float] = None
+        design_solar_arc_actual: Optional[float] = None
+        design_solar_arc_error: Optional[float] = None
 
         accuracy_notes = []
         if not time_is_known:
@@ -422,32 +524,71 @@ class HumanDesignEngine:
                 "Type / Authority / Centers 可能出現偏差。"
             )
 
-        accuracy_notes.append(
-            "Design planets use MVP approximation: birth time minus 88 days. "
-            "Future versions may refine by exact solar arc."
-        )
-        accuracy_notes.append(
-            "Gate wheel uses Phase 1 I-Ching order table and should be externally validated."
+        if design_method == "solar_arc_88" and _SWE_AVAILABLE:
+            try:
+                if _cfg.SWISSEPH_DATA_PATH:
+                    _swe.set_ephe_path(_cfg.SWISSEPH_DATA_PATH)
+                design_dt, design_solar_arc_target, design_solar_arc_actual, design_solar_arc_error = (
+                    _calculate_design_datetime_solar_arc(birth_dt, tz_offset)
+                )
+                accuracy_notes.append(
+                    f"Design date: exact 88° solar arc (Sun target {design_solar_arc_target:.4f}°, "
+                    f"actual {design_solar_arc_actual:.4f}°, error {design_solar_arc_error:.4f}°)."
+                )
+            except Exception as exc:
+                design_date_fallback_used = True
+                design_date_method_used = "minus_88_days_fallback"
+                accuracy_notes.append(
+                    f"Solar arc search failed ({exc}); fell back to birth time − 88 days."
+                )
+        else:
+            if design_method == "solar_arc_88" and not _SWE_AVAILABLE:
+                design_date_fallback_used = True
+                design_date_method_used = "minus_88_days_fallback"
+                accuracy_notes.append(
+                    "Swiss Ephemeris unavailable; solar arc design date calculation skipped. "
+                    "Using birth time − 88 days fallback."
+                )
+            else:
+                accuracy_notes.append(
+                    "Design planets use minus-88-days approximation (method=minus_88_days)."
+                )
+
+        if wheel_offset != 0.0:
+            accuracy_notes.append(
+                f"Gate wheel offset applied: {wheel_offset:+.3f}°. "
+                "Gates may differ from Phase 1 default."
+            )
+        else:
+            accuracy_notes.append(
+                "Gate wheel uses Phase 1 I-Ching order table (no offset). "
+                "External validation recommended."
+            )
+
+        gate_wheel_version = (
+            f"phase1_i_ching_order_offset_{wheel_offset:+.3f}"
+            if wheel_offset != 0.0
+            else "phase1_i_ching_order_offset_0"
         )
 
         # ── Calculate planet activations ──────────────────────────────────────
         if _SWE_AVAILABLE:
-            if SWISSEPH_DATA_PATH:
-                _swe.set_ephe_path(SWISSEPH_DATA_PATH)
+            if _cfg.SWISSEPH_DATA_PATH:
+                _swe.set_ephe_path(_cfg.SWISSEPH_DATA_PATH)
             try:
                 jd_conscious = _get_julian_day(birth_dt, tz_offset)
                 jd_design = _get_julian_day(design_dt, tz_offset)
-                conscious = _calc_all_planets(jd_conscious, "conscious")
-                design = _calc_all_planets(jd_design, "design")
+                conscious = _calc_all_planets(jd_conscious, "conscious", wheel_offset)
+                design = _calc_all_planets(jd_design, "design", wheel_offset)
                 calc_mode = "swiss_ephemeris_phase1" if time_is_known else "partial"
             except Exception as exc:
                 accuracy_notes.append(f"Swiss Ephemeris error: {exc}. Using mock fallback.")
-                conscious = _mock_activations(birth_date, "conscious")
-                design = _mock_activations(design_dt.date(), "design")
+                conscious = _mock_activations(birth_date, "conscious", wheel_offset)
+                design = _mock_activations(design_dt.date(), "design", wheel_offset)
                 calc_mode = "mock_fallback"
         else:
-            conscious = _mock_activations(birth_date, "conscious")
-            design = _mock_activations(design_dt.date(), "design")
+            conscious = _mock_activations(birth_date, "conscious", wheel_offset)
+            design = _mock_activations(design_dt.date(), "design", wheel_offset)
             calc_mode = "mock_fallback" if time_is_known else "partial"
 
         # ── Build chart ───────────────────────────────────────────────────────
@@ -492,6 +633,16 @@ class HumanDesignEngine:
             )
         )
 
+        calibration_notes = []
+        if design_date_fallback_used:
+            calibration_notes.append(
+                f"Design date fallback: solar arc unavailable, used birth_dt − 88 days."
+            )
+        if wheel_offset != 0.0:
+            calibration_notes.append(
+                f"Gate wheel offset {wheel_offset:+.3f}° applied to all planet activations."
+            )
+
         return HumanDesignChart(
             calculation_mode=calc_mode,
             type_name=type_name,
@@ -515,6 +666,14 @@ class HumanDesignEngine:
             accuracy_note=" | ".join(accuracy_notes),
             design_datetime=design_dt.strftime("%Y-%m-%d %H:%M"),
             birth_datetime=birth_dt.strftime("%Y-%m-%d %H:%M"),
+            design_date_method=design_date_method_used,
+            design_date_fallback_used=design_date_fallback_used,
+            design_solar_arc_target_longitude=design_solar_arc_target,
+            design_solar_arc_actual_longitude=design_solar_arc_actual,
+            design_solar_arc_error_degrees=design_solar_arc_error,
+            gate_wheel_offset_degrees=wheel_offset,
+            gate_wheel_version=gate_wheel_version,
+            calibration_notes=calibration_notes,
         )
 
     def _fallback(self, profile, error_msg: str) -> HumanDesignChart:
@@ -541,4 +700,9 @@ class HumanDesignEngine:
             defined_centers=[],
             open_centers=list(CENTER_INFO.keys()),
             accuracy_note=f"計算失敗，使用空白 fallback。原因：{error_msg}",
+            design_date_method="minus_88_days_fallback",
+            design_date_fallback_used=True,
+            gate_wheel_offset_degrees=0.0,
+            gate_wheel_version="phase1_i_ching_order_offset_0",
+            calibration_notes=[f"Fallback chart: {error_msg}"],
         )

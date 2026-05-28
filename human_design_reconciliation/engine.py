@@ -207,6 +207,7 @@ class HumanDesignReconciliationEngine:
         items += self._compare_planets(
             local.design_activations, external.design_activations, "design_planets",
             is_design=True,
+            local_design_method=getattr(local, "design_date_method", "unknown"),
         )
 
         # ── Gates ─────────────────────────────────────────────────────────────
@@ -242,6 +243,17 @@ class HumanDesignReconciliationEngine:
 
         next_actions = self._build_next_actions(items)
 
+        # Build method info note
+        design_date_method = getattr(local, "design_date_method", "unknown")
+        wheel_offset = getattr(local, "gate_wheel_offset_degrees", 0.0)
+        solar_arc_error = getattr(local, "design_solar_arc_error_degrees", None)
+        method_parts = [f"Design Date Method: {design_date_method}"]
+        if wheel_offset != 0.0:
+            method_parts.append(f"Gate Wheel Offset: {wheel_offset:+.3f}°")
+        if solar_arc_error is not None:
+            method_parts.append(f"Solar Arc Error: {solar_arc_error:.4f}°")
+        method_info_note = " | ".join(method_parts)
+
         return HDReconciliationReport(
             overall_status=overall,
             match_count=match_count,
@@ -253,6 +265,7 @@ class HumanDesignReconciliationEngine:
             next_actions=next_actions,
             local_accuracy_note=getattr(local, "accuracy_note", ""),
             external_source_note=external.source_name,
+            method_info_note=method_info_note,
         )
 
     # ── Private comparison methods ─────────────────────────────────────────────
@@ -420,6 +433,7 @@ class HumanDesignReconciliationEngine:
         external_activations: list,
         category: str,
         is_design: bool = False,
+        local_design_method: str = "unknown",
     ) -> List[HDReconciliationItem]:
         items = []
         if not external_activations:
@@ -484,13 +498,28 @@ class HumanDesignReconciliationEngine:
                         suggestion="確認出生時間精確度；比對黃經計算結果。",
                     ))
             else:
-                design_note = (
-                    "Design side 差異常見原因：本機使用出生時間 −88 天（MVP 近似值），"
-                    "商業軟體多使用精準太陽弧（88° solar arc）回推設計日期。"
-                    "後續版本可升級為 exact solar arc 計算。"
-                    if is_design
-                    else "可能原因：I-Ching wheel order、黃經起點 offset、timezone 差異。"
-                )
+                if is_design:
+                    if local_design_method in ("solar_arc_88",):
+                        design_note = (
+                            "Design side 差異：本機已使用 exact 88° solar arc 計算設計日期。"
+                            "差異可能來自 I-Ching wheel offset、timezone、或外部軟體使用不同起點。"
+                        )
+                        design_suggestion = (
+                            "檢查 Gate Wheel 起點 offset（HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES）"
+                            "及 timezone 設定。"
+                        )
+                    else:
+                        design_note = (
+                            f"Design side 差異：本機使用 {local_design_method}（近似值），"
+                            "商業軟體多使用精準太陽弧（88° solar arc）回推設計日期。"
+                        )
+                        design_suggestion = (
+                            "設定 HUMAN_DESIGN_DESIGN_DATE_METHOD=solar_arc_88 以啟用精準設計日期計算。"
+                        )
+                else:
+                    design_note = "可能原因：I-Ching wheel order、黃經起點 offset、timezone 差異。"
+                    design_suggestion = "檢查 Gate Wheel 起點、timezone offset、出生時間精確度。"
+
                 items.append(HDReconciliationItem(
                     category=category, field=field_label,
                     local_value=local_str, external_value=ext_str,
@@ -498,11 +527,7 @@ class HumanDesignReconciliationEngine:
                     explanation=(
                         f"{planet_name} gate 不一致。{design_note}"
                     ),
-                    suggestion=(
-                        "檢查 Gate Wheel 起點、timezone offset、出生時間精確度。"
-                        if not is_design else
-                        "考慮升級為 exact 88° solar arc design date calculation。"
-                    ),
+                    suggestion=design_suggestion,
                 ))
         return items
 
@@ -659,7 +684,10 @@ class HumanDesignReconciliationEngine:
         if "gates" in categories_with_mismatch or "conscious_planets" in categories_with_mismatch:
             actions.append("檢查 I-Ching Wheel 起點偏移（Phase 1 wheel 需外部校準）")
         if "design_planets" in categories_with_mismatch:
-            actions.append("升級 Design Date 計算方式：從 88-day 近似改為 exact 88° solar arc")
+            actions.append(
+                "比對 Design Date 計算方式：確認本機使用 solar_arc_88 模式，"
+                "並檢查 HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES 設定"
+            )
         if "centers" in categories_with_mismatch or "channels" in categories_with_mismatch:
             actions.append("比對 channel table mapping 與 center 連接規則")
         if "type" in categories_with_mismatch or "authority" in categories_with_mismatch:

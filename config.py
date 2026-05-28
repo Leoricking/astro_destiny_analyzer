@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.9.2"
+APP_VERSION = "1.9.3"
 APP_SUBTITLE = "命盤整合分析系統"
 
 # ── Brand / Delivery settings ─────────────────────────────────────────────────
@@ -76,6 +76,17 @@ SWISSEPH_DATA_PATH: str = os.environ.get("SWISSEPH_DATA_PATH", "")
 DEFAULT_TIMEZONE: str = "Asia/Taipei"
 DEFAULT_TIMEZONE_OFFSET: int = 8          # hours ahead of UTC (Asia/Taipei = UTC+8)
 HOUSE_SYSTEM: bytes = b"P"               # P=Placidus; W=Whole Sign; K=Koch
+
+# Human Design calibration settings
+# Design date calculation method: "solar_arc_88" (exact) or "minus_88_days" (MVP approximation)
+HUMAN_DESIGN_DESIGN_DATE_METHOD: str = os.getenv("HUMAN_DESIGN_DESIGN_DATE_METHOD", "solar_arc_88")
+# Gate wheel offset in degrees (0.0 = default Phase 1 wheel, no offset applied)
+HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES: float = float(os.getenv("HUMAN_DESIGN_GATE_WHEEL_OFFSET_DEGREES", "0.0"))
+# Show gate offset diagnostics in developer UI
+HUMAN_DESIGN_ENABLE_OFFSET_DEBUG: bool = (
+    os.getenv("HUMAN_DESIGN_ENABLE_OFFSET_DEBUG", "0").strip().lower() in ("1", "true", "yes", "on")
+    or DEVELOPER_MODE
+)
 
 # Built-in Taiwan city location map
 # Keys are lowercase aliases; values: lat, lon, tz, utc_offset

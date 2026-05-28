@@ -38,6 +38,9 @@ def render_reconciliation_markdown(report: HDReconciliationReport) -> str:
     if report.local_accuracy_note:
         lines += [f"**本機準確度說明**：{report.local_accuracy_note}", ""]
 
+    if report.method_info_note:
+        lines += [f"**方法資訊**：{report.method_info_note}", ""]
+
     lines += ["---", ""]
 
     # ── Group items by category ────────────────────────────────────────────────

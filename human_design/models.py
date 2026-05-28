@@ -74,3 +74,12 @@ class HumanDesignChart(BaseModel):
     accuracy_note: str = ""
     design_datetime: Optional[str] = None
     birth_datetime: Optional[str] = None
+    # V1.9.3 calibration fields
+    design_date_method: str = "solar_arc_88"
+    design_date_fallback_used: bool = False
+    design_solar_arc_target_longitude: Optional[float] = None
+    design_solar_arc_actual_longitude: Optional[float] = None
+    design_solar_arc_error_degrees: Optional[float] = None
+    gate_wheel_offset_degrees: float = 0.0
+    gate_wheel_version: str = "phase1_i_ching_order_offset_0"
+    calibration_notes: List[str] = Field(default_factory=list)
