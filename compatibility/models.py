@@ -224,6 +224,50 @@ class AdvancedAstrologyCompatibility(BaseModel):
     accuracy_note: str = ""
 
 
+# ── V1.8.2: Visual Chart Data Models ─────────────────────────────────────────
+
+class RadarChartData(BaseModel):
+    labels: List[str] = Field(default_factory=list)
+    values: List[int] = Field(default_factory=list)
+    max_value: int = 100
+    title: str = "合盤互動雷達圖"
+    description: str = ""
+
+
+class AspectCategoryBarData(BaseModel):
+    categories: List[str] = Field(default_factory=list)
+    counts: List[int] = Field(default_factory=list)
+    strengths: List[int] = Field(default_factory=list)
+    title: str = "相位分類統計"
+    description: str = ""
+
+
+class AspectBalanceData(BaseModel):
+    harmony_count: int = 0
+    tension_count: int = 0
+    neutral_count: int = 0
+    harmony_percentage: float = 0.0
+    tension_percentage: float = 0.0
+    title: str = "和諧 / 張力相位比例"
+
+
+class CompositeDistributionData(BaseModel):
+    planets: List[str] = Field(default_factory=list)
+    signs: List[str] = Field(default_factory=list)
+    elements: Dict[str, int] = Field(default_factory=dict)
+    modalities: Dict[str, int] = Field(default_factory=dict)
+    title: str = "Composite Chart 元素分布"
+    description: str = ""
+
+
+class RelationshipVisualBundle(BaseModel):
+    radar: RadarChartData = Field(default_factory=RadarChartData)
+    aspect_categories: AspectCategoryBarData = Field(default_factory=AspectCategoryBarData)
+    aspect_balance: AspectBalanceData = Field(default_factory=AspectBalanceData)
+    composite_distribution: CompositeDistributionData = Field(default_factory=CompositeDistributionData)
+    summary: str = ""
+
+
 # ── Full Compatibility Report ─────────────────────────────────────────────────
 
 class CompatibilityReport(BaseModel):
@@ -242,4 +286,5 @@ class CompatibilityReport(BaseModel):
     blood_type: BloodTypeCompatibility = Field(default_factory=BloodTypeCompatibility)
     synthesis: CompatibilitySynthesis = Field(default_factory=CompatibilitySynthesis)
     advanced_astrology: Optional[AdvancedAstrologyCompatibility] = None
+    visuals: Optional[RelationshipVisualBundle] = None
     markdown_body: str = ""

@@ -641,6 +641,34 @@ def build_compatibility_markdown(report: "CompatibilityReport") -> str:
             "",
         ]
 
+    # ── V1.8.2 Visual Charts ─────────────────────────────────────────────────
+    vis = getattr(report, "visuals", None)
+    if vis is None and adv is not None:
+        try:
+            from compatibility.visuals import build_relationship_visuals
+            vis = build_relationship_visuals(adv)
+        except Exception:
+            vis = None
+
+    if vis is not None:
+        from compatibility.visuals import (
+            render_radar_markdown_table,
+            render_aspect_category_markdown_table,
+            render_aspect_balance_markdown_table,
+            render_composite_distribution_markdown_table,
+        )
+        lines += [
+            "## 合盤視覺化總覽",
+            "",
+            "> 衝突張力是互動強度的指標，不是壞分數。視覺圖表呈現互動模式，不代表適合度的絕對評分。",
+            "",
+        ]
+        lines.append(render_radar_markdown_table(vis.radar))
+        lines.append(render_aspect_balance_markdown_table(vis.aspect_balance))
+        lines.append(render_aspect_category_markdown_table(vis.aspect_categories))
+        lines.append(render_composite_distribution_markdown_table(vis.composite_distribution))
+        lines += ["### 視覺摘要", "", vis.summary, ""]
+
     # ── Red Flag & Safety Boundary ────────────────────────────────────────────
     lines += [
         "## 關係紅旗與安全界線",

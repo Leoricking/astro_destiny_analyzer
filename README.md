@@ -461,6 +461,22 @@ accuracy_note：V1.4 使用節氣近似日期切年切月；若需專業級精�
 - 宮干四化尚未實作（目前僅生年四化）
 - 流派差異（廟旺陷、星曜細節）後續版本處理
 
+### V1.8.2 — Relationship Report Visual Charts (2026-05-28)
+
+- 新增 `compatibility/visuals.py`：圖表資料模型 + build/render 函式
+- 新增視覺資料模型：`RadarChartData`, `AspectCategoryBarData`, `AspectBalanceData`, `CompositeDistributionData`, `RelationshipVisualBundle`
+- `CompatibilityReport` 新增 `visuals: Optional[RelationshipVisualBundle]`
+- `CompatibilityEngine.generate()` 自動 build visuals（失敗時 fallback 不 crash）
+- Markdown 報告新增「合盤視覺化總覽」章節：雷達圖表格、和諧/張力比例、相位分類統計、Composite 元素/模式分布
+- HTML export 包含視覺資料表（純 HTML table + CSS bar，無 JS / CDN，離線可用）
+- Word export 不 crash（視覺資料已在 markdown 中，文字版本）
+- Streamlit UI 新增 3 個視覺 tab：「視覺總覽」/ 「相位分類圖」/ 「Composite 分布圖」
+  - 視覺總覽：st.bar_chart 雷達替代方案 + 7 項分數 metric
+  - 相位分類圖：分類 bar_chart + 和諧/張力比例
+  - Composite 分布圖：元素/模式 bar_chart + 行星星座展開表
+- 不依賴外部 JS / CDN / plotly / matplotlib
+- 限制說明：視覺圖表是互動模式的輔助觀察，不是適合度的絕對評分
+
 ### V1.8.1 — Relationship Report UI Polish & UTF-8 Encoding Fix (2026-05-28)
 
 - Windows 中文編碼修正：run.bat / setup.bat 加入 `chcp 65001`, `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, `PYTHONLEGACYWINDOWSSTDIO=0`

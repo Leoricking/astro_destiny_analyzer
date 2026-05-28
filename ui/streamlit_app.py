@@ -1500,13 +1500,15 @@ elif page == "💕 合盤分析":
             sm7.metric("協作效能", sc.collaboration_score)
         st.caption("⚠️ 衝突分數高代表張力強，不代表關係不好。")
 
-        # Tabs (13 tabs, V1.8.0 adds advanced astrology)
+        # Tabs (16 tabs, V1.8.2 adds visual chart tabs)
         (tab_overview, tab_emo_comm, tab_attract, tab_conflict,
          tab_adv_astro, tab_synastry, tab_composite,
+         tab_visual_overview, tab_visual_aspects, tab_visual_composite,
          tab_astro, tab_bazi, tab_ziwei, tab_num_blood,
          tab_md, tab_export_tab) = st.tabs([
             "總覽", "情緒 / 溝通", "吸引力 / 合作", "衝突修復",
             "進階西洋合盤", "相位矩陣", "Composite 中點盤",
+            "視覺總覽", "相位分類圖", "Composite 分布圖",
             "西洋占星", "八字", "紫微", "靈數 / 血型",
             "報告原文", "匯出",
         ])
@@ -1731,6 +1733,97 @@ elif page == "💕 合盤分析":
                     with st.expander("完整行星表格"):
                         st.dataframe(_pd.DataFrame(_planet_data), use_container_width=True, hide_index=True)
                 st.caption(cc.accuracy_note)
+
+        # ── V1.8.2: Visual chart tabs ─────────────────────────────────────────
+        _vis = getattr(_cr, "visuals", None)
+        if _vis is None and _adv is not None:
+            try:
+                from compatibility.visuals import build_relationship_visuals as _bv
+                _vis = _bv(_adv)
+            except Exception:
+                _vis = None
+
+        with tab_visual_overview:
+            st.caption("衝突張力是互動強度的指標，不是壞分數。視覺圖表呈現互動模式，不代表適合度的絕對評分。")
+            if _vis is None:
+                st.info("視覺圖表需要進階合盤資料，目前不可用。")
+            else:
+                import pandas as _pd
+                _r = _vis.radar
+                _radar_df = _pd.DataFrame({
+                    "維度": _r.labels,
+                    "分數": _r.values,
+                })
+                st.subheader(_r.title)
+                st.bar_chart(_radar_df.set_index("維度"))
+                st.caption(_r.description)
+                st.divider()
+                _vc1, _vc2, _vc3, _vc4 = st.columns(4)
+                _vc1.metric("情緒連結", _r.values[0])
+                _vc2.metric("溝通理解", _r.values[1])
+                _vc3.metric("吸引力",   _r.values[2])
+                _vc4.metric("穩定度",   _r.values[3])
+                _vc5, _vc6, _vc7, _ = st.columns(4)
+                _vc5.metric("成長張力", _r.values[4])
+                _vc6.metric("衝突張力", _r.values[5])
+                _vc7.metric("長期潛力", _r.values[6])
+                st.divider()
+                st.markdown(f"**摘要：** {_vis.summary}")
+
+        with tab_visual_aspects:
+            st.caption("和諧相位代表自然流動，張力相位代表需要修復流程。")
+            if _vis is None:
+                st.info("相位分類圖需要進階合盤資料，目前不可用。")
+            else:
+                import pandas as _pd
+                _ac = _vis.aspect_categories
+                _ab = _vis.aspect_balance
+                _a1, _a2, _a3 = st.columns(3)
+                _a1.metric("和諧相位", _ab.harmony_count, f"{_ab.harmony_percentage}%")
+                _a2.metric("張力相位", _ab.tension_count, f"{_ab.tension_percentage}%")
+                _a3.metric("混合/其他", _ab.neutral_count)
+                st.divider()
+                _cat_df = _pd.DataFrame({
+                    "分類":     _ac.categories,
+                    "相位數":   _ac.counts,
+                    "平均強度": _ac.strengths,
+                })
+                st.subheader(_ac.title)
+                st.bar_chart(_cat_df.set_index("分類")["相位數"])
+                st.dataframe(_cat_df, use_container_width=True, hide_index=True)
+                st.caption(_ac.description)
+
+        with tab_visual_composite:
+            st.caption("Composite 分布用來觀察關係本身的共同場域，不代表任何一方個人命盤。")
+            if _vis is None:
+                st.info("Composite 分布圖需要進階合盤資料，目前不可用。")
+            else:
+                import pandas as _pd
+                _cd = _vis.composite_distribution
+                _cv1, _cv2 = st.columns(2)
+                with _cv1:
+                    st.subheader("元素分布")
+                    _elem_df = _pd.DataFrame({
+                        "元素": [f"{k}象" for k in _cd.elements.keys()],
+                        "行星數": list(_cd.elements.values()),
+                    })
+                    st.bar_chart(_elem_df.set_index("元素"))
+                    st.dataframe(_elem_df, use_container_width=True, hide_index=True)
+                with _cv2:
+                    st.subheader("星座模式")
+                    _mod_df = _pd.DataFrame({
+                        "模式": list(_cd.modalities.keys()),
+                        "行星數": list(_cd.modalities.values()),
+                    })
+                    st.bar_chart(_mod_df.set_index("模式"))
+                    st.dataframe(_mod_df, use_container_width=True, hide_index=True)
+                if _cd.planets:
+                    _planet_sign_df = _pd.DataFrame({
+                        "行星": _cd.planets,
+                        "星座": _cd.signs,
+                    })
+                    with st.expander("Composite 行星星座表"):
+                        st.dataframe(_planet_sign_df, use_container_width=True, hide_index=True)
 
         with tab_astro:
             ast = _cr.astrology

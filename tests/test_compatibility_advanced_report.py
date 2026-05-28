@@ -201,3 +201,28 @@ def test_word_export_no_crash_if_available(romantic_report):
         assert len(docx_bytes) > 0, "Word export 應產生非空 bytes"
     except RuntimeError:
         pytest.skip("python-docx 未安裝，跳過 Word export 測試")
+
+
+# ── 17–19. V1.8.2 Visual section checks ─────────────────────────────────────
+
+def test_markdown_contains_visual_section(romantic_report):
+    """markdown 包含視覺化章節（V1.8.2）"""
+    assert "合盤視覺化總覽" in romantic_report.markdown_body, \
+        "報告應包含「合盤視覺化總覽」"
+
+
+def test_html_export_contains_visual_section(romantic_report):
+    """HTML export 包含視覺化章節（V1.8.2）"""
+    from compatibility.exporters import export_compat_to_html
+    html = export_compat_to_html(romantic_report)
+    assert "合盤視覺化總覽" in html, "HTML export 應包含「合盤視覺化總覽」"
+
+
+def test_word_export_no_crash_with_visuals(romantic_report):
+    """Word export 含 visuals 時不 crash"""
+    try:
+        from compatibility.exporters import export_compat_to_docx
+        docx_bytes = export_compat_to_docx(romantic_report)
+        assert len(docx_bytes) > 0
+    except RuntimeError:
+        pytest.skip("python-docx 未安裝")

@@ -22,6 +22,7 @@ from compatibility.models import (
 )
 from compatibility.report import render_compatibility_report
 from compatibility.advanced_astrology import AdvancedAstrologyEngine
+from compatibility.visuals import build_relationship_visuals
 
 
 # ── Western element helpers ───────────────────────────────────────────────────
@@ -255,8 +256,16 @@ class CompatibilityEngine:
             wc_b = report_b.western_chart
             if wc_a is not None and wc_b is not None:
                 advanced_astrology = AdvancedAstrologyEngine().calculate(wc_a, wc_b)
-        except Exception as _adv_err:  # never crash the main flow
+        except Exception:  # never crash the main flow
             advanced_astrology = None
+
+        # V1.8.2: Visual chart data
+        visuals = None
+        if advanced_astrology is not None:
+            try:
+                visuals = build_relationship_visuals(advanced_astrology)
+            except Exception:
+                visuals = None
 
         report = CompatibilityReport(
             report_id=str(uuid.uuid4())[:8],
@@ -274,6 +283,7 @@ class CompatibilityEngine:
             blood_type=blood,
             synthesis=synthesis,
             advanced_astrology=advanced_astrology,
+            visuals=visuals,
         )
         report.markdown_body = render_compatibility_report(report)
         return report
