@@ -461,6 +461,15 @@ accuracy_note：V1.4 使用節氣近似日期切年切月；若需專業級精�
 - 宮干四化尚未實作（目前僅生年四化）
 - 流派差異（廟旺陷、星曜細節）後續版本處理
 
+### V1.7.7 — Zi Wei Multi-Case Regression & Accuracy Guardrails (2026-05-28)
+
+- 新增多案例回歸測試（5 種場景：Rossi golden / 不同時辰 / 不同年份 / 不同性別 / 未知時辰）
+- 防止 overfit Rossi：驗證命宮、主星、命主、身主、天馬、分數在多案例均合理
+- 新增紫微準確度護欄說明（不同流派、閏月、廟旺陷表可能差異）
+- 未知時辰 fallback：確認 partial_lunar_only 不誤標為 formal_layout_phase1
+- 未知性別 fallback：確認大限方向標示 unknown
+- UI / 報告加入流派差異提示
+
 ### V1.7.6 — Zi Wei Score Calibration & Explanation Polish (2026-05-28)
 
 - 紫微盤面結構支援度校準（Phase 1 calibrated v1）
