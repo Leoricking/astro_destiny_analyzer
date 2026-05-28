@@ -59,6 +59,11 @@ TEMPLATE_SHORT = _MACROS + """
 {{ section("生命靈數", report.numerology_chart.life_path_number | string ~ " — " ~ report.numerology_chart.life_path_description[:80] ~ "…") }}
 {% endif %}
 
+{% if report.human_design_chart %}
+{% set hd = report.human_design_chart %}
+{{ section("人類圖速覽", "**類型**：" ~ hd.type_name ~ "（" ~ hd.type_name_zh ~ "）\n\n**策略**：" ~ hd.strategy ~ "\n\n**角色**：" ~ hd.profile) }}
+{% endif %}
+
 ---
 *本報告由 Astro Destiny Analyzer 自動生成，僅供娛樂與自我探索。*
 """
@@ -128,6 +133,22 @@ TEMPLATE_STANDARD = _MACROS + """
 {% for elem, pct in report.bazi_chart.five_element_ratio.items() %}
 - {{ elem }}：{{ pct }}%（{{ report.bazi_chart.five_element_strength[elem] }}）
 {% endfor %}
+{% endif %}
+
+---
+
+{% if report.human_design_chart %}
+{% set hd = report.human_design_chart %}
+{{ section("人類圖 Human Design 摘要", "") }}
+| 項目 | 內容 |
+|------|------|
+| 類型 Type | {{ hd.type_name }}（{{ hd.type_name_zh }}） |
+| 策略 Strategy | {{ hd.strategy }} |
+| 內在權威 Authority | {{ hd.authority[:60] }}… |
+| 人生角色 Profile | {{ hd.profile }} |
+| 計算模式 | {{ hd.calculation_mode }} |
+
+> 人類圖需要精確出生時間，僅供自我探索參考，不代表絕對命運。
 {% endif %}
 
 ---
@@ -823,6 +844,144 @@ V1.7.7 已完成核心輔星、六煞、大限 Phase 1、命主、身主、天�
 {% endif %}
 
 ---
+
+{% if report.human_design_chart %}
+{% set hd = report.human_design_chart %}
+## 人類圖 Human Design
+
+> **重要說明**：人類圖需要精確出生時間；若出生時間不確定，Type / Authority / Centers 可能出現偏差。人類圖分析定位為自我探索與決策模式參考，不代表絕對命運，不構成醫療、法律或投資建議。
+
+### 一、類型 Type
+
+**{{ hd.type_name }}（{{ hd.type_name_zh }}）**
+
+{{ hd.decision_guidance }}
+
+---
+
+### 二、策略 Strategy
+
+{{ hd.strategy }}
+
+---
+
+### 三、內在權威 Authority
+
+{{ hd.authority }}
+
+---
+
+### 四、人生角色 Profile
+
+**{{ hd.profile }}**
+
+{% for advice in hd.growth_advice %}
+- {{ advice }}
+{% endfor %}
+
+---
+
+### 五、輪迴交叉 Incarnation Cross（初版）
+
+{{ hd.incarnation_cross }}
+
+---
+
+### 六、已定義中心
+
+{% set defined = hd.centers | selectattr("is_defined") | list %}
+{% if defined %}
+| 中心 | 主題 | 解讀 |
+|------|------|------|
+{% for c in defined %}
+| {{ c.name }} | {{ c.theme }} | {{ c.defined_interpretation }} |
+{% endfor %}
+{% else %}
+所有中心皆開放（反映者特質）。
+{% endif %}
+
+---
+
+### 七、開放中心與制約風險
+
+{% if hd.conditioning_risks %}
+{% for risk in hd.conditioning_risks %}
+- {{ risk }}
+{% endfor %}
+{% else %}
+無開放中心。
+{% endif %}
+
+---
+
+### 八、已啟動閘門
+
+{% if hd.activated_gates %}
+| Gate | 名稱 | 中心 | 啟動來源 |
+|------|------|------|----------|
+{% for g in hd.activated_gates %}
+| {{ g.gate }} | {{ g.name }} | {{ g.center }} | {{ g.side_sources | join(' + ') }} |
+{% endfor %}
+{% else %}
+無啟動閘門資料。
+{% endif %}
+
+---
+
+### 九、已定義通道
+
+{% if hd.defined_channels %}
+| 通道 | 名稱 | 連接中心 | 迴路 |
+|------|------|----------|------|
+{% for ch in hd.defined_channels %}
+| {{ ch.channel }} | {{ ch.name }} | {{ ch.centers[0] }} — {{ ch.centers[1] }} | {{ ch.circuit }} |
+{% endfor %}
+
+**通道解讀：**
+{% for ch in hd.defined_channels %}
+- **{{ ch.channel }}（{{ ch.name }}）**：{{ ch.interpretation }}
+{% endfor %}
+{% else %}
+無已定義通道（所有中心皆開放）。
+{% endif %}
+
+---
+
+### 十、Conscious 行星（意識面）
+
+| 行星 | 星座 | 黃經 | Gate | Line |
+|------|------|------|------|------|
+{% for act in hd.conscious_activations %}
+| {{ act.planet }} | {{ act.sign }} | {{ "%.2f"|format(act.longitude) }}° | {{ act.gate }} | {{ act.line }} |
+{% endfor %}
+
+---
+
+### 十一、Design 行星（設計面）
+
+| 行星 | 星座 | 黃經 | Gate | Line |
+|------|------|------|------|------|
+{% for act in hd.design_activations %}
+| {{ act.planet }} | {{ act.sign }} | {{ "%.2f"|format(act.longitude) }}° | {{ act.gate }} | {{ act.line }} |
+{% endfor %}
+
+---
+
+### 十二、決策建議
+
+{{ hd.energy_summary }}
+
+---
+
+### 十三、準確度說明
+
+**計算模式**：{{ hd.calculation_mode }}
+
+{{ hd.accuracy_note }}
+
+---
+{% endif %}
+
 *本報告由 Astro Destiny Analyzer v{{ version }} 自動生成。*
 *{{ report.created_at }}*
 """

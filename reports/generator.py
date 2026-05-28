@@ -17,6 +17,7 @@ from engines.ziwei import ZiWeiEngine
 from engines.blood_type import BloodTypeEngine
 from engines.numerology import NumerologyEngine
 from engines.synthesis import SynthesisEngine
+from human_design.engine import HumanDesignEngine
 from reports.templates import render_report
 from reports.markdown_exporter import MarkdownExporter
 from reports.html_exporter import HtmlExporter
@@ -32,6 +33,7 @@ class ReportGenerator:
         self._blood   = BloodTypeEngine()
         self._num     = NumerologyEngine()
         self._synth   = SynthesisEngine()
+        self._hd      = HumanDesignEngine()
         self._md      = MarkdownExporter()
         self._html    = HtmlExporter()
 
@@ -79,6 +81,12 @@ class ReportGenerator:
             numerology=numerology_chart,
         )
 
+        # ── Human Design ──────────────────────────────────────────────────────
+        try:
+            hd_chart = self._hd.calculate(profile)
+        except Exception:
+            hd_chart = None
+
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         report = FullReport(
@@ -89,6 +97,7 @@ class ReportGenerator:
             blood_type_analysis=blood_analysis,
             numerology_chart=numerology_chart,
             synthesis=synthesis,
+            human_design_chart=hd_chart,
             created_at=created_at,
         )
 

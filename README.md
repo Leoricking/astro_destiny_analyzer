@@ -6,6 +6,38 @@
 
 ---
 
+## V1.9.0 更新說明 — Human Design Chart MVP
+
+### 新增 Human Design 人類圖模組
+
+本版新增 Human Design MVP，整合至現有系統，所有報告匯出與 UI 均支援。
+
+**支援功能：**
+- Type / Strategy（類型 / 策略）
+- Authority（內在權威）
+- Profile（人生角色）
+- 9 大 Centers（已定義 / 開放）
+- 36 Channels（通道判斷）
+- 64 Gates（閘門啟動）
+- Conscious Personality Planets（意識面行星）
+- Design Planets（設計面行星）
+- Incarnation Cross 初版（輪迴交叉）
+
+**計算說明：**
+- 使用 Swiss Ephemeris 計算行星黃經
+- Design date = 出生時間 − 88 天（MVP 近似值，未來版本可改為精確太陽弧）
+- Gate wheel 為 Phase 1 I-Ching 輪序表，建議以外部軟體校準
+
+**⚠️ 限制與聲明：**
+- 需要精確出生時間；出生時間不確定時 Type / Authority / Centers 可能出現偏差
+- 人類圖分析定位為自我探索與決策模式參考，不代表絕對命運
+- 不構成醫療、法律或投資建議
+- Gate wheel Phase 1 需外部校準
+
+**config.py：**`APP_VERSION = "1.9.0"`
+
+---
+
 ## V1.8.4 更新說明 — Customer Delivery Mode & Branding Polish
 
 ### 客戶交付模式（Customer Delivery Mode）

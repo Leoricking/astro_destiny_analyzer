@@ -698,8 +698,8 @@ elif page == "🔮 計算命盤":
         st.divider()
         st.subheader("命盤速覽")
 
-        tab_w, tab_b, tab_z, tab_n = st.tabs(
-            ["🌟 西洋占星", "☯️ 八字", "🏮 紫微", "🔢 靈數"]
+        tab_w, tab_b, tab_z, tab_n, tab_hd = st.tabs(
+            ["🌟 西洋占星", "☯️ 八字", "🏮 紫微", "🔢 靈數", "🔷 人類圖"]
         )
 
         with tab_w:
@@ -1000,6 +1000,101 @@ elif page == "🔮 計算命盤":
             if nc:
                 render_numerology_card(nc)
                 st.markdown(f"**{nc.life_path_description}**")
+
+        with tab_hd:
+            hd = getattr(report, "human_design_chart", None)
+            if hd is None:
+                st.warning("人類圖資料尚未生成，請重新計算命盤。")
+            else:
+                # ── Summary cards ─────────────────────────────────────────────
+                import pandas as pd
+                st.caption(f"計算模式：{hd.calculation_mode}")
+                if "partial" in hd.calculation_mode or "mock" in hd.calculation_mode:
+                    st.warning("⚠️ 人類圖需要精確出生時間與 Swiss Ephemeris。目前結果僅供參考。")
+
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.metric("類型 Type", hd.type_name_zh)
+                with col2:
+                    st.metric("策略", hd.strategy)
+                with col3:
+                    st.metric("人生角色", hd.profile)
+                with col4:
+                    st.metric("已定義中心", len(hd.defined_centers))
+                with col5:
+                    st.metric("通道數", len(hd.defined_channels))
+
+                st.markdown(f"**內在權威**：{hd.authority}")
+                st.markdown(f"**輪迴交叉**：{hd.incarnation_cross}")
+
+                # ── Centers ───────────────────────────────────────────────────
+                st.subheader("九大中心")
+                if hd.centers:
+                    from human_design.constants import CENTER_INFO as _HD_CENTER_INFO
+                    center_rows = []
+                    for c in hd.centers:
+                        zh = _HD_CENTER_INFO.get(c.name, {}).get("zh", c.name)
+                        status = "✅ 已定義" if c.is_defined else "⬜ 開放"
+                        interp = c.defined_interpretation if c.is_defined else c.open_interpretation
+                        center_rows.append({"中心": f"{zh} ({c.name})", "狀態": status,
+                                            "主題": c.theme, "解讀": interp})
+                    st.dataframe(pd.DataFrame(center_rows), hide_index=True, use_container_width=True)
+
+                # ── Channels ──────────────────────────────────────────────────
+                if hd.defined_channels:
+                    st.subheader("已定義通道")
+                    ch_rows = [{"通道": ch.channel, "名稱": ch.name,
+                                "連接中心": f"{ch.centers[0]} — {ch.centers[1]}",
+                                "迴路": ch.circuit, "解讀": ch.interpretation}
+                               for ch in hd.defined_channels]
+                    st.dataframe(pd.DataFrame(ch_rows), hide_index=True, use_container_width=True)
+                else:
+                    st.info("目前無已定義通道（所有中心皆開放）。")
+
+                # ── Activated Gates ───────────────────────────────────────────
+                with st.expander(f"已啟動閘門（{len(hd.activated_gates)} 個）"):
+                    if hd.activated_gates:
+                        gate_rows = [{"Gate": g.gate, "名稱": g.name, "中心": g.center,
+                                      "來源": " + ".join(g.side_sources)}
+                                     for g in hd.activated_gates]
+                        st.dataframe(pd.DataFrame(gate_rows), hide_index=True, use_container_width=True)
+
+                # ── Planet tables ─────────────────────────────────────────────
+                col_c, col_d = st.columns(2)
+                with col_c:
+                    st.subheader("Conscious 行星（意識面）")
+                    if hd.conscious_activations:
+                        rows = [{"行星": a.planet, "星座": a.sign,
+                                 "黃經": f"{a.longitude:.2f}°",
+                                 "Gate": a.gate, "Line": a.line}
+                                for a in hd.conscious_activations]
+                        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+                with col_d:
+                    st.subheader("Design 行星（設計面）")
+                    if hd.design_activations:
+                        rows = [{"行星": a.planet, "星座": a.sign,
+                                 "黃經": f"{a.longitude:.2f}°",
+                                 "Gate": a.gate, "Line": a.line}
+                                for a in hd.design_activations]
+                        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+                # ── Decision guidance ─────────────────────────────────────────
+                with st.expander("決策建議與能量摘要"):
+                    st.markdown(hd.energy_summary)
+                    if hd.conditioning_risks:
+                        st.markdown("**制約風險（開放中心）：**")
+                        for r in hd.conditioning_risks:
+                            st.markdown(f"- {r}")
+
+                # ── Developer debug ───────────────────────────────────────────
+                if DEVELOPER_MODE:
+                    with st.expander("🔧 開發者：HD Debug"):
+                        st.write(f"設計日期：{hd.design_datetime}")
+                        st.write(f"出生日期：{hd.birth_datetime}")
+                        st.write(f"accuracy_note：{hd.accuracy_note}")
+                        st.write(f"defined_centers: {hd.defined_centers}")
+                        st.write(f"open_centers: {hd.open_centers}")
+                        st.write(f"raw gate count: {len(hd.activated_gates)}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

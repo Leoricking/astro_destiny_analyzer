@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.8.4"
+APP_VERSION = "1.9.0"
 APP_SUBTITLE = "命盤整合分析系統"
 
 # ── Brand / Delivery settings ─────────────────────────────────────────────────

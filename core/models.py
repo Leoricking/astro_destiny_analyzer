@@ -405,5 +405,6 @@ class FullReport(BaseModel):
     blood_type_analysis: Optional[BloodTypeAnalysis] = None
     numerology_chart: Optional[NumerologyChart] = None
     synthesis: Optional[SynthesisResult] = None
+    human_design_chart: Optional[object] = None   # HumanDesignChart — imported lazily to avoid circular import
     created_at: Optional[str] = None
     report_id: Optional[int] = None
