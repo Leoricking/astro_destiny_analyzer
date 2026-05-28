@@ -19,7 +19,7 @@ from datetime import date, time
 from core.database import init_db
 init_db()
 
-from config import APP_NAME, APP_SUBTITLE, APP_VERSION, TAIWAN_CITY_DISPLAY_NAMES, lookup_location
+from config import APP_NAME, APP_SUBTITLE, APP_VERSION, TAIWAN_CITY_DISPLAY_NAMES, lookup_location, DEVELOPER_MODE
 from core.models import (
     BirthProfile, Gender, BloodType, AnalysisTheme,
     ReportLanguage, ReportLength,
@@ -49,11 +49,17 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-_PAGES = [
+_PAGES_BASE = [
+    "🏠 首頁", "📝 輸入資料", "🔮 計算命盤",
+    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
+    "⚙️ 設定",
+]
+_PAGES_DEV = [
     "🏠 首頁", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
     "🧭 紫微校準", "⚙️ 設定",
 ]
+_PAGES = _PAGES_DEV if DEVELOPER_MODE else _PAGES_BASE
 
 _DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
 
@@ -293,6 +299,10 @@ if "_pending_nav_page" in st.session_state:
     _pending_page = st.session_state.pop("_pending_nav_page")
     if _pending_page in _PAGES:
         st.session_state["nav_page"] = _pending_page
+
+# Guard: if a stale session has nav_page pointing to a dev-only page, reset to home.
+if not DEVELOPER_MODE and st.session_state.get("nav_page") == "🧭 紫微校準":
+    st.session_state["nav_page"] = "🏠 首頁"
 
 
 # ── Sidebar Navigation ────────────────────────────────────────────────────────
@@ -1175,7 +1185,10 @@ elif page == "📤 匯出":
         else:
             st.button("📘 Word（未安裝）", disabled=True,
                       use_container_width=True)
-            st.info("需安裝 python-docx：`pip install python-docx`")
+            st.warning(
+                "需安裝 python-docx：請執行 `setup.bat` 或 "
+                "`.venv\\Scripts\\python -m pip install -r requirements.txt`"
+            )
 
     with col4:
         st.markdown("**PDF**")
@@ -1199,9 +1212,9 @@ elif page == "📤 匯出":
             st.button("📕 PDF（未安裝）", disabled=True,
                       use_container_width=True)
             st.info(
-                "需安裝 WeasyPrint：`pip install weasyprint`\n\n"
-                "Windows 可能需要額外系統依賴（GTK / Pango）。\n"
-                "建議優先使用 HTML 或 Word 格式交付。"
+                "PDF 需要 WeasyPrint；Windows 可能需要 GTK/Pango。\n\n"
+                "建議先用 **HTML** 或 **Word** 交付。\n\n"
+                "若要啟用 PDF：執行 `install_pdf_support.bat` 或 `pip install weasyprint`"
             )
 
 
@@ -1939,6 +1952,14 @@ elif page == "💕 合盤分析":
 # PAGE: 紫微校準
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "🧭 紫微校準":
+    if not DEVELOPER_MODE:
+        st.warning("此頁面僅開發人員模式可用。")
+        st.info(
+            "若為開發者，請以開發者模式啟動：\n\n"
+            "**Windows CMD：** `set ASTRO_DEVELOPER_MODE=1` 後執行 `run_dev.bat`\n\n"
+            "**PowerShell：** `$env:ASTRO_DEVELOPER_MODE=\"1\"` 後執行 `run_dev.bat`"
+        )
+        st.stop()
     st.title("🧭 紫微外部排盤校準")
     st.caption(
         "此工具用於將本系統紫微盤與外部網站 / 人工排盤逐項比對，"

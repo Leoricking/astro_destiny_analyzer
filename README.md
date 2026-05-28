@@ -6,6 +6,67 @@
 
 ---
 
+## V1.8.3 更新說明
+
+### 開發者模式（客戶版預設隱藏紫微校準）
+
+客戶版預設不顯示「🧭 紫微校準」頁面。開發者可透過以下方式啟用：
+
+**Windows CMD：**
+```bat
+set ASTRO_DEVELOPER_MODE=1
+run_dev.bat
+```
+
+**PowerShell：**
+```powershell
+$env:ASTRO_DEVELOPER_MODE="1"
+.\run_dev.bat
+```
+
+或直接雙擊 `run_dev.bat`（已內建 `ASTRO_DEVELOPER_MODE=1`）。
+
+### 一鍵安裝與啟動
+
+| 腳本 | 用途 |
+|---|---|
+| `setup.bat` | 一鍵建立 `.venv` 並安裝所有必要套件 |
+| `run.bat` | 一鍵啟動（客戶版，不含紫微校準） |
+| `run_dev.bat` | 開發者模式啟動（含紫微校準） |
+| `install_pdf_support.bat` | 安裝 PDF 匯出支援（WeasyPrint，選用） |
+
+### Word 匯出
+
+`python-docx` 為必要依賴，已包含於 `requirements.txt`。
+執行 `setup.bat` 後 Word 匯出應自動可用，無需額外安裝。
+
+### PDF 匯出（選用）
+
+PDF 匯出需要 WeasyPrint，**不**包含於預設依賴中：
+
+```bat
+install_pdf_support.bat
+```
+
+或手動安裝：
+
+```bash
+pip install weasyprint
+```
+
+> **Windows 注意：** WeasyPrint 在 Windows 上可能需要 GTK / Pango 系統依賴。  
+> 建議交付時優先使用 **HTML**（最穩定）或 **Word**（可編修），PDF 留給有完整環境的使用者。
+
+### 推薦匯出格式
+
+| 格式 | 推薦場景 |
+|---|---|
+| HTML | 最穩定，跨平台，無需額外套件 |
+| Word | 可人工調整排版，適合交付客戶 |
+| PDF | 需 WeasyPrint + GTK/Pango，適合有完整環境者 |
+
+---
+
 ## 1. 專案簡介
 
 Astro Destiny Analyzer 是一套結合多種命理與人格敘事系統的整合分析工具。

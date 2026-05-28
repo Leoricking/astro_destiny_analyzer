@@ -168,3 +168,74 @@ class TestReadmeLauncher:
 
     def test_mentions_one_click(self, readme):
         assert "一鍵" in readme or "double" in readme.lower() or "雙擊" in readme
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# F. V1.8.3 — Encoding settings in launchers
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestEncodingSettings:
+    def test_run_bat_has_pythonutf8(self):
+        assert "PYTHONUTF8" in _read("run.bat")
+
+    def test_run_bat_has_pythonioencoding(self):
+        assert "PYTHONIOENCODING" in _read("run.bat")
+
+    def test_run_bat_no_developer_mode_flag(self):
+        assert "ASTRO_DEVELOPER_MODE=1" not in _read("run.bat")
+
+    def test_setup_bat_has_pythonutf8(self):
+        assert "PYTHONUTF8" in _read("setup.bat")
+
+    def test_setup_bat_has_pythonioencoding(self):
+        assert "PYTHONIOENCODING" in _read("setup.bat")
+
+    def test_setup_bat_has_success_message(self):
+        content = _read("setup.bat")
+        assert "安裝完成" in content and "run.bat" in content
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# G. V1.8.3 — run_dev.bat
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestRunDevBat:
+    def test_run_dev_bat_exists(self):
+        assert os.path.isfile(os.path.join(PROJECT_ROOT, "run_dev.bat"))
+
+    def test_run_dev_bat_has_developer_mode(self):
+        assert "ASTRO_DEVELOPER_MODE=1" in _read("run_dev.bat")
+
+    def test_run_dev_bat_has_pythonutf8(self):
+        assert "PYTHONUTF8" in _read("run_dev.bat")
+
+    def test_run_dev_bat_has_pythonioencoding(self):
+        assert "PYTHONIOENCODING" in _read("run_dev.bat")
+
+    def test_run_dev_bat_references_streamlit(self):
+        assert "streamlit run" in _read("run_dev.bat")
+
+    def test_run_dev_bat_has_dev_mode_title(self):
+        assert "DEV" in _read("run_dev.bat").upper()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# H. V1.8.3 — install_pdf_support.bat
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestInstallPdfSupportBat:
+    def test_exists(self):
+        assert os.path.isfile(os.path.join(PROJECT_ROOT, "install_pdf_support.bat"))
+
+    def test_references_weasyprint(self):
+        assert "weasyprint" in _read("install_pdf_support.bat").lower()
+
+    def test_has_encoding_settings(self):
+        assert "PYTHONUTF8" in _read("install_pdf_support.bat")
+
+    def test_has_failure_message(self):
+        content = _read("install_pdf_support.bat")
+        assert "GTK" in content or "Pango" in content
+
+    def test_has_venv_check(self):
+        assert ".venv" in _read("install_pdf_support.bat")

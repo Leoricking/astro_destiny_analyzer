@@ -57,15 +57,20 @@ def main() -> int:
         if _check_import(import_name):
             print(f"[OK]   {display_name}")
         else:
-            print(f"[FAIL] {display_name} not installed — run: pip install -r requirements.txt")
+            print(f"[FAIL] {display_name} not installed")
+            if display_name == "python-docx":
+                print("       Word 匯出需要 python-docx：請執行 setup.bat 或")
+                print("       .venv\\Scripts\\python -m pip install -r requirements.txt")
+            else:
+                print("       請執行 setup.bat 或 .venv\\Scripts\\python -m pip install -r requirements.txt")
             errors += 1
 
     # ── Optional packages ─────────────────────────────────────────────────────
     if _check_import("weasyprint"):
         print("[OK]   weasyprint (PDF export enabled)")
     else:
-        print("[WARN] weasyprint not installed; PDF export disabled")
-        print("       To enable PDF export: pip install weasyprint")
+        print("[WARN] weasyprint not installed (optional) — PDF export disabled")
+        print("       PDF 為 optional，可使用 HTML / Word，或執行 install_pdf_support.bat")
 
     # ── Directories ───────────────────────────────────────────────────────────
     # Resolve project root as the parent of this script's directory

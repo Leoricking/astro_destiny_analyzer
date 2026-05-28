@@ -11,8 +11,15 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.8.2"
+APP_VERSION = "1.8.3"
 APP_SUBTITLE = "命盤整合分析系統"
+
+# Developer mode — hides developer-only tools (e.g. 紫微校準) from the client-facing UI.
+# Enable via environment variable:   set ASTRO_DEVELOPER_MODE=1   (Windows CMD)
+#                                     $env:ASTRO_DEVELOPER_MODE="1"  (PowerShell)
+DEVELOPER_MODE: bool = os.getenv("ASTRO_DEVELOPER_MODE", "0").strip().lower() in (
+    "1", "true", "yes", "on"
+)
 
 DISCLAIMER_ZH = """
 本系統定位為「自我探索與娛樂型命盤分析工具」。
