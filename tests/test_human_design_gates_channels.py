@@ -186,3 +186,28 @@ class TestTypeDetermination:
         from human_design.engine import _determine_type
         t, _ = _determine_type({"Ajna", "G"}, [])
         assert t == "Projector"
+
+
+# ── H. CENTER_INFO completeness (V1.9.1) ─────────────────────────────────────
+
+class TestCenterInfo:
+    def test_center_info_has_9_entries(self):
+        from human_design.constants import CENTER_INFO
+        assert len(CENTER_INFO) == 9
+
+    def test_center_info_has_zh_names(self):
+        from human_design.constants import CENTER_INFO
+        for name, info in CENTER_INFO.items():
+            assert "zh" in info and info["zh"], f"CENTER_INFO[{name}] missing 'zh'"
+
+    def test_center_info_has_defined_interpretation(self):
+        from human_design.constants import CENTER_INFO
+        for name, info in CENTER_INFO.items():
+            assert "defined_interpretation" in info and info["defined_interpretation"], \
+                f"CENTER_INFO[{name}] missing 'defined_interpretation'"
+
+    def test_center_info_has_open_interpretation(self):
+        from human_design.constants import CENTER_INFO
+        for name, info in CENTER_INFO.items():
+            assert "open_interpretation" in info and info["open_interpretation"], \
+                f"CENTER_INFO[{name}] missing 'open_interpretation'"

@@ -6,6 +6,32 @@
 
 ---
 
+## V1.9.1 更新說明 — Human Design 報告深化與外部校準說明
+
+### 新增模組
+
+- **`human_design/validation.py`** — `HDValidationStatus`、`build_validation_status()`、`render_validation_markdown()`
+  - 涵蓋 Gate Table 狀態、Channel Table 狀態、Design Date 方法、Ephemeris 來源、校準建議
+- **`human_design/visuals.py`** — `HDCenterVisual`、`HDVisualBundle`、`build_hd_visuals()`、`render_centers_markdown_table()`、`render_centers_html()`
+  - 固定 9 中心顯示順序（頭部→根部），提供 Markdown 與 HTML 兩種輸出
+- **`human_design/templates.py`** — 各 Type / Authority / Profile 深度敘事文本、`render_hd_full_narrative()`
+  - 完整 12 節 Markdown HD 章節，整合 visuals 與 validation
+
+### 報告整合
+
+- `reports/templates.py` TEMPLATE_FULL：HD 章節改由 `render_hd_full_narrative()` 產生，包含更豐富的類型解讀、權威說明、中心視覺表格與校準章節
+- `ui/streamlit_app.py` HD Tab：新增 Centers 視覺化總覽（使用 `build_hd_visuals()`）、準確度與外部校準說明 expander、DEVELOPER_MODE 增強 debug（含 validation_level / ephemeris_status）
+
+### 新增測試
+
+- `tests/test_human_design_validation.py` — 10 tests
+- `tests/test_human_design_visuals.py` — 10 tests
+- 更新 `test_human_design_report.py`、`test_human_design_ui.py`、`test_human_design_gates_channels.py`
+
+**config.py：**`APP_VERSION = "1.9.1"`
+
+---
+
 ## V1.9.0 更新說明 — Human Design Chart MVP
 
 ### 新增 Human Design 人類圖模組

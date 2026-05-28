@@ -1027,17 +1027,22 @@ elif page == "🔮 計算命盤":
                 st.markdown(f"**內在權威**：{hd.authority}")
                 st.markdown(f"**輪迴交叉**：{hd.incarnation_cross}")
 
-                # ── Centers ───────────────────────────────────────────────────
+                # ── Centers Visual Bundle ─────────────────────────────────────
+                from human_design.visuals import build_hd_visuals
+                _hd_bundle = build_hd_visuals(hd)
                 st.subheader("九大中心")
-                if hd.centers:
-                    from human_design.constants import CENTER_INFO as _HD_CENTER_INFO
-                    center_rows = []
-                    for c in hd.centers:
-                        zh = _HD_CENTER_INFO.get(c.name, {}).get("zh", c.name)
-                        status = "✅ 已定義" if c.is_defined else "⬜ 開放"
-                        interp = c.defined_interpretation if c.is_defined else c.open_interpretation
-                        center_rows.append({"中心": f"{zh} ({c.name})", "狀態": status,
-                                            "主題": c.theme, "解讀": interp})
+                st.caption(_hd_bundle.summary)
+                if _hd_bundle.centers:
+                    center_rows = [
+                        {
+                            "中心": f"{v.center_zh}（{v.center}）",
+                            "狀態": "✅ 已定義" if v.is_defined else "⬜ 開放",
+                            "主題": v.theme,
+                            "啟動閘門": ", ".join(str(g) for g in v.active_gates) if v.active_gates else "─",
+                            "解讀": v.interpretation_short,
+                        }
+                        for v in _hd_bundle.centers
+                    ]
                     st.dataframe(pd.DataFrame(center_rows), hide_index=True, use_container_width=True)
 
                 # ── Channels ──────────────────────────────────────────────────
@@ -1086,6 +1091,12 @@ elif page == "🔮 計算命盤":
                         for r in hd.conditioning_risks:
                             st.markdown(f"- {r}")
 
+                # ── Validation ────────────────────────────────────────────────
+                from human_design.validation import build_validation_status, render_validation_markdown
+                _hd_vs = build_validation_status(hd)
+                with st.expander("準確度與外部校準說明"):
+                    st.markdown(render_validation_markdown(_hd_vs))
+
                 # ── Developer debug ───────────────────────────────────────────
                 if DEVELOPER_MODE:
                     with st.expander("🔧 開發者：HD Debug"):
@@ -1095,6 +1106,8 @@ elif page == "🔮 計算命盤":
                         st.write(f"defined_centers: {hd.defined_centers}")
                         st.write(f"open_centers: {hd.open_centers}")
                         st.write(f"raw gate count: {len(hd.activated_gates)}")
+                        st.write(f"validation_level: {_hd_vs.validation_level}")
+                        st.write(f"ephemeris_status: {_hd_vs.ephemeris_status}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -162,3 +162,59 @@ class TestHDChartInReport:
 
     def test_hd_chart_centers_count(self, full_report):
         assert len(full_report.human_design_chart.centers) == 9
+
+
+# ── F. V1.9.1 Narrative & Validation in report ────────────────────────────────
+
+class TestHDNarrativeInReport:
+    def test_markdown_contains_validation_section(self, markdown_text):
+        assert "人類圖準確度" in markdown_text
+
+    def test_markdown_contains_type_narrative(self, markdown_text):
+        assert "類型解讀" in markdown_text or "能量運作方式" in markdown_text
+
+    def test_markdown_contains_authority_narrative(self, markdown_text):
+        assert "內在權威" in markdown_text
+
+    def test_markdown_contains_profile_narrative(self, markdown_text):
+        assert "人生角色" in markdown_text
+
+    def test_markdown_contains_centers_table(self, markdown_text):
+        assert "已定義" in markdown_text or "開放" in markdown_text
+
+    def test_markdown_contains_incarnation_cross(self, markdown_text):
+        assert "輪迴交叉" in markdown_text
+
+    def test_hd_narrative_render_does_not_crash(self, full_report):
+        from human_design.templates import render_hd_full_narrative
+        result = render_hd_full_narrative(full_report.human_design_chart)
+        assert isinstance(result, str)
+        assert len(result) > 100
+
+    def test_hd_narrative_contains_overview_table(self, full_report):
+        from human_design.templates import render_hd_full_narrative
+        result = render_hd_full_narrative(full_report.human_design_chart)
+        assert "人類圖總覽" in result
+
+    def test_full_report_null_hd_narrative_skipped(self):
+        from core.models import (
+            BirthProfile, AnalysisTheme, ReportLanguage, ReportLength,
+        )
+        from reports.generator import ReportGenerator
+        from reports.templates import render_report
+        from datetime import date, time
+        p = BirthProfile(
+            name="NoHDNarrative",
+            birth_date=date(1990, 1, 1),
+            birth_time=time(12, 0),
+            birth_city="台北",
+            birth_country="台灣",
+            themes=list(AnalysisTheme),
+            report_language=ReportLanguage.TRADITIONAL_CHINESE,
+            report_length=ReportLength.FULL,
+            birth_time_is_known=True,
+        )
+        report = ReportGenerator().generate(p, persist=False)
+        report.human_design_chart = None
+        text = render_report(report)
+        assert text is not None

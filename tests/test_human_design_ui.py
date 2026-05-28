@@ -92,7 +92,39 @@ class TestClientModeNoDebug:
         assert "DEVELOPER_MODE" in before_debug
 
 
-# ── E. HD helper table functions ─────────────────────────────────────────────
+# ── E. V1.9.1 Validation & Visuals in UI ─────────────────────────────────────
+
+class TestHDVisualsAndValidationUI:
+    def test_ui_contains_validation_expander(self):
+        src = _app_src()
+        hd_idx = src.find("with tab_hd:")
+        end_idx = src.find("# PAGE:", hd_idx)
+        hd_block = src[hd_idx:end_idx]
+        assert "準確度與外部校準說明" in hd_block
+
+    def test_ui_imports_build_hd_visuals(self):
+        src = _app_src()
+        hd_idx = src.find("with tab_hd:")
+        end_idx = src.find("# PAGE:", hd_idx)
+        hd_block = src[hd_idx:end_idx]
+        assert "build_hd_visuals" in hd_block
+
+    def test_ui_contains_bundle_summary(self):
+        src = _app_src()
+        hd_idx = src.find("with tab_hd:")
+        end_idx = src.find("# PAGE:", hd_idx)
+        hd_block = src[hd_idx:end_idx]
+        assert "_hd_bundle.summary" in hd_block or "bundle.summary" in hd_block
+
+    def test_ui_imports_build_validation_status(self):
+        src = _app_src()
+        hd_idx = src.find("with tab_hd:")
+        end_idx = src.find("# PAGE:", hd_idx)
+        hd_block = src[hd_idx:end_idx]
+        assert "build_validation_status" in hd_block
+
+
+# ── F. HD helper table functions ─────────────────────────────────────────────
 
 class TestHDHelperFunctions:
     def test_longitude_to_gate_line_does_not_crash(self):
