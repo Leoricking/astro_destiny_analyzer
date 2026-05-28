@@ -1500,11 +1500,13 @@ elif page == "💕 合盤分析":
             sm7.metric("協作效能", sc.collaboration_score)
         st.caption("⚠️ 衝突分數高代表張力強，不代表關係不好。")
 
-        # Tabs (10 tabs)
+        # Tabs (13 tabs, V1.8.0 adds advanced astrology)
         (tab_overview, tab_emo_comm, tab_attract, tab_conflict,
+         tab_adv_astro, tab_synastry, tab_composite,
          tab_astro, tab_bazi, tab_ziwei, tab_num_blood,
          tab_md, tab_export_tab) = st.tabs([
             "總覽", "情緒 / 溝通", "吸引力 / 合作", "衝突修復",
+            "進階西洋合盤", "相位矩陣", "Composite 中點盤",
             "西洋占星", "八字", "紫微", "靈數 / 血型",
             "報告原文", "匯出",
         ])
@@ -1553,6 +1555,78 @@ elif page == "💕 合盤分析":
             st.subheader("30 天關係練習")
             for p in _cr.synthesis.thirty_day_practice:
                 st.markdown(f"- {p}")
+
+        # ── V1.8.0: Advanced Astrology tabs ──────────────────────────────────
+        _adv = getattr(_cr, "advanced_astrology", None)
+
+        with tab_adv_astro:
+            st.caption("Synastry 觀察兩人星盤互動；Composite Chart 觀察關係本身形成的共同場域。兩者皆為關係理解工具，不代表絕對適合度。")
+            if _adv is None:
+                st.info("進階西洋合盤資料尚未計算或不可用。")
+            else:
+                sc = _adv.advanced_scores
+                st.metric("進階合盤總分", f"{sc.overall_advanced_score} / 100")
+                st.markdown(f"**{sc.label}**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("情緒連結", sc.emotional_bond)
+                    st.metric("溝通流暢度", sc.communication_flow)
+                    st.metric("吸引力 / 化學反應", sc.attraction_chemistry)
+                    st.metric("穩定潛力", sc.stability_potential)
+                with col2:
+                    st.metric("成長張力", sc.growth_intensity)
+                    st.metric("衝突強度（張力計）", sc.conflict_intensity)
+                    st.metric("長期潛力", sc.long_term_potential)
+                st.caption(sc.explanation)
+                st.caption(_adv.accuracy_note)
+
+        with tab_synastry:
+            if _adv is None:
+                st.info("相位矩陣資料尚未計算或不可用。")
+            else:
+                sm = _adv.synastry_matrix
+                st.caption(sm.accuracy_note)
+                if sm.aspects:
+                    import pandas as _pd
+                    _asp_data = [{
+                        "A 行星": a.person_a_planet,
+                        "B 行星": a.person_b_planet,
+                        "相位": a.aspect_type,
+                        "角度": a.angle,
+                        "orb": a.orb,
+                        "強度": a.strength,
+                        "類別": a.category,
+                        "和諧": "✅" if a.is_harmonious else ("⚡" if a.is_challenging else "─"),
+                        "解讀": a.interpretation,
+                    } for a in sm.aspects]
+                    st.dataframe(_pd.DataFrame(_asp_data), use_container_width=True, hide_index=True)
+                else:
+                    st.info("無可計算相位（行星經度資料不足）。")
+
+        with tab_composite:
+            if _adv is None:
+                st.info("Composite Chart 資料尚未計算或不可用。")
+            else:
+                cc = _adv.composite_chart
+                st.caption(cc.accuracy_note)
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Composite 太陽", cc.sun_sign or "─")
+                    st.metric("Composite 月亮", cc.moon_sign or "─")
+                with col2:
+                    st.metric("Composite 金星", cc.venus_sign or "─")
+                    st.metric("Composite 火星", cc.mars_sign or "─")
+                with col3:
+                    st.metric("Composite ASC", cc.ascendant_sign or "─")
+                st.divider()
+                st.subheader("關係核心主題")
+                st.write(cc.relationship_theme)
+                st.subheader("情緒氣候")
+                st.write(cc.emotional_climate)
+                st.subheader("吸引力風格")
+                st.write(cc.attraction_style)
+                st.subheader("衝突模式")
+                st.write(cc.conflict_style)
 
         with tab_astro:
             ast = _cr.astrology

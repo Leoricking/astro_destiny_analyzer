@@ -149,6 +149,81 @@ class CompatibilitySynthesis(BaseModel):
     warning_note: str = ""
 
 
+# ── V1.8.0: Advanced Synastry & Composite Chart Models ───────────────────────
+
+class SynastryAspect(BaseModel):
+    person_a_planet: str
+    person_b_planet: str
+    aspect_type: str                      # conjunction / sextile / square / trine / quincunx / opposition
+    angle: float
+    orb: float
+    strength: int = 0                     # 0–100
+    category: str = ""                    # emotional / communication / attraction / stability / growth / conflict
+    interpretation: str = ""
+    is_harmonious: bool = False
+    is_challenging: bool = False
+
+
+class SynastryMatrix(BaseModel):
+    aspects: List[SynastryAspect] = Field(default_factory=list)
+    strongest_aspects: List[SynastryAspect] = Field(default_factory=list)
+    harmony_aspects: List[SynastryAspect] = Field(default_factory=list)
+    tension_aspects: List[SynastryAspect] = Field(default_factory=list)
+    emotional_aspects: List[SynastryAspect] = Field(default_factory=list)
+    attraction_aspects: List[SynastryAspect] = Field(default_factory=list)
+    communication_aspects: List[SynastryAspect] = Field(default_factory=list)
+    stability_aspects: List[SynastryAspect] = Field(default_factory=list)
+    accuracy_note: str = ""
+
+
+class CompositePlanet(BaseModel):
+    planet: str
+    sign: str
+    longitude: float
+    house: Optional[int] = None
+    interpretation: str = ""
+
+
+class CompositeChart(BaseModel):
+    calculation_mode: str = "midpoint_phase1"
+    planets: List[CompositePlanet] = Field(default_factory=list)
+    sun_sign: str = ""
+    moon_sign: str = ""
+    venus_sign: str = ""
+    mars_sign: str = ""
+    ascendant_sign: Optional[str] = None
+    mc_sign: Optional[str] = None
+    relationship_theme: str = ""
+    emotional_climate: str = ""
+    attraction_style: str = ""
+    conflict_style: str = ""
+    accuracy_note: str = ""
+
+
+class AdvancedCompatibilityScores(BaseModel):
+    emotional_bond: int = 50
+    communication_flow: int = 50
+    attraction_chemistry: int = 50
+    stability_potential: int = 50
+    growth_intensity: int = 50
+    conflict_intensity: int = 50
+    long_term_potential: int = 50
+    overall_advanced_score: int = 50
+    label: str = ""
+    explanation: str = ""
+
+
+class AdvancedAstrologyCompatibility(BaseModel):
+    synastry_matrix: SynastryMatrix = Field(default_factory=SynastryMatrix)
+    composite_chart: CompositeChart = Field(default_factory=CompositeChart)
+    advanced_scores: AdvancedCompatibilityScores = Field(default_factory=AdvancedCompatibilityScores)
+    summary: str = ""
+    strengths: List[str] = Field(default_factory=list)
+    challenges: List[str] = Field(default_factory=list)
+    repair_advice: List[str] = Field(default_factory=list)
+    accuracy_note: str = ""
+
+
 # ── Full Compatibility Report ─────────────────────────────────────────────────
 
 class CompatibilityReport(BaseModel):
@@ -166,4 +241,5 @@ class CompatibilityReport(BaseModel):
     numerology: NumerologyCompatibility = Field(default_factory=NumerologyCompatibility)
     blood_type: BloodTypeCompatibility = Field(default_factory=BloodTypeCompatibility)
     synthesis: CompatibilitySynthesis = Field(default_factory=CompatibilitySynthesis)
+    advanced_astrology: Optional[AdvancedAstrologyCompatibility] = None
     markdown_body: str = ""

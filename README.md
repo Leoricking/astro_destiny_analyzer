@@ -461,6 +461,19 @@ accuracy_note：V1.4 使用節氣近似日期切年切月；若需專業級精�
 - 宮干四化尚未實作（目前僅生年四化）
 - 流派差異（廟旺陷、星曜細節）後續版本處理
 
+### V1.8.0 — Advanced Synastry & Composite Chart (2026-05-28)
+
+- 新增進階西洋合盤：Synastry 相位矩陣（6 種主要相位 × 10 行星）
+- 新增 Composite Chart 中點盤 Phase 1（跨 0° 處理、太陽 / 月亮 / 金星 / 火星 / 土星解讀）
+- 新增進階合盤分數：情緒連結、溝通流暢度、吸引力、穩定潛力、成長張力、衝突強度、長期潛力
+- UI 新增「進階西洋合盤」/ 「相位矩陣」/ 「Composite 中點盤」三個 tab
+- 合盤報告新增 Synastry 相位矩陣、Composite Chart、進階分數章節
+- 缺行星經度時 fallback 不 crash
+- 限制說明：
+  - Composite ASC/MC 需雙方精確出生時間與地點
+  - 分數是互動模式參考，不是絕對適合度
+  - Synastry / Composite 是關係理解工具，不是婚姻保證
+
 ### V1.7.7 — Zi Wei Multi-Case Regression & Accuracy Guardrails (2026-05-28)
 
 - 新增多案例回歸測試（5 種場景：Rossi golden / 不同時辰 / 不同年份 / 不同性別 / 未知時辰）
