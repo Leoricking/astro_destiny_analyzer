@@ -3,17 +3,18 @@ chcp 65001 >nul
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
 set PYTHONLEGACYWINDOWSSTDIO=0
-set ASTRO_DEVELOPER_MODE=1
-set ASTRO_CONSULTANT_MODE=1
 set ASTRO_CUSTOMER_MODE=0
-set ASTRO_BUILD_PROFILE=developer
-set ASTRO_SHOW_DEMO_DATA=1
-title Astro Destiny Analyzer — Developer Mode
+set ASTRO_CONSULTANT_MODE=1
+set ASTRO_DEVELOPER_MODE=0
+set ASTRO_BUILD_PROFILE=consultant
+set ASTRO_SHOW_DEMO_DATA=0
+title Astro Destiny Analyzer — Consultant Mode
 cd /d "%~dp0"
 
 echo ============================================================
-echo   Astro Destiny Analyzer DEV MODE
-echo   開發者模式：紫微校準等開發工具已啟用。
+echo   Astro Destiny Analyzer — CONSULTANT MODE
+echo   顧問模式：Lead Funnel、客戶個案 已啟用。
+echo   開發校準工具不顯示。
 echo ============================================================
 echo.
 
@@ -82,9 +83,9 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-rem ── [5/5] Launch Streamlit (DEV MODE) ────────────────────────────────────
-echo [5/5] Launching Streamlit (DEV MODE)...
-echo        ASTRO_DEVELOPER_MODE=1 已啟用
+rem ── [5/5] Launch Streamlit (CONSULTANT MODE) ──────────────────────────────
+echo [5/5] Launching Streamlit (CONSULTANT MODE)...
+echo        ASTRO_CONSULTANT_MODE=1 已啟用
 echo        開啟瀏覽器：http://localhost:8501
 echo        按 Ctrl+C 可停止服務
 echo.

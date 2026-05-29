@@ -24,7 +24,7 @@ from config import (
     TAIWAN_CITY_DISPLAY_NAMES, lookup_location,
     DEVELOPER_MODE, CUSTOMER_MODE, CONSULTANT_MODE, SHOW_DEMO_DATA, SHOW_INTERNAL_VERSION_INFO,
     BRAND_NAME, BRAND_TAGLINE, REPORT_WATERMARK,
-    CLIENT_CASE_STORAGE_PATH,
+    CLIENT_CASE_STORAGE_PATH, BUILD_PROFILE,
 )
 from core.models import (
     BirthProfile, Gender, BloodType, AnalysisTheme,
@@ -63,10 +63,37 @@ _PAGES_BASE = [
 _PAGES_DEV = [
     "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
-    "🗂️ 客戶個案",
+    "📊 Lead Funnel", "🗂️ 客戶個案",
     "🧭 紫微校準", "🔷 人類圖校準", "⚙️ 設定",
 ]
-_PAGES = _PAGES_DEV if CONSULTANT_MODE else _PAGES_BASE
+
+# ── V2.0.0 Mode-specific page lists ──────────────────────────────────────────
+CONSULTANT_PAGES: list = [
+    "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
+    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
+    "📊 Lead Funnel", "🗂️ 客戶個案",
+    "⚙️ 設定",
+]
+CUSTOMER_PAGES: list = _PAGES_BASE
+DEVELOPER_PAGES: list = _PAGES_DEV
+
+
+def get_active_pages() -> list:
+    """Return the page list for the current mode (V2.0.0 three-way split)."""
+    if DEVELOPER_MODE:
+        return DEVELOPER_PAGES
+    elif CONSULTANT_MODE:
+        return CONSULTANT_PAGES
+    else:
+        return CUSTOMER_PAGES
+
+
+def is_page_allowed(page: str) -> bool:
+    """Return True if page is visible in the current mode."""
+    return page in get_active_pages()
+
+
+_PAGES = get_active_pages()  # CONSULTANT_MODE → CONSULTANT_PAGES; DEVELOPER_MODE → DEVELOPER_PAGES
 
 _DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
 
@@ -307,10 +334,15 @@ def _load_sample(index: int) -> None:
 # the widget has been created in the same run.
 if "_pending_nav_page" in st.session_state:
     _pending_page = st.session_state.pop("_pending_nav_page")
-    if _pending_page in _PAGES:
+    if _pending_page in get_active_pages():
         st.session_state["nav_page"] = _pending_page
 
-# Guard: if a stale session has nav_page pointing to a dev-only page, reset to home.
+# Guard: stale session pointing to a page not in the active list → reset to home.
+# Also keeps V1.x backward compat guards for developer-only calibration pages.
+_active_pages = get_active_pages()
+if st.session_state.get("nav_page") not in _active_pages:
+    st.session_state["nav_page"] = "🏠 首頁"
+# Legacy explicit guards (retained for test compatibility and clarity):
 if not DEVELOPER_MODE and st.session_state.get("nav_page") == "🧭 紫微校準":
     st.session_state["nav_page"] = "🏠 首頁"
 if not DEVELOPER_MODE and st.session_state.get("nav_page") == "🔷 人類圖校準":
@@ -332,6 +364,8 @@ with st.sidebar:
     if DEVELOPER_MODE:
         st.caption(f"v{APP_VERSION} · DEV MODE")
         st.caption(f"DEVELOPER_MODE=True")
+    elif CONSULTANT_MODE:
+        st.caption(f"v{APP_VERSION} · CONSULTANT MODE")
     else:
         st.caption(f"v{APP_VERSION}")
 
@@ -3119,6 +3153,76 @@ elif page == "⚙️ 設定":
     with dm2:
         full_profiles = list_birth_profiles(limit=9999)
         st.metric("已儲存命盤數", len(full_profiles))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: Lead Funnel (Consultant / Developer mode only)
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "📊 Lead Funnel":
+    if not CONSULTANT_MODE:
+        st.error("🔒 此頁面僅供顧問 / 開發者模式使用。")
+        st.stop()
+
+    from lead_magnet.storage import load_leads
+
+    st.title("📊 Lead Funnel 分析")
+    st.caption("Lead 來源與轉換漏斗概覽 — V2.0.0")
+
+    _lf_snapshot = load_leads()
+    _lf_leads = _lf_snapshot.leads if _lf_snapshot else []
+
+    # ── Summary metrics ───────────────────────────────────────────────────────
+    _total = len(_lf_leads)
+    _consented = sum(1 for l in _lf_leads if getattr(l, "consent", False))
+    _marketing = sum(1 for l in _lf_leads if getattr(l, "marketing_consent", False))
+    _by_type: dict = {}
+    for _l in _lf_leads:
+        _rt = getattr(_l, "report_type", "unknown")
+        _by_type[_rt] = _by_type.get(_rt, 0) + 1
+
+    _c1, _c2, _c3 = st.columns(3)
+    _c1.metric("總 Lead 數", _total)
+    _c2.metric("同意條款", _consented)
+    _c3.metric("行銷同意", _marketing)
+
+    st.divider()
+    st.subheader("依報告類型分佈")
+    if _by_type:
+        for _rtype, _cnt in sorted(_by_type.items(), key=lambda x: -x[1]):
+            st.write(f"- **{_rtype}**: {_cnt} 筆")
+    else:
+        st.info("尚無 Lead 資料。請先透過「免費報告」頁面取得 Lead。")
+
+    st.divider()
+    st.subheader("轉換漏斗")
+    if _total > 0:
+        _conv_pct = round(_consented / _total * 100, 1) if _total else 0
+        _mkt_pct = round(_marketing / _total * 100, 1) if _total else 0
+        st.write(f"- 訪客 → 提交表單（Lead 取得率）：{_total} 筆")
+        st.write(f"- 同意條款率：{_conv_pct}%")
+        st.write(f"- 行銷同意率：{_mkt_pct}%")
+    else:
+        st.info("尚無資料可計算漏斗。")
+
+    if DEVELOPER_MODE:
+        st.divider()
+        st.subheader("開發者：原始 Lead 列表")
+        if _lf_leads:
+            import pandas as pd
+            _rows = [
+                {
+                    "email": getattr(l, "email", ""),
+                    "name": getattr(l, "name", ""),
+                    "report_type": getattr(l, "report_type", ""),
+                    "consent": getattr(l, "consent", False),
+                    "marketing_consent": getattr(l, "marketing_consent", False),
+                    "created_at": getattr(l, "created_at", ""),
+                }
+                for l in _lf_leads
+            ]
+            st.dataframe(pd.DataFrame(_rows), use_container_width=True)
+        else:
+            st.info("無 Lead 資料。")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

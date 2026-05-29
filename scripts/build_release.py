@@ -1,14 +1,14 @@
 """
-Astro Destiny Analyzer — Release Package Builder  V1.9.9
+Astro Destiny Analyzer — Release Package Builder  V2.0.0
 Copies the project into a clean release folder, excluding dev artifacts,
 personal data, lead/client data, and credentials.
 
 Usage:
-    python scripts/build_release.py
+    python scripts/build_release.py [--profile customer|consultant|developer]
 
 Output:
-    release/astro_destiny_analyzer_v{APP_VERSION}/
-    release/astro_destiny_analyzer_v{APP_VERSION}.zip
+    release/astro_destiny_analyzer_v{APP_VERSION}_{profile}/
+    release/astro_destiny_analyzer_v{APP_VERSION}_{profile}.zip
 
 Exit code: 0 = success, 1 = failure.
 """
@@ -16,6 +16,7 @@ import sys
 import os
 import shutil
 import zipfile
+import argparse
 from datetime import date, datetime
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,15 +24,14 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-# ── Exclusion rules ───────────────────────────────────────────────────────────
+# ── Exclusion rules (all profiles) ────────────────────────────────────────────
 
-_EXCLUDE_DIRS = {
+_EXCLUDE_DIRS_ALL = {
     ".git", ".venv", "venv", "env",
     "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
     ".idea", ".vscode", ".claude",
     "release", "dist", "build",
     "demo_outputs",
-    "tests",         # not needed in customer release
 }
 
 _EXCLUDE_EXTENSIONS = {
@@ -54,8 +54,10 @@ _EXCLUDE_DATA_PATTERNS = {
     "human_design_calibration_cases.json",
 }
 
-# Filenames containing these substrings are blocked (case-insensitive)
-_BLOCK_FILENAME_SUBSTRINGS = {"rossi", "password", "token", "secret", "api_key"}
+# Filenames containing these substrings are blocked (case-insensitive) — all profiles
+_BLOCK_FILENAME_SUBSTRINGS_ALL = {"rossi", "password", "secret", "api_key"}
+# Extra blocks for customer profile
+_BLOCK_FILENAME_SUBSTRINGS_CUSTOMER = {"token"}
 
 # Empty data subdirectories to create in the release (with .gitkeep)
 _EMPTY_DATA_DIRS = [
@@ -66,39 +68,60 @@ _EMPTY_DATA_DIRS = [
     os.path.join("data", "client_case_exports"),
 ]
 
+# ── Backward-compat aliases (used by existing tests) ─────────────────────────
+_EXCLUDE_DIRS = _EXCLUDE_DIRS_ALL
+_BLOCK_FILENAME_SUBSTRINGS = _BLOCK_FILENAME_SUBSTRINGS_ALL
+
 # ── Zip safety check ──────────────────────────────────────────────────────────
 
-_FORBIDDEN_ZIP_ENTRIES = [
+_FORBIDDEN_ZIP_ENTRIES_ALL = [
     ".git", ".venv", "__pycache__",
     "leads_mock", "lead_funnel_events",
     "client_cases", "human_design_calibration_cases",
     "rossi", ".env",
 ]
+_FORBIDDEN_ZIP_ENTRIES_CUSTOMER_EXTRA = [
+    "run_dev.bat", "run_consultant.bat",
+]
 
 
-def _zip_entry_safe(entry_name: str) -> bool:
+def _zip_entry_safe(entry_name: str, profile: str = "customer") -> bool:
     normalized = entry_name.replace("\\", "/").lower()
     parts = normalized.split("/")
-    for forbidden in _FORBIDDEN_ZIP_ENTRIES:
+    forbidden_list = list(_FORBIDDEN_ZIP_ENTRIES_ALL)
+    if profile == "customer":
+        forbidden_list += _FORBIDDEN_ZIP_ENTRIES_CUSTOMER_EXTRA
+    for forbidden in forbidden_list:
         fl = forbidden.lower()
         # For path-component checks (e.g. ".git"), match as a full path component
         # to avoid false positives like ".gitignore" containing ".git"
-        if fl.startswith(".") and not fl.endswith(".json"):
+        if fl.startswith(".") and not fl.endswith(".json") and not fl.endswith(".bat"):
             # Match as exact path component
             if fl in parts:
                 return False
         else:
-            # Substring match for data filenames and keywords
+            # Substring match for data filenames, keywords, and bat files
             if fl in normalized:
                 return False
     return True
 
 
-def _should_exclude(rel_path: str) -> bool:
+def _should_exclude(rel_path: str, profile: str = "customer") -> bool:
     """Return True if the given relative path should be excluded from release."""
     parts = rel_path.replace("\\", "/").split("/")
+
+    exclude_dirs = set(_EXCLUDE_DIRS_ALL)
+    if profile == "customer":
+        exclude_dirs.add("tests")
+        exclude_dirs.add("demo")
+    elif profile == "consultant":
+        exclude_dirs.add("tests")
+        exclude_dirs.add("demo")
+
     for part in parts:
-        if part in _EXCLUDE_DIRS:
+        if part in exclude_dirs:
+            return True
+        if part.endswith(".egg-info"):
             return True
 
     _, ext = os.path.splitext(rel_path)
@@ -113,26 +136,62 @@ def _should_exclude(rel_path: str) -> bool:
         return True
 
     filename_lower = filename.lower()
-    for sub in _BLOCK_FILENAME_SUBSTRINGS:
+    block_subs = set(_BLOCK_FILENAME_SUBSTRINGS_ALL)
+    if profile == "customer":
+        block_subs |= _BLOCK_FILENAME_SUBSTRINGS_CUSTOMER
+        # Customer profile: exclude dev/consultant launchers
+        if filename_lower in ("run_dev.bat", "run_consultant.bat"):
+            return True
+
+    for sub in block_subs:
         if sub in filename_lower:
             return True
 
     return False
 
 
-def _copy_project(src_root: str, dst_root: str) -> tuple:
+def get_release_profile_config(profile: str) -> dict:
+    """Return exclusion and inclusion rules for the given build profile."""
+    base = {
+        "profile": profile,
+        "exclude_dirs": set(_EXCLUDE_DIRS_ALL),
+        "exclude_data_patterns": set(_EXCLUDE_DATA_PATTERNS),
+        "block_substrings": set(_BLOCK_FILENAME_SUBSTRINGS_ALL),
+        "forbidden_zip_entries": list(_FORBIDDEN_ZIP_ENTRIES_ALL),
+        "exclude_bat": [],
+        "include_tests": False,
+    }
+    if profile == "customer":
+        base["exclude_dirs"].add("tests")
+        base["exclude_dirs"].add("demo")
+        base["exclude_bat"] = ["run_dev.bat", "run_consultant.bat"]
+        base["block_substrings"].add("token")
+        base["forbidden_zip_entries"] += _FORBIDDEN_ZIP_ENTRIES_CUSTOMER_EXTRA
+    elif profile == "consultant":
+        base["exclude_dirs"].add("tests")
+        base["exclude_dirs"].add("demo")
+        base["exclude_bat"] = ["run_dev.bat"]
+    elif profile == "developer":
+        base["include_tests"] = True
+    return base
+
+
+def _copy_project(src_root: str, dst_root: str, profile: str = "customer") -> tuple:
     """
-    Copy project files from src_root to dst_root, applying exclusions.
+    Copy project files from src_root to dst_root, applying profile exclusions.
     Returns (copied_count, skipped_count, warnings).
     """
     copied = 0
     skipped = 0
     warnings = []
 
+    profile_cfg = get_release_profile_config(profile)
+    exclude_dirs = profile_cfg["exclude_dirs"]
+
     for dirpath, dirnames, filenames in os.walk(src_root):
         dirnames[:] = [
             d for d in dirnames
-            if d not in _EXCLUDE_DIRS and not d.endswith(".egg-info")
+            if d not in exclude_dirs and not d.endswith(".egg-info")
         ]
 
         rel_dir = os.path.relpath(dirpath, src_root)
@@ -143,7 +202,7 @@ def _copy_project(src_root: str, dst_root: str) -> tuple:
                 if rel_dir != "."
                 else filename
             )
-            if _should_exclude(rel_file):
+            if _should_exclude(rel_file, profile=profile):
                 skipped += 1
                 continue
 
@@ -167,7 +226,7 @@ def _create_empty_data_dirs(dst_root: str) -> None:
     print(f"[OK]   Created {len(_EMPTY_DATA_DIRS)} empty data dirs with .gitkeep")
 
 
-def _create_zip(src_dir: str, zip_path: str) -> tuple:
+def _create_zip(src_dir: str, zip_path: str, profile: str = "customer") -> tuple:
     """
     Create a zip archive of src_dir at zip_path.
     Returns (success: bool, unsafe_entries: list[str]).
@@ -176,11 +235,11 @@ def _create_zip(src_dir: str, zip_path: str) -> tuple:
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for dirpath, dirnames, filenames in os.walk(src_dir):
-                dirnames[:] = [d for d in dirnames if d not in _EXCLUDE_DIRS]
+                dirnames[:] = [d for d in dirnames if d not in _EXCLUDE_DIRS_ALL]
                 for filename in filenames:
                     abs_file = os.path.join(dirpath, filename)
                     arc_name = os.path.relpath(abs_file, os.path.dirname(src_dir))
-                    if not _zip_entry_safe(arc_name):
+                    if not _zip_entry_safe(arc_name, profile=profile):
                         unsafe_entries.append(arc_name)
                         print(f"[WARN] Blocked unsafe entry from zip: {arc_name}")
                         continue
@@ -194,14 +253,25 @@ def _create_zip(src_dir: str, zip_path: str) -> tuple:
 
 def main() -> int:
     """Build the release package. Returns 0 on success."""
+    parser = argparse.ArgumentParser(description="Astro Destiny Analyzer Release Builder")
+    parser.add_argument(
+        "--profile",
+        choices=["customer", "consultant", "developer"],
+        default="customer",
+        help="Build profile: customer (default) | consultant | developer",
+    )
+    args = parser.parse_args()
+    profile = args.profile
+
     from config import APP_VERSION
 
     release_root = os.path.join(_PROJECT_ROOT, "release")
-    pkg_name = f"astro_destiny_analyzer_v{APP_VERSION}"
+    pkg_name = f"astro_destiny_analyzer_v{APP_VERSION}_{profile}"
     pkg_dir = os.path.join(release_root, pkg_name)
 
     print("=" * 60)
     print(f"  Astro Destiny Analyzer — Release Builder v{APP_VERSION}")
+    print(f"  Profile: {profile}")
     print("=" * 60)
     print()
 
@@ -214,7 +284,7 @@ def main() -> int:
     print()
 
     print("[INFO] Copying project files...")
-    copied, skipped, warnings = _copy_project(_PROJECT_ROOT, pkg_dir)
+    copied, skipped, warnings = _copy_project(_PROJECT_ROOT, pkg_dir, profile=profile)
     print(f"[OK]   Copied {copied} files, skipped {skipped} files")
 
     if warnings:
@@ -225,16 +295,17 @@ def main() -> int:
     _create_empty_data_dirs(pkg_dir)
 
     zip_path = os.path.join(release_root, f"{pkg_name}.zip")
-    _zip_ok, unsafe = _create_zip(pkg_dir, zip_path)
+    _zip_ok, unsafe = _create_zip(pkg_dir, zip_path, profile=profile)
 
     if unsafe:
         print(f"[WARN] {len(unsafe)} unsafe entries were blocked from the zip.")
 
     print()
     print("=" * 60)
-    print(f"  Copied : {copied} files")
-    print(f"  Skipped: {skipped} files")
-    print(f"  ZIP    : {zip_path}")
+    print(f"  Profile : {profile}")
+    print(f"  Copied  : {copied} files")
+    print(f"  Skipped : {skipped} files")
+    print(f"  ZIP     : {zip_path}")
     if not _zip_ok:
         print("  [WARN] ZIP was not created successfully.")
     print("=" * 60)

@@ -107,8 +107,9 @@ class TestPageLists:
 
     def test_active_pages_selector_present(self):
         src = _app_src()
-        # V1.9.8: selector uses CONSULTANT_MODE (which includes DEVELOPER_MODE)
-        assert "_PAGES_DEV if CONSULTANT_MODE else _PAGES_BASE" in src
+        # V2.0.0: selector uses get_active_pages() three-way split
+        assert "get_active_pages()" in src
+        assert "_PAGES = get_active_pages()" in src
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -449,3 +450,58 @@ class TestV198ConsultantWorkflowGating:
         page_start = src.find('elif page == "🗂️ 客戶個案"')
         page_snippet = src[page_start:page_start + 400]
         assert "CONSULTANT_MODE" in page_snippet
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# L. V2.0.0 — Three-way mode page governance
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestV200ModeGovernance:
+    def _customer_block(self) -> str:
+        src = _app_src()
+        idx = src.find("_PAGES_BASE = [")
+        end = src.find("]", idx)
+        return src[idx:end] if idx != -1 else ""
+
+    def _consultant_block(self) -> str:
+        src = _app_src()
+        # V2.0.0: CONSULTANT_PAGES: list = [...]
+        idx = src.find("CONSULTANT_PAGES")
+        end = src.find("]", idx)
+        return src[idx:end] if idx != -1 else ""
+
+    def test_customer_pages_defined(self):
+        """CUSTOMER_PAGES must be defined in streamlit_app.py."""
+        assert "CUSTOMER_PAGES" in _app_src()
+        assert "_PAGES_BASE" in _app_src()
+
+    def test_consultant_pages_not_exposed_to_customer(self):
+        """Consultant-only pages must not appear in CUSTOMER_PAGES / _PAGES_BASE."""
+        base = self._customer_block()
+        assert "Lead Funnel" not in base
+        assert "客戶個案" not in base
+
+    def test_developer_pages_not_exposed_to_customer(self):
+        """Developer-only pages must not appear in _PAGES_BASE."""
+        base = self._customer_block()
+        assert "紫微校準" not in base
+        assert "人類圖校準" not in base
+
+    def test_consultant_pages_include_lead_funnel(self):
+        block = self._consultant_block()
+        assert "Lead Funnel" in block
+
+    def test_consultant_pages_include_client_case(self):
+        block = self._consultant_block()
+        assert "客戶個案" in block
+
+    def test_developer_pages_alias_defined(self):
+        src = _app_src()
+        assert "DEVELOPER_PAGES" in src
+        assert "_PAGES_DEV" in src
+
+    def test_get_active_pages_defined(self):
+        assert "def get_active_pages()" in _app_src()
+
+    def test_is_page_allowed_defined(self):
+        assert "def is_page_allowed(" in _app_src()

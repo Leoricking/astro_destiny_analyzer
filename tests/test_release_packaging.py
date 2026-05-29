@@ -1,5 +1,5 @@
 """
-Tests for V1.9.9 Release Packaging.
+Tests for V2.0.0 Release Packaging.
 """
 import pathlib
 import sys
@@ -68,9 +68,15 @@ class TestBuildReleaseExclusions:
         excl, _, _ = self._get_exclude_dirs()
         assert "__pycache__" in excl
 
-    def test_exclude_dirs_contains_tests(self):
-        excl, _, _ = self._get_exclude_dirs()
-        assert "tests" in excl
+    def test_customer_profile_excludes_tests(self):
+        # V2.0.0: tests excluded per-profile for customer; check via _should_exclude
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_release2", str(ROOT / "scripts" / "build_release.py")
+        )
+        mod2 = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod2)
+        assert mod2._should_exclude("tests/test_foo.py", profile="customer")
 
 
 class TestBuildReleaseZipSafety:
@@ -83,10 +89,11 @@ class TestBuildReleaseZipSafety:
         spec.loader.exec_module(mod)
         return mod._zip_entry_safe
 
-    def test_safe_zip_name_contains_version(self):
-        # The zip name format includes the version
+    def test_safe_zip_name_contains_version_and_profile(self):
+        # The zip name format includes the version and profile
         src = (ROOT / "scripts" / "build_release.py").read_text(encoding="utf-8")
-        assert "v{APP_VERSION}" in src or "APP_VERSION" in src
+        assert "APP_VERSION" in src
+        assert "profile" in src
 
     def test_forbidden_entry_rejected(self):
         safe = self._get_zip_safety_func()

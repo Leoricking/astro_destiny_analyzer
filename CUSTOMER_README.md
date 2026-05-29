@@ -138,4 +138,4 @@
 
 ---
 
-*Astro Destiny Analyzer v1.9.9 — 客戶版*
+*Astro Destiny Analyzer v2.0.0 — 客戶版*

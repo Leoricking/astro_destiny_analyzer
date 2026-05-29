@@ -11,8 +11,18 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.9.9"
+APP_VERSION = "2.0.0"
+APP_MAJOR_VERSION = "2"
 APP_SUBTITLE = "命盤整合分析系統"
+
+# ── Release channel & build profile ───────────────────────────────────────────
+APP_RELEASE_CHANNEL: str = os.getenv("ASTRO_RELEASE_CHANNEL", "commercial_mvp")
+# BUILD_PROFILE: customer | consultant | developer
+BUILD_PROFILE: str = os.getenv("ASTRO_BUILD_PROFILE", "customer")
+
+COMMERCIAL_MVP_MODE: bool = os.getenv(
+    "ASTRO_COMMERCIAL_MVP_MODE", "1"
+).strip().lower() in ("1", "true", "yes", "on")
 
 # ── Brand / Delivery settings ─────────────────────────────────────────────────
 BRAND_NAME: str = os.getenv("ASTRO_BRAND_NAME", "Astro Destiny Analyzer")

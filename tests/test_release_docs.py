@@ -1,5 +1,5 @@
 """
-Tests for V1.9.9 Release Documentation.
+Tests for V2.0.0 Release Documentation.
 """
 import pathlib
 
@@ -55,8 +55,8 @@ class TestCustomerReadme:
 
 
 class TestReleaseNotes:
-    def test_contains_version_199(self):
-        assert "1.9.9" in _read("RELEASE_NOTES.md")
+    def test_contains_version_200(self):
+        assert "2.0.0" in _read("RELEASE_NOTES.md")
 
     def test_contains_privacy_section(self):
         text = _read("RELEASE_NOTES.md")
@@ -75,8 +75,12 @@ class TestReleaseNotes:
 
 
 class TestVersionTxt:
-    def test_contains_version_199(self):
-        assert "Version: 1.9.9" in _read("VERSION.txt")
+    def test_contains_version_200(self):
+        assert "Version: 2.0.0" in _read("VERSION.txt")
+
+    def test_contains_build_profiles(self):
+        text = _read("VERSION.txt")
+        assert "Build Profiles" in text or "customer" in text.lower()
 
     def test_contains_features(self):
         text = _read("VERSION.txt")
@@ -88,3 +92,16 @@ class TestVersionTxt:
 
     def test_not_empty(self):
         assert len(_read("VERSION.txt").strip()) > 50
+
+
+class TestConsultantReadmeExists:
+    def test_consultant_readme_exists(self):
+        import pathlib
+        assert (pathlib.Path(__file__).parent.parent / "CONSULTANT_README.md").is_file()
+
+    def test_consultant_readme_version_200(self):
+        text = _read("CONSULTANT_README.md")
+        assert "2.0.0" in text
+
+    def test_consultant_readme_no_rossi(self):
+        assert "rossi" not in _read("CONSULTANT_README.md").lower()

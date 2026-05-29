@@ -1,23 +1,24 @@
 """
-Astro Destiny Analyzer — Release Checklist  V1.9.9
+Astro Destiny Analyzer — Release Checklist  V2.0.0
 Validates that the project source is ready for a customer release build.
 
 Usage:
-    python scripts/release_check.py
+    python scripts/release_check.py [--profile customer|consultant|developer]
 
 Exit code: 0 = all checks passed, 1 = one or more checks failed.
 """
 import sys
 import os
+import argparse
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-EXPECTED_VERSION = "1.9.9"
+EXPECTED_VERSION = "2.0.0"
 
-# ── Required files ─────────────────────────────────────────────────────────────
+# ── Required files (all profiles) ─────────────────────────────────────────────
 REQUIRED_FILES = [
     "run.bat",
     "setup.bat",
@@ -61,6 +62,10 @@ CUSTOMER_README_FORBIDDEN_CI = ["golden case", "rossi"]
 # ── Keywords that must NOT appear as a *recommended normal flow* in CUSTOMER_README
 CUSTOMER_README_NO_NORMAL_DEV_FLOW = ["run_dev.bat"]
 
+# ── Profile-specific checks ───────────────────────────────────────────────────
+CUSTOMER_PROFILE_FORBIDDEN_FILES = ["run_dev.bat", "tests"]
+CUSTOMER_PROFILE_FORBIDDEN_CONTENT = ["run_dev.bat"]
+
 
 def _check(label: str, ok: bool, detail: str = "") -> bool:
     status = "PASS" if ok else "FAIL"
@@ -71,17 +76,21 @@ def _check(label: str, ok: bool, detail: str = "") -> bool:
     return ok
 
 
-def run_checks() -> int:
+def run_checks(profile: str = "customer") -> int:
     """Run all release checks. Returns number of failures."""
     failures = 0
     print("=" * 60)
     print(f"  Astro Destiny Analyzer — Release Check v{EXPECTED_VERSION}")
+    print(f"  Profile: {profile}")
     print("=" * 60)
     print()
 
     # ── 1. Required files exist ───────────────────────────────────────────────
     print("[CHECK] Required files:")
-    for rel_path in REQUIRED_FILES:
+    required = list(REQUIRED_FILES)
+    if profile in ("consultant", "developer"):
+        required.append("run_consultant.bat")
+    for rel_path in required:
         abs_path = os.path.join(_PROJECT_ROOT, rel_path)
         ok = os.path.isfile(abs_path)
         if not _check(rel_path, ok, "" if ok else "NOT FOUND"):
@@ -166,7 +175,7 @@ def run_checks() -> int:
         ok = EXPECTED_VERSION in rn_text
         if not _check(f"Contains version {EXPECTED_VERSION}", ok):
             failures += 1
-        ok = "Privacy" in rn_text or "隱私" in rn_text
+        ok = "Privacy" in rn_text or "\u96b1\u79c1" in rn_text
         if not _check("Contains Privacy section", ok):
             failures += 1
     else:
@@ -187,19 +196,76 @@ def run_checks() -> int:
         failures += 1
     print()
 
+    # ── 8. Profile-specific checks ────────────────────────────────────────────
+    print(f"[CHECK] Profile-specific checks ({profile}):")
+    if profile == "customer":
+        # run.bat must have customer flags
+        run_bat = os.path.join(_PROJECT_ROOT, "run.bat")
+        if os.path.isfile(run_bat):
+            rb_text = open(run_bat, encoding="utf-8").read()
+            ok = "ASTRO_CUSTOMER_MODE=1" in rb_text
+            if not _check("run.bat has ASTRO_CUSTOMER_MODE=1", ok):
+                failures += 1
+            ok = "ASTRO_BUILD_PROFILE=customer" in rb_text
+            if not _check("run.bat has ASTRO_BUILD_PROFILE=customer", ok):
+                failures += 1
+            ok = "ASTRO_DEVELOPER_MODE=1" not in rb_text
+            if not _check("run.bat does not set DEVELOPER_MODE=1", ok):
+                failures += 1
+        else:
+            _check("run.bat readable", False, "file not found")
+            failures += 1
+    elif profile == "consultant":
+        # run_consultant.bat must have consultant flags
+        rc_bat = os.path.join(_PROJECT_ROOT, "run_consultant.bat")
+        if os.path.isfile(rc_bat):
+            rc_text = open(rc_bat, encoding="utf-8").read()
+            ok = "ASTRO_CONSULTANT_MODE=1" in rc_text
+            if not _check("run_consultant.bat has ASTRO_CONSULTANT_MODE=1", ok):
+                failures += 1
+            ok = "ASTRO_BUILD_PROFILE=consultant" in rc_text
+            if not _check("run_consultant.bat has ASTRO_BUILD_PROFILE=consultant", ok):
+                failures += 1
+        else:
+            _check("run_consultant.bat readable", False, "file not found")
+            failures += 1
+    elif profile == "developer":
+        # run_dev.bat must have developer flags
+        rd_bat = os.path.join(_PROJECT_ROOT, "run_dev.bat")
+        if os.path.isfile(rd_bat):
+            rd_text = open(rd_bat, encoding="utf-8").read()
+            ok = "ASTRO_DEVELOPER_MODE=1" in rd_text
+            if not _check("run_dev.bat has ASTRO_DEVELOPER_MODE=1", ok):
+                failures += 1
+            ok = "ASTRO_BUILD_PROFILE=developer" in rd_text
+            if not _check("run_dev.bat has ASTRO_BUILD_PROFILE=developer", ok):
+                failures += 1
+        else:
+            _check("run_dev.bat readable", False, "file not found")
+            failures += 1
+    print()
+
     # ── Summary ───────────────────────────────────────────────────────────────
     print("=" * 60)
     if failures == 0:
-        print("  [OK] Release check PASSED -- all checks OK")
+        print(f"  [OK] Release check PASSED -- all checks OK (profile: {profile})")
     else:
-        print(f"  [FAIL] Release check FAILED -- {failures} check(s) failed")
+        print(f"  [FAIL] Release check FAILED -- {failures} check(s) failed (profile: {profile})")
     print("=" * 60)
 
     return failures
 
 
 def main() -> int:
-    failures = run_checks()
+    parser = argparse.ArgumentParser(description="Astro Destiny Analyzer Release Checker")
+    parser.add_argument(
+        "--profile",
+        choices=["customer", "consultant", "developer"],
+        default="customer",
+        help="Release profile: customer (default) | consultant | developer",
+    )
+    args = parser.parse_args()
+    failures = run_checks(profile=args.profile)
     return 0 if failures == 0 else 1
 
 

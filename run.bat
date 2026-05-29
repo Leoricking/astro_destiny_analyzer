@@ -4,8 +4,11 @@ set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
 set PYTHONLEGACYWINDOWSSTDIO=0
 set ASTRO_CUSTOMER_MODE=1
+set ASTRO_CONSULTANT_MODE=0
+set ASTRO_DEVELOPER_MODE=0
+set ASTRO_BUILD_PROFILE=customer
 set ASTRO_SHOW_DEMO_DATA=0
-title Astro Destiny Analyzer Launcher
+title Astro Destiny Analyzer — Customer Mode
 cd /d "%~dp0"
 
 echo ============================================================

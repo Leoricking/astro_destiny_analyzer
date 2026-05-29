@@ -6,32 +6,58 @@
 
 ---
 
-## V1.9.9 更新說明 — Product Packaging & Release Build
+## V2.0.0 更新說明 — Commercial MVP Stabilization
 
-產品打包、版本資訊、Release ZIP、客戶版使用手冊、Demo 清理。
+三種模式治理、多 profile Release Build、Preflight Health Check、顧問版文件。
 
-### Build Release
+### App 模式
+
+| 模式 | 啟動方式 | 可見頁面 |
+|------|---------|---------|
+| Customer | `run.bat` | 首頁、免費內容、免費報告、輸入資料、計算命盤、報告預覽、歷史報告、匯出、合盤分析、設定 |
+| Consultant | `run_consultant.bat` | Customer 全部 + Lead Funnel + 客戶個案 |
+| Developer | `run_dev.bat` | Consultant 全部 + 紫微校準 + 人類圖校準 |
+
+### Preflight Check
 
 ```bat
-python scripts/build_release.py
+python scripts/preflight_check.py
 ```
 
-### Release Check
+### Build Release (multi-profile)
 
 ```bat
-python scripts/release_check.py
+python scripts/build_release.py --profile customer
+python scripts/build_release.py --profile consultant
+python scripts/build_release.py --profile developer
 ```
 
-### Release ZIP Path
+### Release Check (multi-profile)
+
+```bat
+python scripts/release_check.py --profile customer
+python scripts/release_check.py --profile consultant
+python scripts/release_check.py --profile developer
+```
+
+### Release ZIP Paths
 
 ```
-release/astro_destiny_analyzer_v1.9.9.zip
+release/astro_destiny_analyzer_v2.0.0_customer.zip
+release/astro_destiny_analyzer_v2.0.0_consultant.zip
+release/astro_destiny_analyzer_v2.0.0_developer.zip
 ```
 
 ### 客戶使用
 
-- 解壓縮 ZIP → 雙擊 `setup.bat` → 雙擊 `run.bat`
+- 解壓縮 customer ZIP → 雙擊 `setup.bat` → 雙擊 `run.bat`
 - 詳見 `CUSTOMER_README.md`
+
+### Consultant Use
+
+- 雙擊 `run_consultant.bat` — 啟用 Consultant Mode
+- 提供 Lead Funnel + 客戶個案管理
+- 詳見 `CONSULTANT_README.md`
 
 ### Developer Use
 
@@ -45,11 +71,13 @@ release/astro_destiny_analyzer_v1.9.9.zip
 - 不含 `.env` / `.key` / `.pem` / credential 檔案
 - 不含 `.git` / `.venv` / `tests/` / `demo_outputs/`
 
-### Known Limitations
+### Known Issues
 
+詳見 `KNOWN_ISSUES.md`
+
+- Zi Wei 預存 snapshot 失敗約 34 個（既有問題，未增加）
 - PDF 為選用（需 WeasyPrint）
 - Email / CRM / Payment 尚未串接
-- 所有資料本機保存
 
 ---
 

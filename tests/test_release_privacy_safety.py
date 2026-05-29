@@ -1,5 +1,5 @@
 """
-Tests for V1.9.9 Release Privacy Safety.
+Tests for V2.0.0 Release Privacy Safety.
 """
 import importlib.util
 import pathlib
@@ -126,7 +126,7 @@ class TestReleaseCheckScript:
     def test_release_check_detects_version(self):
         mod = _load_release_check()
         assert hasattr(mod, "EXPECTED_VERSION")
-        assert mod.EXPECTED_VERSION == "1.9.9"
+        assert mod.EXPECTED_VERSION == "2.0.0"
 
     def test_forbidden_keywords_list_includes_password(self):
         mod = _load_release_check()
@@ -146,3 +146,34 @@ class TestReleaseCheckScript:
         mod = _load_release_check()
         required = getattr(mod, "REQUIRED_FILES", [])
         assert any("CUSTOMER_README" in str(f) for f in required)
+
+
+class TestV200ProfilePrivacySafety:
+    def test_customer_profile_blocks_run_dev_bat(self):
+        mod = _load_build_release()
+        assert mod._should_exclude("run_dev.bat", profile="customer")
+
+    def test_customer_profile_blocks_tests(self):
+        mod = _load_build_release()
+        assert mod._should_exclude("tests/test_foo.py", profile="customer")
+
+    def test_all_profiles_block_rossi(self):
+        mod = _load_build_release()
+        for profile in ("customer", "consultant", "developer"):
+            assert mod._should_exclude("Rossi_report.json", profile=profile)
+
+    def test_all_profiles_block_private_json(self):
+        mod = _load_build_release()
+        for profile in ("customer", "consultant", "developer"):
+            assert mod._should_exclude("data/leads_mock.json", profile=profile)
+            assert mod._should_exclude("data/client_cases.json", profile=profile)
+
+    def test_all_profiles_zip_blocks_private_data(self):
+        mod = _load_build_release()
+        for profile in ("customer", "consultant", "developer"):
+            assert not mod._zip_entry_safe("data/leads_mock.json", profile=profile)
+            assert not mod._zip_entry_safe("data/client_cases.json", profile=profile)
+
+    def test_customer_profile_zip_blocks_run_dev_bat(self):
+        mod = _load_build_release()
+        assert not mod._zip_entry_safe("run_dev.bat", profile="customer")

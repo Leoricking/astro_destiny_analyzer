@@ -1,7 +1,7 @@
 Astro Destiny Analyzer
-Version: 1.9.9
-Release: Product Packaging & Release Build
-Build Type: Customer Delivery Package
+Version: 2.0.0
+Release: Commercial MVP Stabilization
+Build Profiles: customer | consultant | developer
 Default Mode: Customer Mode
 Generated: 2026-05-29
 
@@ -13,10 +13,16 @@ Features:
 - Compatibility report (multi-system synastry)
 - Public content landing pages
 - Free report lead magnet mock (local storage only)
-- Local lead funnel analytics (no external tracking)
-- Consultant workflow local case management
+- Lead Funnel analytics page (Consultant / Developer mode)
+- Consultant workflow local case management (Consultant / Developer mode)
+- Three-way mode governance: Customer / Consultant / Developer
 - HTML / Word / Markdown export
 - Optional PDF export via WeasyPrint
+
+Build Profiles:
+- customer: standard customer delivery (no dev tools, no tests)
+- consultant: includes Lead Funnel, client case workflow (no calibration tools)
+- developer: includes all tools, tests, calibration scripts
 
 Privacy:
 - Local-first: all data stored in data/ directory
@@ -25,3 +31,4 @@ Privacy:
 - No CRM integration
 - No cloud sync by default
 - Lead and client data never transmitted externally
+- Release ZIPs exclude private data and credentials
