@@ -19,6 +19,7 @@ class LeadProfile(BaseModel):
     birth_date: Optional[str] = None
     birth_time: Optional[str] = None
     birth_location: str = ""
+    birth_country: str = "台灣"
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     timezone: str = "Asia/Taipei"
@@ -29,6 +30,7 @@ class PartnerProfile(BaseModel):
     birth_date: Optional[str] = None
     birth_time: Optional[str] = None
     birth_location: str = ""
+    birth_country: str = "台灣"
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     timezone: str = "Asia/Taipei"

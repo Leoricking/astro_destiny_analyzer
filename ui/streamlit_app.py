@@ -73,6 +73,9 @@ DEFAULT_BIRTH_YEAR: int = 1990
 MIN_BIRTH_YEAR:     int = 1900
 MAX_BIRTH_YEAR:     int = date.today().year
 
+# ── Country default ────────────────────────────────────────────────────────────
+DEFAULT_COUNTRY: str = "台灣"
+
 # ── Session state: global defaults (never overwrite existing values) ───────────
 _GLOBAL_DEFAULTS: dict = {
     "profile": None,
@@ -98,7 +101,7 @@ _INPUT_DEFAULTS: dict = {
     "input_birth_minute": 0,
     "input_tw_city_sel": "其他 / 手動輸入",
     "input_birth_city": "",
-    "input_birth_country": "台灣",
+    "input_birth_country": DEFAULT_COUNTRY,
     "input_res_city": "",
     "input_res_country": "",
     "input_blood_type": "Unknown",
@@ -1783,7 +1786,7 @@ elif page == "💕 合盤分析":
         with ca6:
             st.text_input("A 出生城市 *", key="compat_a_city", placeholder="例：新竹")
         with ca7:
-            st.text_input("A 出生國家", key="compat_a_country", value="台灣")
+            st.text_input("A 出生國家", key="compat_a_country", value=DEFAULT_COUNTRY)
         st.selectbox("A 血型", ["Unknown", "A", "B", "O", "AB"],
                      key="compat_a_blood")
 
@@ -1803,7 +1806,7 @@ elif page == "💕 合盤分析":
                     _a_gender_map = {"男": "male", "女": "female", "其他": "other", "不填寫": "unknown"}
                     _a_gender_val = _a_gender_map.get(st.session_state.get("compat_a_gender", "不填寫"), "unknown")
                     _a_city = st.session_state.get("compat_a_city", "台北").strip() or "台北"
-                    _a_country = st.session_state.get("compat_a_country", "台灣").strip() or "台灣"
+                    _a_country = st.session_state.get("compat_a_country", DEFAULT_COUNTRY).strip() or DEFAULT_COUNTRY
                     _loc_a = lookup_location(_a_city)
                     st.session_state["compat_a_profile"] = BirthProfile(
                         name=_a_name,
@@ -1863,7 +1866,7 @@ elif page == "💕 合盤分析":
         with cb6:
             st.text_input("B 出生城市 *", key="compat_b_city", placeholder="例：高雄")
         with cb7:
-            st.text_input("B 出生國家", key="compat_b_country", value="台灣")
+            st.text_input("B 出生國家", key="compat_b_country", value=DEFAULT_COUNTRY)
         st.selectbox("B 血型", ["Unknown", "A", "B", "O", "AB"],
                      key="compat_b_blood")
 
@@ -1883,7 +1886,7 @@ elif page == "💕 合盤分析":
                     _b_gender_map = {"男": "male", "女": "female", "其他": "other", "不填寫": "unknown"}
                     _b_gender_val = _b_gender_map.get(st.session_state.get("compat_b_gender", "不填寫"), "unknown")
                     _b_city = st.session_state.get("compat_b_city", "台北").strip() or "台北"
-                    _b_country = st.session_state.get("compat_b_country", "台灣").strip() or "台灣"
+                    _b_country = st.session_state.get("compat_b_country", DEFAULT_COUNTRY).strip() or DEFAULT_COUNTRY
                     _loc_b = lookup_location(_b_city)
                     st.session_state["compat_b_profile"] = BirthProfile(
                         name=_b_name,
