@@ -13,12 +13,30 @@ env/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local data
+# Local data — privacy-sensitive files never committed
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/*.json
+data/*.csv
 data/reports/
+data/exports/
+data/lead_exports/
+data/lead_funnel_exports/
+data/client_case_exports/
 exports/
+# Allow .gitkeep placeholders
+!data/.gitkeep
+!data/exports/.gitkeep
+!data/lead_exports/.gitkeep
+!data/lead_funnel_exports/.gitkeep
+!data/client_case_exports/.gitkeep
+
+# Secrets / credentials
+.env
+*.key
+*.pem
+*.token
 
 # Logs
 *.log

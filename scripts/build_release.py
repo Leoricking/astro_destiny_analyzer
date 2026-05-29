@@ -1,13 +1,14 @@
 """
-Astro Destiny Analyzer — Release Package Builder
-Copies the project into a clean release folder, excluding dev artifacts.
+Astro Destiny Analyzer — Release Package Builder  V1.9.9
+Copies the project into a clean release folder, excluding dev artifacts,
+personal data, lead/client data, and credentials.
 
 Usage:
     python scripts/build_release.py
 
 Output:
     release/astro_destiny_analyzer_v{APP_VERSION}/
-    release/astro_destiny_analyzer_v{APP_VERSION}.zip  (optional)
+    release/astro_destiny_analyzer_v{APP_VERSION}.zip
 
 Exit code: 0 = success, 1 = failure.
 """
@@ -15,20 +16,22 @@ import sys
 import os
 import shutil
 import zipfile
-from datetime import datetime
+from datetime import date, datetime
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-# Directories and patterns to exclude from the release package
+# ── Exclusion rules ───────────────────────────────────────────────────────────
+
 _EXCLUDE_DIRS = {
     ".git", ".venv", "venv", "env",
     "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
     ".idea", ".vscode", ".claude",
-    "release", "dist", "build", "exports",
+    "release", "dist", "build",
     "demo_outputs",
+    "tests",         # not needed in customer release
 }
 
 _EXCLUDE_EXTENSIONS = {
@@ -36,40 +39,97 @@ _EXCLUDE_EXTENSIONS = {
     ".pyc", ".pyo", ".pyd",
     ".log", ".zip", ".rar",
     ".egg-info",
+    ".key", ".pem", ".token",
 }
 
 _EXCLUDE_FILES = {
-    ".DS_Store", "Thumbs.db",
+    ".DS_Store", "Thumbs.db", ".env",
 }
+
+# Data files with personal / lead / calibration content — never shipped
+_EXCLUDE_DATA_PATTERNS = {
+    "leads_mock.json",
+    "lead_funnel_events.json",
+    "client_cases.json",
+    "human_design_calibration_cases.json",
+}
+
+# Filenames containing these substrings are blocked (case-insensitive)
+_BLOCK_FILENAME_SUBSTRINGS = {"rossi", "password", "token", "secret", "api_key"}
+
+# Empty data subdirectories to create in the release (with .gitkeep)
+_EMPTY_DATA_DIRS = [
+    "data",
+    os.path.join("data", "exports"),
+    os.path.join("data", "lead_exports"),
+    os.path.join("data", "lead_funnel_exports"),
+    os.path.join("data", "client_case_exports"),
+]
+
+# ── Zip safety check ──────────────────────────────────────────────────────────
+
+_FORBIDDEN_ZIP_ENTRIES = [
+    ".git", ".venv", "__pycache__",
+    "leads_mock", "lead_funnel_events",
+    "client_cases", "human_design_calibration_cases",
+    "rossi", ".env",
+]
+
+
+def _zip_entry_safe(entry_name: str) -> bool:
+    normalized = entry_name.replace("\\", "/").lower()
+    parts = normalized.split("/")
+    for forbidden in _FORBIDDEN_ZIP_ENTRIES:
+        fl = forbidden.lower()
+        # For path-component checks (e.g. ".git"), match as a full path component
+        # to avoid false positives like ".gitignore" containing ".git"
+        if fl.startswith(".") and not fl.endswith(".json"):
+            # Match as exact path component
+            if fl in parts:
+                return False
+        else:
+            # Substring match for data filenames and keywords
+            if fl in normalized:
+                return False
+    return True
 
 
 def _should_exclude(rel_path: str) -> bool:
-    """Return True if the given relative path should be excluded."""
+    """Return True if the given relative path should be excluded from release."""
     parts = rel_path.replace("\\", "/").split("/")
-    # Exclude any path component that matches excluded dirs
     for part in parts:
         if part in _EXCLUDE_DIRS:
             return True
-    # Exclude by extension
+
     _, ext = os.path.splitext(rel_path)
     if ext.lower() in _EXCLUDE_EXTENSIONS:
         return True
-    # Exclude specific filenames
+
     filename = os.path.basename(rel_path)
     if filename in _EXCLUDE_FILES:
         return True
+
+    if filename in _EXCLUDE_DATA_PATTERNS:
+        return True
+
+    filename_lower = filename.lower()
+    for sub in _BLOCK_FILENAME_SUBSTRINGS:
+        if sub in filename_lower:
+            return True
+
     return False
 
 
 def _copy_project(src_root: str, dst_root: str) -> tuple:
     """
     Copy project files from src_root to dst_root, applying exclusions.
-    Returns (copied_count, skipped_count).
+    Returns (copied_count, skipped_count, warnings).
     """
     copied = 0
     skipped = 0
+    warnings = []
+
     for dirpath, dirnames, filenames in os.walk(src_root):
-        # Prune excluded directories in-place so os.walk skips them
         dirnames[:] = [
             d for d in dirnames
             if d not in _EXCLUDE_DIRS and not d.endswith(".egg-info")
@@ -93,51 +153,26 @@ def _copy_project(src_root: str, dst_root: str) -> tuple:
             shutil.copy2(src_file, dst_file)
             copied += 1
 
-    return copied, skipped
+    return copied, skipped, warnings
 
 
-def _write_release_info(dst_root: str, version: str) -> None:
-    """Write RELEASE_INFO.txt into the release folder."""
-    info_path = os.path.join(dst_root, "RELEASE_INFO.txt")
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-
-    content = f"""\
-Astro Destiny Analyzer — Release Info
-======================================
-Version      : {version}
-Generated at : {now}
-Python       : {py_ver}
-
-Core Features
--------------
-- Western Astrology (Swiss Ephemeris / Moshier fallback)
-- BaZi (Four Pillars, solar-term precision)
-- Zi Wei Dou Shu (formal layout Phase 1, auxiliary stars, Da Xian Phase 1)
-- Blood Type Analysis
-- Numerology
-- Synthesis Engine (cross-system integration)
-- Long-form report templates (Short / Standard / Full)
-- HTML / Word / Markdown export; PDF optional (WeasyPrint)
-- SQLite local storage
-- Streamlit 7-page UI
-- Demo sample profiles
-- Windows one-click launcher
-
-How to Launch
--------------
-First time : Double-click setup.bat
-Daily use  : Double-click run.bat
-
-Manual     : .venv\\Scripts\\python -m streamlit run ui\\streamlit_app.py
-"""
-    with open(info_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    print(f"[OK]   RELEASE_INFO.txt: {info_path}")
+def _create_empty_data_dirs(dst_root: str) -> None:
+    """Create empty data subdirectories with .gitkeep placeholders."""
+    for rel_dir in _EMPTY_DATA_DIRS:
+        abs_dir = os.path.join(dst_root, rel_dir)
+        os.makedirs(abs_dir, exist_ok=True)
+        gitkeep = os.path.join(abs_dir, ".gitkeep")
+        if not os.path.exists(gitkeep):
+            open(gitkeep, "w").close()
+    print(f"[OK]   Created {len(_EMPTY_DATA_DIRS)} empty data dirs with .gitkeep")
 
 
-def _create_zip(src_dir: str, zip_path: str) -> bool:
-    """Create a zip archive of src_dir at zip_path. Returns True on success."""
+def _create_zip(src_dir: str, zip_path: str) -> tuple:
+    """
+    Create a zip archive of src_dir at zip_path.
+    Returns (success: bool, unsafe_entries: list[str]).
+    """
+    unsafe_entries = []
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for dirpath, dirnames, filenames in os.walk(src_dir):
@@ -145,12 +180,16 @@ def _create_zip(src_dir: str, zip_path: str) -> bool:
                 for filename in filenames:
                     abs_file = os.path.join(dirpath, filename)
                     arc_name = os.path.relpath(abs_file, os.path.dirname(src_dir))
+                    if not _zip_entry_safe(arc_name):
+                        unsafe_entries.append(arc_name)
+                        print(f"[WARN] Blocked unsafe entry from zip: {arc_name}")
+                        continue
                     zf.write(abs_file, arc_name)
         print(f"[OK]   ZIP created: {zip_path}")
-        return True
+        return True, unsafe_entries
     except Exception as exc:
         print(f"[WARN] ZIP creation failed: {exc}")
-        return False
+        return False, unsafe_entries
 
 
 def main() -> int:
@@ -166,7 +205,6 @@ def main() -> int:
     print("=" * 60)
     print()
 
-    # Handle existing release sub-folder
     if os.path.exists(pkg_dir):
         print(f"[INFO] Removing existing release folder: {pkg_dir}")
         shutil.rmtree(pkg_dir)
@@ -175,30 +213,30 @@ def main() -> int:
     print(f"[INFO] Release target: {pkg_dir}")
     print()
 
-    # Copy project files
     print("[INFO] Copying project files...")
-    copied, skipped = _copy_project(_PROJECT_ROOT, pkg_dir)
+    copied, skipped, warnings = _copy_project(_PROJECT_ROOT, pkg_dir)
     print(f"[OK]   Copied {copied} files, skipped {skipped} files")
 
-    # Copy demo_outputs if present
-    demo_out_src = os.path.join(_PROJECT_ROOT, "demo_outputs")
-    if os.path.isdir(demo_out_src):
-        demo_out_dst = os.path.join(pkg_dir, "demo_outputs")
-        shutil.copytree(demo_out_src, demo_out_dst, dirs_exist_ok=True)
-        print(f"[OK]   Copied demo_outputs/ into release")
-    else:
-        print("[INFO] demo_outputs/ not found — skipping (run generate_demo_assets.py first)")
+    if warnings:
+        for w in warnings:
+            print(f"[WARN] {w}")
 
-    # Write release info
-    _write_release_info(pkg_dir, APP_VERSION)
+    print("[INFO] Creating empty data directories...")
+    _create_empty_data_dirs(pkg_dir)
 
-    # Optional zip
     zip_path = os.path.join(release_root, f"{pkg_name}.zip")
-    _create_zip(pkg_dir, zip_path)
+    _zip_ok, unsafe = _create_zip(pkg_dir, zip_path)
+
+    if unsafe:
+        print(f"[WARN] {len(unsafe)} unsafe entries were blocked from the zip.")
 
     print()
     print("=" * 60)
-    print(f"  Release package ready: {pkg_dir}")
+    print(f"  Copied : {copied} files")
+    print(f"  Skipped: {skipped} files")
+    print(f"  ZIP    : {zip_path}")
+    if not _zip_ok:
+        print("  [WARN] ZIP was not created successfully.")
     print("=" * 60)
 
     return 0

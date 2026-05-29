@@ -1,0 +1,27 @@
+Astro Destiny Analyzer
+Version: 1.9.9
+Release: Product Packaging & Release Build
+Build Type: Customer Delivery Package
+Default Mode: Customer Mode
+Generated: 2026-05-29
+
+Features:
+- Natal chart analysis (Western Astrology / BaZi / Zi Wei Dou Shu / Numerology)
+- BaZi (Four Pillars, solar-term precision)
+- Zi Wei Dou Shu (formal layout Phase 1, auxiliary stars, Da Xian Phase 1)
+- Human Design (Type / Profile / Authority / Centers / Gates)
+- Compatibility report (multi-system synastry)
+- Public content landing pages
+- Free report lead magnet mock (local storage only)
+- Local lead funnel analytics (no external tracking)
+- Consultant workflow local case management
+- HTML / Word / Markdown export
+- Optional PDF export via WeasyPrint
+
+Privacy:
+- Local-first: all data stored in data/ directory
+- No external email API
+- No payment integration
+- No CRM integration
+- No cloud sync by default
+- Lead and client data never transmitted externally

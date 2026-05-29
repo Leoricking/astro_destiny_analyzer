@@ -6,6 +6,53 @@
 
 ---
 
+## V1.9.9 更新說明 — Product Packaging & Release Build
+
+產品打包、版本資訊、Release ZIP、客戶版使用手冊、Demo 清理。
+
+### Build Release
+
+```bat
+python scripts/build_release.py
+```
+
+### Release Check
+
+```bat
+python scripts/release_check.py
+```
+
+### Release ZIP Path
+
+```
+release/astro_destiny_analyzer_v1.9.9.zip
+```
+
+### 客戶使用
+
+- 解壓縮 ZIP → 雙擊 `setup.bat` → 雙擊 `run.bat`
+- 詳見 `CUSTOMER_README.md`
+
+### Developer Use
+
+- `run_dev.bat` — 啟用 Developer Mode
+- 校準工具、測試均需 Developer Mode
+- `tests/` 不打包進客戶版 ZIP
+
+### Privacy
+
+- Release ZIP 不含本機 lead / client / calibration 資料
+- 不含 `.env` / `.key` / `.pem` / credential 檔案
+- 不含 `.git` / `.venv` / `tests/` / `demo_outputs/`
+
+### Known Limitations
+
+- PDF 為選用（需 WeasyPrint）
+- Email / CRM / Payment 尚未串接
+- 所有資料本機保存
+
+---
+
 ## V1.9.8 更新說明 — Consultant Workflow & Client Case Management
 
 顧問工作流、客戶個案管理、報告狀態追蹤。
