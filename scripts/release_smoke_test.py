@@ -237,6 +237,39 @@ def run_smoke_test(zip_path: str, profile: str = "customer") -> int:
         failures += 1
     print()
 
+    # ── 7. Optional demo import fallback in streamlit_app.py ──────────────────
+    print("[CHECK] Optional demo import fallback (streamlit_app.py):")
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            app_entries = [n for n in names if n.lower().endswith("ui/streamlit_app.py")
+                           or n.lower().endswith("ui\\streamlit_app.py")]
+            if app_entries:
+                app_text = zf.read(app_entries[0]).decode("utf-8", errors="replace")
+                ok = "except ModuleNotFoundError" in app_text or "except ImportError" in app_text
+                if not _result("Has demo import exception handler", ok,
+                               "OK" if ok else "Missing except handler for demo import"):
+                    failures += 1
+                ok = "SAMPLE_PROFILES = {}" in app_text
+                if not _result("Has SAMPLE_PROFILES = {} fallback", ok):
+                    failures += 1
+                ok = "SAMPLE_LABELS = {}" in app_text
+                if not _result("Has SAMPLE_LABELS = {} fallback", ok):
+                    failures += 1
+                ok = "SAMPLE_COUPLES = {}" in app_text
+                if not _result("Has SAMPLE_COUPLES = {} fallback", ok):
+                    failures += 1
+                # Ensure demo sections are guarded (not raw unconditional access)
+                ok = "SAMPLE_PROFILES:" in app_text or "SAMPLE_COUPLES:" in app_text
+                if not _result("Demo sections guarded by SAMPLE_PROFILES/SAMPLE_COUPLES", ok):
+                    failures += 1
+            else:
+                _result("ui/streamlit_app.py found in ZIP", False, "NOT FOUND")
+                failures += 1
+    except Exception as exc:
+        _result("streamlit_app.py readable", False, str(exc))
+        failures += 1
+    print()
+
     # ── Summary ───────────────────────────────────────────────────────────────
     print("=" * 60)
     if failures == 0:

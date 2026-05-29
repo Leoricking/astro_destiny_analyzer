@@ -542,3 +542,35 @@ class TestV200ModeGovernance:
 
     def test_is_page_allowed_defined(self):
         assert "def is_page_allowed(" in _app_src()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# M. V2.0.2.1 — Optional demo import hotfix
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestV2021OptionalDemoImport:
+    def test_customer_mode_no_demo_missing_warning(self):
+        """Customer mode must not expose demo missing warning."""
+        src = _app_src()
+        info_idx = src.find("Demo profiles are not included in this release package.")
+        assert info_idx != -1
+        # Must be guarded by DEVELOPER_MODE
+        context = src[max(0, info_idx - 200):info_idx]
+        assert "DEVELOPER_MODE" in context
+
+    def test_customer_mode_no_demo_dependency(self):
+        """SAMPLE_PROFILES = {} fallback must exist so customer mode doesn't crash."""
+        assert "SAMPLE_PROFILES = {}" in _app_src()
+        assert "SAMPLE_COUPLES = {}" in _app_src()
+
+    def test_consultant_mode_no_crash_without_demo(self):
+        """SAMPLE_LABELS = {} fallback must exist."""
+        assert "SAMPLE_LABELS = {}" in _app_src()
+
+    def test_demo_buttons_guarded_by_sample_profiles(self):
+        """Home demo buttons must be inside SAMPLE_PROFILES guard."""
+        src = _app_src()
+        home_start = src.find('if page == "🏠 首頁"')
+        next_page = src.find('\nelif page ==', home_start + 1)
+        home_section = src[home_start:next_page]
+        assert "SAMPLE_PROFILES" in home_section

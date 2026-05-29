@@ -35,7 +35,16 @@ from reports.generator import ReportGenerator
 from reports.pdf_exporter import PdfExporter
 from reports.docx_exporter import DocxExporter
 from reports.utils import make_export_filename
-from demo.sample_profiles import SAMPLE_PROFILES, SAMPLE_LABELS, SAMPLE_COUPLES
+try:
+    from demo.sample_profiles import SAMPLE_PROFILES, SAMPLE_LABELS, SAMPLE_COUPLES
+except ModuleNotFoundError:
+    SAMPLE_PROFILES = {}
+    SAMPLE_LABELS = {}
+    SAMPLE_COUPLES = {}
+except ImportError:
+    SAMPLE_PROFILES = {}
+    SAMPLE_LABELS = {}
+    SAMPLE_COUPLES = {}
 from core.database import (
     list_reports, get_report, delete_report,
     list_birth_profiles, get_setting, set_setting,
@@ -447,7 +456,9 @@ if page == "🏠 首頁":
         if st.button("🎁 領取免費摘要", use_container_width=True, key="home_cta_free"):
             _go_to_page("🎁 免費報告")
 
-    if SHOW_DEMO_DATA:
+    if SHOW_DEMO_DATA and not SAMPLE_PROFILES and DEVELOPER_MODE:
+        st.info("Demo profiles are not included in this release package.")
+    if SHOW_DEMO_DATA and SAMPLE_PROFILES:
         st.divider()
         st.subheader("⚡ 快速體驗")
         st.caption("不需要手動輸入，直接使用範例資料體驗完整分析流程。")
@@ -1984,7 +1995,9 @@ elif page == "💕 合盤分析":
         st.info(f"✅ B 方：{_pb.name}（{_pb.birth_date}，{_pb.birth_city}）")
 
     # ── Demo couple buttons (developer/demo mode only) ────────────────────────
-    if SHOW_DEMO_DATA:
+    if SHOW_DEMO_DATA and not SAMPLE_COUPLES and DEVELOPER_MODE:
+        st.info("Demo profiles are not included in this release package.")
+    if SHOW_DEMO_DATA and SAMPLE_COUPLES:
         st.divider()
         st.subheader("⚡ 快速體驗")
         st.caption("直接載入範例資料，體驗合盤分析流程。")

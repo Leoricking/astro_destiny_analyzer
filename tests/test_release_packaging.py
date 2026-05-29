@@ -110,6 +110,35 @@ class TestBuildReleaseZipSafety:
         assert safe("run.bat")
 
 
+class TestDemoExclusionWithFallback:
+    def _get_should_exclude(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_release_demo_exc", str(ROOT / "scripts" / "build_release.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod._should_exclude
+
+    def test_customer_excludes_demo_dir(self):
+        excl = self._get_should_exclude()
+        assert excl("demo/sample_profiles.py", profile="customer")
+
+    def test_consultant_excludes_demo_dir(self):
+        excl = self._get_should_exclude()
+        assert excl("demo/sample_profiles.py", profile="consultant")
+
+    def test_developer_keeps_demo_dir(self):
+        excl = self._get_should_exclude()
+        assert not excl("demo/sample_profiles.py", profile="developer")
+
+    def test_app_has_optional_demo_fallback(self):
+        """streamlit_app.py must have fallback so customer/consultant can run without demo/."""
+        src = (ROOT / "ui" / "streamlit_app.py").read_text(encoding="utf-8")
+        assert "SAMPLE_PROFILES = {}" in src
+        assert "SAMPLE_COUPLES = {}" in src
+
+
 class TestV202ReleasePackaging:
     def _get_should_exclude(self):
         import importlib.util

@@ -119,3 +119,32 @@ class TestVersionCheck:
     def test_expected_version_is_202(self):
         mod = _load_smoke_test()
         assert mod.EXPECTED_VERSION == "2.0.2"
+
+
+class TestOptionalDemoCheck:
+    def _mod(self):
+        return _load_smoke_test()
+
+    def test_smoke_test_has_optional_demo_check(self):
+        """Smoke test must verify optional demo import fallback in ZIP."""
+        src = SMOKE_TEST_PATH.read_text(encoding="utf-8")
+        assert "except ModuleNotFoundError" in src or "SAMPLE_PROFILES = {}" in src
+
+    def test_safe_entry_allows_no_demo(self):
+        """ZIP without demo/ should not be flagged as unsafe."""
+        mod = self._mod()
+        # demo/ absence is expected for customer/consultant — no forbidden entry for it
+        assert not mod._is_forbidden_entry("config.py", "customer")
+        assert not mod._is_forbidden_entry("ui/streamlit_app.py", "customer")
+
+    def test_customer_zip_may_exclude_demo(self):
+        """customer profile does NOT require demo/ in ZIP."""
+        mod = self._mod()
+        required = mod.REQUIRED_FILES_CUSTOMER
+        assert not any("demo" in f.lower() for f in required)
+
+    def test_consultant_zip_may_exclude_demo(self):
+        """consultant profile does NOT require demo/ in ZIP."""
+        mod = self._mod()
+        required = mod.REQUIRED_FILES_CONSULTANT
+        assert not any("demo" in f.lower() for f in required)

@@ -220,6 +220,26 @@ def run_checks(profile: str = "customer") -> int:
         failures += 1
     print()
 
+    # ── 7b. Optional demo import check ────────────────────────────────────────
+    print("[CHECK] streamlit_app.py optional demo import:")
+    app_path = os.path.join(_PROJECT_ROOT, "ui", "streamlit_app.py")
+    if os.path.isfile(app_path):
+        app_text = open(app_path, encoding="utf-8").read()
+        ok = ("except ModuleNotFoundError" in app_text or "except ImportError" in app_text)
+        if not _check("demo import has exception fallback", ok,
+                      "OK" if ok else "Missing except handler — will crash in customer/consultant release"):
+            failures += 1
+        ok = "SAMPLE_PROFILES = {}" in app_text
+        if not _check("SAMPLE_PROFILES = {} fallback present", ok):
+            failures += 1
+        ok = "SAMPLE_COUPLES = {}" in app_text
+        if not _check("SAMPLE_COUPLES = {} fallback present", ok):
+            failures += 1
+    else:
+        _check("ui/streamlit_app.py readable", False, "file not found")
+        failures += 1
+    print()
+
     # ── 8. Profile-specific checks ────────────────────────────────────────────
     print(f"[CHECK] Profile-specific checks ({profile}):")
     if profile == "customer":
