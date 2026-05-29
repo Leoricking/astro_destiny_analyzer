@@ -22,8 +22,9 @@ init_db()
 from config import (
     APP_NAME, APP_SUBTITLE, APP_VERSION,
     TAIWAN_CITY_DISPLAY_NAMES, lookup_location,
-    DEVELOPER_MODE, CUSTOMER_MODE, SHOW_DEMO_DATA, SHOW_INTERNAL_VERSION_INFO,
+    DEVELOPER_MODE, CUSTOMER_MODE, CONSULTANT_MODE, SHOW_DEMO_DATA, SHOW_INTERNAL_VERSION_INFO,
     BRAND_NAME, BRAND_TAGLINE, REPORT_WATERMARK,
+    CLIENT_CASE_STORAGE_PATH,
 )
 from core.models import (
     BirthProfile, Gender, BloodType, AnalysisTheme,
@@ -62,9 +63,10 @@ _PAGES_BASE = [
 _PAGES_DEV = [
     "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
     "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
+    "🗂️ 客戶個案",
     "🧭 紫微校準", "🔷 人類圖校準", "⚙️ 設定",
 ]
-_PAGES = _PAGES_DEV if DEVELOPER_MODE else _PAGES_BASE
+_PAGES = _PAGES_DEV if CONSULTANT_MODE else _PAGES_BASE
 
 _DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
 
@@ -3117,3 +3119,429 @@ elif page == "⚙️ 設定":
     with dm2:
         full_profiles = list_birth_profiles(limit=9999)
         st.metric("已儲存命盤數", len(full_profiles))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: 客戶個案 (Developer / Consultant mode only)
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "🗂️ 客戶個案":
+    if not CONSULTANT_MODE:
+        st.error("🔒 此頁面僅供顧問 / 開發者模式使用。")
+        st.stop()
+
+    from consultant_workflow.models import (
+        ClientCase, ClientProfile, CaseNote, CaseTask, ReportDelivery,
+        CASE_STATUS_VALUES, REPORT_STATUS_VALUES,
+    )
+    from consultant_workflow.storage import (
+        load_cases, append_case, update_case, get_case,
+        add_note, add_task, update_task_status, add_delivery,
+        export_cases_csv as _export_csv, delete_all_cases,
+    )
+    from consultant_workflow.engine import (
+        create_case_from_lead, suggest_next_action,
+        summarize_case, compute_case_metrics, filter_cases,
+    )
+    from consultant_workflow.exporters import (
+        export_case_markdown, export_case_html,
+        export_cases_csv as _exp_cases_csv,
+        export_case_metrics_markdown, safe_case_filename,
+    )
+
+    st.title("🗂️ 客戶個案管理")
+    st.caption("顧問工作流 / 客戶個案追蹤 — V1.9.8")
+
+    _cw_tabs = st.tabs(["個案總覽", "從 Lead 建立個案", "個案詳情", "待辦與交付", "匯出"])
+
+    # ── Tab 0: 個案總覽 ────────────────────────────────────────────────────────
+    with _cw_tabs[0]:
+        st.subheader("個案總覽")
+        try:
+            _snap = load_cases(CLIENT_CASE_STORAGE_PATH)
+        except ValueError as _e:
+            st.error(f"載入個案資料失敗：{_e}")
+            st.stop()
+
+        _metrics = compute_case_metrics(_snap)
+        _m1, _m2, _m3, _m4, _m5, _m6 = st.columns(6)
+        _m1.metric("總個案", _metrics["total"])
+        _m2.metric("已交付", _metrics["delivered_count"])
+        _m3.metric("Follow-up", _metrics["follow_up_count"])
+        open_c = sum(1 for c in _snap.cases if c.case_status not in ("closed", "delivered"))
+        _m4.metric("進行中", open_c)
+        _m5.metric("待辦任務", _metrics["open_tasks"])
+        _m6.metric("逾期任務", _metrics["overdue_tasks"])
+
+        st.divider()
+        if _snap.cases:
+            import pandas as pd
+            _df_status = pd.DataFrame(
+                [{"狀態": k, "數量": v} for k, v in _metrics["by_case_status"].items()]
+            )
+            _df_rep = pd.DataFrame(
+                [{"報告狀態": k, "數量": v} for k, v in _metrics["by_report_status"].items()]
+            )
+            _col_a, _col_b = st.columns(2)
+            with _col_a:
+                st.caption("個案狀態分布")
+                st.dataframe(_df_status, use_container_width=True)
+            with _col_b:
+                st.caption("報告狀態分布")
+                st.dataframe(_df_rep, use_container_width=True)
+
+            st.divider()
+            _filter_status = st.selectbox(
+                "篩選狀態", ["（全部）"] + list(CASE_STATUS_VALUES),
+                key="cw_filter_status",
+            )
+            _filter_kw = st.text_input("關鍵字搜尋（姓名 / Email）", key="cw_filter_kw")
+            _filtered = filter_cases(
+                _snap,
+                status=None if _filter_status == "（全部）" else _filter_status,
+                keyword=_filter_kw.strip() or None,
+            )
+            _df_cases = pd.DataFrame([
+                {
+                    "case_id": c.case_id,
+                    "客戶姓名": c.client.name,
+                    "Email": c.client.email,
+                    "個案狀態": c.case_status,
+                    "報告狀態": c.report_status,
+                    "下一步": c.next_action[:40] if c.next_action else "",
+                    "建立時間": c.created_at[:10] if c.created_at else "",
+                }
+                for c in _filtered
+            ])
+            st.dataframe(_df_cases, use_container_width=True)
+        else:
+            st.info("尚無個案資料。請先從 Lead 建立個案，或手動新增。")
+
+    # ── Tab 1: 從 Lead 建立個案 ───────────────────────────────────────────────
+    with _cw_tabs[1]:
+        st.subheader("從 Lead 建立個案")
+        try:
+            from lead_magnet.storage import load_leads
+            import config as _lcfg2
+            _leads_snap = load_leads(_lcfg2.LEAD_STORAGE_PATH)
+        except Exception as _e:
+            st.warning(f"無法載入 Leads：{_e}")
+            _leads_snap = None
+
+        if _leads_snap and _leads_snap.leads:
+            import pandas as pd
+            _leads_df = pd.DataFrame([
+                {
+                    "lead_id": l.lead_id,
+                    "姓名": l.profile.name,
+                    "Email": l.profile.email,
+                    "報告類型": l.report_type,
+                    "建立時間": l.created_at[:10] if l.created_at else "",
+                }
+                for l in _leads_snap.leads
+            ])
+            st.dataframe(_leads_df, use_container_width=True)
+
+            _lead_options = {f"{l.profile.name} ({l.lead_id[:12]}…)": l for l in _leads_snap.leads}
+            _sel_lead_label = st.selectbox("選擇 Lead", list(_lead_options.keys()), key="cw_sel_lead")
+            _sel_lead = _lead_options.get(_sel_lead_label)
+
+            if st.button("建立個案", key="cw_create_case_btn"):
+                if _sel_lead:
+                    _cw_snap2 = load_cases(CLIENT_CASE_STORAGE_PATH)
+                    _existing_ids = {c.source_lead_id for c in _cw_snap2.cases}
+                    if _sel_lead.lead_id and _sel_lead.lead_id in _existing_ids:
+                        st.warning(f"此 Lead（{_sel_lead.lead_id[:16]}…）已建立個案，請勿重複建立。")
+                    else:
+                        _new_case = create_case_from_lead(_sel_lead)
+                        _new_case = append_case(_new_case, CLIENT_CASE_STORAGE_PATH)
+                        st.success(f"✅ 個案已建立！case_id: `{_new_case.case_id}`")
+        else:
+            st.info("尚無 Lead 資料，或 leads_mock.json 不存在。請先透過免費報告頁取得 Lead。")
+
+        st.divider()
+        st.subheader("手動建立個案")
+        with st.form("cw_manual_case_form"):
+            _mc_name = st.text_input("客戶姓名 *", key="cw_mc_name")
+            _mc_email = st.text_input("Email", key="cw_mc_email")
+            _mc_phone = st.text_input("電話", key="cw_mc_phone")
+            _mc_birth_date = st.text_input("出生日期（YYYY-MM-DD）", key="cw_mc_birth_date")
+            _mc_birth_country = st.text_input("出生國家", value="台灣", key="cw_mc_birth_country")
+            _mc_birth_city = st.text_input("出生城市", key="cw_mc_birth_city")
+            _mc_source = st.text_input("來源備註", key="cw_mc_source")
+            _mc_submit = st.form_submit_button("建立個案")
+        if _mc_submit:
+            if not _mc_name.strip():
+                st.error("請填寫客戶姓名。")
+            else:
+                _mc_profile = ClientProfile(
+                    name=_mc_name.strip(),
+                    email=_mc_email.strip(),
+                    phone=_mc_phone.strip(),
+                    birth_date=_mc_birth_date.strip(),
+                    birth_country=_mc_birth_country.strip() or "台灣",
+                    birth_city=_mc_birth_city.strip(),
+                    source=_mc_source.strip(),
+                )
+                _mc_case = ClientCase(client=_mc_profile)
+                _mc_case = append_case(_mc_case, CLIENT_CASE_STORAGE_PATH)
+                st.success(f"✅ 手動個案已建立！case_id: `{_mc_case.case_id}`")
+
+    # ── Tab 2: 個案詳情 ────────────────────────────────────────────────────────
+    with _cw_tabs[2]:
+        st.subheader("個案詳情")
+        _cw_snap3 = load_cases(CLIENT_CASE_STORAGE_PATH)
+        if not _cw_snap3.cases:
+            st.info("尚無個案資料。")
+        else:
+            _case_options3 = {
+                f"{c.client.name} ({c.case_id[:14]}…)": c.case_id
+                for c in _cw_snap3.cases
+            }
+            _sel_case_label3 = st.selectbox("選擇個案", list(_case_options3.keys()), key="cw_sel_case3")
+            _sel_case_id3 = _case_options3.get(_sel_case_label3)
+            _sel_case3 = get_case(_sel_case_id3, CLIENT_CASE_STORAGE_PATH) if _sel_case_id3 else None
+
+            if _sel_case3:
+                st.markdown(f"**case_id**: `{_sel_case3.case_id}`")
+                st.markdown(f"**客戶**: {_sel_case3.client.name} / {_sel_case3.client.email}")
+
+                with st.form("cw_update_case_form"):
+                    _upd_case_status = st.selectbox(
+                        "個案狀態", list(CASE_STATUS_VALUES),
+                        index=list(CASE_STATUS_VALUES).index(_sel_case3.case_status)
+                        if _sel_case3.case_status in CASE_STATUS_VALUES else 0,
+                        key="cw_upd_case_status",
+                    )
+                    _upd_report_status = st.selectbox(
+                        "報告狀態", list(REPORT_STATUS_VALUES),
+                        index=list(REPORT_STATUS_VALUES).index(_sel_case3.report_status)
+                        if _sel_case3.report_status in REPORT_STATUS_VALUES else 0,
+                        key="cw_upd_report_status",
+                    )
+                    _upd_report_types = st.multiselect(
+                        "申請報告類型",
+                        ["natal", "compatibility", "human_design", "integrated", "free_summary"],
+                        default=_sel_case3.requested_report_types,
+                        key="cw_upd_report_types",
+                    )
+                    _upd_next_action = st.text_input(
+                        "下一步行動", value=_sel_case3.next_action, key="cw_upd_next_action"
+                    )
+                    _upd_next_due = st.text_input(
+                        "預計完成日（YYYY-MM-DD）", value=_sel_case3.next_action_due,
+                        key="cw_upd_next_due",
+                    )
+                    _upd_note_content = st.text_area("新增備註", key="cw_upd_note")
+                    _upd_note_type = st.selectbox(
+                        "備註類型",
+                        ["general", "consultation", "follow_up", "report_revision", "payment_note"],
+                        key="cw_upd_note_type",
+                    )
+                    _upd_save = st.form_submit_button("儲存更新")
+
+                if _upd_save:
+                    _sel_case3.case_status = _upd_case_status
+                    _sel_case3.report_status = _upd_report_status
+                    _sel_case3.requested_report_types = _upd_report_types
+                    _sel_case3.next_action = _upd_next_action
+                    _sel_case3.next_action_due = _upd_next_due
+                    update_case(_sel_case_id3, _sel_case3, CLIENT_CASE_STORAGE_PATH)
+                    if _upd_note_content.strip():
+                        add_note(
+                            _sel_case_id3,
+                            CaseNote(note_type=_upd_note_type, content=_upd_note_content.strip()),
+                            CLIENT_CASE_STORAGE_PATH,
+                        )
+                    st.success("✅ 個案已更新。")
+
+                st.divider()
+                st.caption("現有備註")
+                _reloaded3 = get_case(_sel_case_id3, CLIENT_CASE_STORAGE_PATH)
+                if _reloaded3 and _reloaded3.notes:
+                    for _n in _reloaded3.notes:
+                        st.markdown(f"- **[{_n.note_type}]** {_n.created_at[:10] if _n.created_at else ''} — {_n.content}")
+                else:
+                    st.caption("（無備註）")
+
+    # ── Tab 3: 待辦與交付 ─────────────────────────────────────────────────────
+    with _cw_tabs[3]:
+        st.subheader("待辦與交付")
+        _cw_snap4 = load_cases(CLIENT_CASE_STORAGE_PATH)
+        if not _cw_snap4.cases:
+            st.info("尚無個案資料。")
+        else:
+            _case_options4 = {
+                f"{c.client.name} ({c.case_id[:14]}…)": c.case_id
+                for c in _cw_snap4.cases
+            }
+            _sel_label4 = st.selectbox("選擇個案", list(_case_options4.keys()), key="cw_sel_case4")
+            _sel_id4 = _case_options4.get(_sel_label4)
+
+            if _sel_id4:
+                _c4 = get_case(_sel_id4, CLIENT_CASE_STORAGE_PATH)
+
+                if _c4:
+                    st.subheader("待辦任務")
+                    if _c4.tasks:
+                        import pandas as pd
+                        _tasks_df = pd.DataFrame([
+                            {"task_id": t.task_id, "標題": t.title, "狀態": t.status,
+                             "優先級": t.priority, "到期日": t.due_date}
+                            for t in _c4.tasks
+                        ])
+                        st.dataframe(_tasks_df, use_container_width=True)
+
+                        with st.form("cw_update_task_form"):
+                            _task_options = {t.title: t.task_id for t in _c4.tasks}
+                            _sel_task_title = st.selectbox("選擇任務", list(_task_options.keys()),
+                                                           key="cw_sel_task")
+                            _sel_task_id = _task_options.get(_sel_task_title, "")
+                            _new_task_status = st.selectbox(
+                                "更新狀態", ["todo", "doing", "done", "canceled"],
+                                key="cw_task_new_status",
+                            )
+                            _task_upd_btn = st.form_submit_button("更新任務狀態")
+                        if _task_upd_btn and _sel_task_id:
+                            update_task_status(_sel_id4, _sel_task_id, _new_task_status,
+                                               CLIENT_CASE_STORAGE_PATH)
+                            st.success("✅ 任務狀態已更新。")
+                    else:
+                        st.caption("（無待辦任務）")
+
+                    st.divider()
+                    st.subheader("新增任務")
+                    with st.form("cw_add_task_form"):
+                        _task_title = st.text_input("任務標題 *", key="cw_new_task_title")
+                        _task_desc = st.text_area("說明", key="cw_new_task_desc")
+                        _task_due = st.text_input("到期日（YYYY-MM-DD）", key="cw_new_task_due")
+                        _task_priority = st.selectbox("優先級", ["low", "medium", "high"],
+                                                      index=1, key="cw_new_task_priority")
+                        _task_submit = st.form_submit_button("新增任務")
+                    if _task_submit:
+                        if not _task_title.strip():
+                            st.error("請填寫任務標題。")
+                        else:
+                            add_task(
+                                _sel_id4,
+                                CaseTask(
+                                    title=_task_title.strip(),
+                                    description=_task_desc.strip(),
+                                    due_date=_task_due.strip(),
+                                    priority=_task_priority,
+                                ),
+                                CLIENT_CASE_STORAGE_PATH,
+                            )
+                            st.success("✅ 任務已新增。")
+
+                    st.divider()
+                    st.subheader("交付記錄")
+                    if _c4.deliveries:
+                        import pandas as pd
+                        _del_df = pd.DataFrame([
+                            {"delivery_id": d.delivery_id, "報告類型": d.report_type,
+                             "格式": d.format, "交付時間": d.delivered_at, "備註": d.delivery_note}
+                            for d in _c4.deliveries
+                        ])
+                        st.dataframe(_del_df, use_container_width=True)
+                    else:
+                        st.caption("（無交付記錄）")
+
+                    st.subheader("新增交付記錄")
+                    with st.form("cw_add_delivery_form"):
+                        _del_rt = st.selectbox(
+                            "報告類型",
+                            ["natal", "compatibility", "human_design", "integrated", "free_summary"],
+                            key="cw_del_report_type",
+                        )
+                        _del_fmt = st.selectbox(
+                            "格式",
+                            ["markdown", "html", "docx", "pdf", "consultation"],
+                            key="cw_del_format",
+                        )
+                        _del_fp = st.text_input("檔案路徑（選填）", key="cw_del_file_path")
+                        _del_note = st.text_input("交付備註", key="cw_del_note")
+                        _del_submit = st.form_submit_button("記錄交付")
+                    if _del_submit:
+                        add_delivery(
+                            _sel_id4,
+                            ReportDelivery(
+                                report_type=_del_rt,
+                                format=_del_fmt,
+                                file_path=_del_fp.strip(),
+                                delivery_note=_del_note.strip(),
+                            ),
+                            CLIENT_CASE_STORAGE_PATH,
+                        )
+                        st.success("✅ 交付記錄已新增。")
+
+    # ── Tab 4: 匯出 ────────────────────────────────────────────────────────────
+    with _cw_tabs[4]:
+        st.subheader("匯出")
+        _cw_snap5 = load_cases(CLIENT_CASE_STORAGE_PATH)
+
+        if _cw_snap5.cases:
+            _metrics5 = compute_case_metrics(_cw_snap5)
+
+            st.markdown("**下載全部個案 CSV**")
+            _csv_data = _exp_cases_csv(_cw_snap5)
+            st.download_button(
+                "⬇️ 下載 cases.csv",
+                data=_csv_data.encode("utf-8-sig"),
+                file_name=safe_case_filename("all", "csv"),
+                mime="text/csv",
+                key="cw_dl_csv",
+            )
+
+            st.divider()
+            _case_options5 = {
+                f"{c.client.name} ({c.case_id[:14]}…)": c.case_id
+                for c in _cw_snap5.cases
+            }
+            _sel_label5 = st.selectbox("選擇個案下載", list(_case_options5.keys()), key="cw_sel5")
+            _sel_id5 = _case_options5.get(_sel_label5)
+            if _sel_id5:
+                _c5 = get_case(_sel_id5, CLIENT_CASE_STORAGE_PATH)
+                if _c5:
+                    _md_data = export_case_markdown(_c5)
+                    _html_data = export_case_html(_c5)
+                    _safe_label = _c5.client.name or "case"
+                    _dl1, _dl2 = st.columns(2)
+                    with _dl1:
+                        st.download_button(
+                            "⬇️ 下載 Markdown",
+                            data=_md_data.encode("utf-8"),
+                            file_name=safe_case_filename(_safe_label, "md"),
+                            mime="text/markdown",
+                            key="cw_dl_md",
+                        )
+                    with _dl2:
+                        st.download_button(
+                            "⬇️ 下載 HTML",
+                            data=_html_data.encode("utf-8"),
+                            file_name=safe_case_filename(_safe_label, "html"),
+                            mime="text/html",
+                            key="cw_dl_html",
+                        )
+
+            st.divider()
+            _metrics_md = export_case_metrics_markdown(_metrics5)
+            st.download_button(
+                "⬇️ 下載 Metrics Markdown",
+                data=_metrics_md.encode("utf-8"),
+                file_name=safe_case_filename("metrics", "md"),
+                mime="text/markdown",
+                key="cw_dl_metrics",
+            )
+        else:
+            st.info("尚無個案資料可匯出。")
+
+        if DEVELOPER_MODE:
+            st.divider()
+            st.subheader("⚠️ 危險操作（開發者限定）")
+            _confirm_clear = st.checkbox("確認清空所有個案資料", key="cw_confirm_clear")
+            if st.button("清空所有個案", key="cw_clear_all_btn", type="secondary"):
+                if _confirm_clear:
+                    delete_all_cases(CLIENT_CASE_STORAGE_PATH)
+                    st.success("✅ 所有個案資料已清空。")
+                else:
+                    st.warning("請先勾選確認才能清空。")

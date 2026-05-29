@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "1.9.6"
+APP_VERSION = "1.9.8"
 APP_SUBTITLE = "命盤整合分析系統"
 
 # ── Brand / Delivery settings ─────────────────────────────────────────────────
@@ -87,6 +87,18 @@ LEAD_MAGNET_ENABLED: bool = os.getenv("ASTRO_LEAD_MAGNET_ENABLED", "1").strip().
 LEAD_STORAGE_PATH = DATA_DIR / "leads_mock.json"
 LEAD_EXPORT_DIR = DATA_DIR / "lead_exports"
 FREE_REPORT_VERSION: str = "v1"
+
+# Consultant Workflow & Client Case Management (V1.9.8)
+CONSULTANT_MODE: bool = (
+    os.getenv("ASTRO_CONSULTANT_MODE", "0").strip().lower() in ("1", "true", "yes", "on")
+    or DEVELOPER_MODE
+)
+CONSULTANT_WORKFLOW_ENABLED: bool = os.getenv(
+    "ASTRO_CONSULTANT_WORKFLOW_ENABLED", "1"
+).strip().lower() in ("1", "true", "yes", "on")
+CLIENT_CASE_STORAGE_PATH = DATA_DIR / "client_cases.json"
+CLIENT_CASE_EXPORT_DIR = DATA_DIR / "client_case_exports"
+CONSULTANT_WORKFLOW_VERSION: str = "v1"
 
 # Human Design calibration settings
 # Design date calculation method: "solar_arc_88" (exact) or "minus_88_days" (MVP approximation)

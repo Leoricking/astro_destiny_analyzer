@@ -108,11 +108,11 @@ class TestPageLists:
         assert ZIWEI_PAGE in dev_block
 
     def test_pages_active_selector(self):
-        """_PAGES = _PAGES_DEV if DEVELOPER_MODE else _PAGES_BASE."""
+        """_PAGES = _PAGES_DEV if CONSULTANT_MODE else _PAGES_BASE (V1.9.8+)."""
         src_path = os.path.join(PROJECT_ROOT, "ui", "streamlit_app.py")
         with open(src_path, encoding="utf-8") as f:
             src = f.read()
-        assert "_PAGES_DEV if DEVELOPER_MODE else _PAGES_BASE" in src
+        assert "_PAGES_DEV if CONSULTANT_MODE else _PAGES_BASE" in src
 
     def test_pages_active_contains_home(self):
         src_path = os.path.join(PROJECT_ROOT, "ui", "streamlit_app.py")

@@ -6,6 +6,51 @@
 
 ---
 
+## V1.9.8 更新說明 — Consultant Workflow & Client Case Management
+
+顧問工作流、客戶個案管理、報告狀態追蹤。
+
+### 新功能
+
+- **客戶個案管理**：新增 `🗂️ 客戶個案` 頁面（Developer / Consultant mode 限定）
+- **從 Lead 建立個案**：可將免費報告 Lead 一鍵轉為 ClientCase
+- **個案狀態追蹤**：`new_lead` → `contacted` → `data_collected` → `report_generated` → `delivered` → `follow_up` → `closed`
+- **報告狀態追蹤**：`not_started` → `draft` → `generated` → `reviewed` → `delivered` → `revised`
+- **備註系統**：可記錄 general / consultation / follow_up / report_revision / payment_note
+- **待辦任務**：新增、更新任務狀態（todo / doing / done / canceled）
+- **交付記錄**：記錄 Markdown / HTML / DOCX / PDF / consultation 交付
+- **匯出**：個案 CSV / 個案 Markdown / 個案 HTML / Metrics Markdown
+
+### 工作流範例
+
+1. 免費報告頁面取得 Lead
+2. 客戶個案頁 → 從 Lead 建立個案
+3. 補齊出生資料，更新個案狀態為 `data_collected`
+4. 產出完整命盤報告，狀態改為 `report_generated`
+5. 交付報告，記錄交付格式，狀態改為 `delivered`
+6. 安排 follow-up，狀態改為 `follow_up`
+7. 完成回訪後 `closed`
+
+### Storage
+
+- `data/client_cases.json` — 本機個案儲存（純本機，不外送）
+
+### 模式控制
+
+- **客戶模式**：不顯示客戶個案頁、不顯示備註、不顯示匯出功能
+- **Developer / Consultant mode**：完整顯示所有個案管理功能
+- 啟用 Consultant mode：`set ASTRO_CONSULTANT_MODE=1`（或 DEVELOPER_MODE 自動啟用）
+
+### Privacy
+
+- 不串接外部 CRM
+- 不串接真實 Email API
+- 不串接真實付款
+- 所有個案資料只存在本機 `data/` 目錄
+- CSV 匯出不含出生時間 / 經緯度 / 備註內容
+
+---
+
 ## V1.9.6 更新說明 — Free Report Lead Magnet & Email Capture Mock
 
 ### 免費報告 Lead Magnet、Email 留資 Mock、轉換漏斗

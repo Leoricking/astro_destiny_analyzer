@@ -107,7 +107,8 @@ class TestPageLists:
 
     def test_active_pages_selector_present(self):
         src = _app_src()
-        assert "_PAGES_DEV if DEVELOPER_MODE else _PAGES_BASE" in src
+        # V1.9.8: selector uses CONSULTANT_MODE (which includes DEVELOPER_MODE)
+        assert "_PAGES_DEV if CONSULTANT_MODE else _PAGES_BASE" in src
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -388,3 +389,63 @@ class TestV196FreeReportVisibility:
         block = self._get_free_report_block(src)
         assert "DEVELOPER_MODE" in block
         assert "CSV" in block or "csv" in block.lower()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# K. V1.9.8 — Consultant Workflow page gating
+# ══════════════════════════════════════════════════════════════════════════════
+
+CLIENT_CASE_PAGE = "🗂️ 客戶個案"
+
+
+class TestV198ConsultantWorkflowGating:
+    def _get_base_block(self) -> str:
+        src = _app_src()
+        start = src.find("_PAGES_BASE = [")
+        end = src.find("]", start)
+        return src[start:end]
+
+    def _get_dev_block(self) -> str:
+        src = _app_src()
+        start = src.find("_PAGES_DEV = [")
+        end = src.find("]", start)
+        return src[start:end]
+
+    def test_customer_pages_no_client_case(self):
+        """_PAGES_BASE must not contain 客戶個案."""
+        assert CLIENT_CASE_PAGE not in self._get_base_block()
+
+    def test_developer_pages_contains_client_case(self):
+        """_PAGES_DEV must contain 客戶個案."""
+        assert CLIENT_CASE_PAGE in self._get_dev_block() or "客戶個案" in self._get_dev_block()
+
+    def test_customer_mode_no_case_notes_exposed(self):
+        """case notes should be behind consultant/developer guard."""
+        src = _app_src()
+        # case notes UI should appear after CONSULTANT_MODE check
+        notes_idx = src.find("現有備註")
+        consultant_idx = src.find("CONSULTANT_MODE")
+        assert consultant_idx != -1
+        assert notes_idx > consultant_idx
+
+    def test_customer_mode_no_case_exports_exposed(self):
+        """case exports should be behind consultant/developer guard."""
+        src = _app_src()
+        # CSV export for cases must be inside 客戶個案 page (CONSULTANT_MODE-gated)
+        case_page_idx = src.find('elif page == "🗂️ 客戶個案"')
+        assert case_page_idx != -1
+        case_page_block = src[case_page_idx:case_page_idx + 5000]
+        assert "CSV" in case_page_block or "csv" in case_page_block.lower()
+
+    def test_consultant_mode_imported_from_config(self):
+        """CONSULTANT_MODE must be imported from config in streamlit_app.py."""
+        src = _app_src()
+        config_import = src[src.find("from config import"):src.find("from config import") + 400]
+        assert "CONSULTANT_MODE" in config_import
+
+    def test_client_case_page_guard_is_consultant_mode(self):
+        """The 客戶個案 page must check CONSULTANT_MODE, not DEVELOPER_MODE alone."""
+        src = _app_src()
+        page_start = src.find('elif page == "🗂️ 客戶個案"')
+        page_snippet = src[page_start:page_start + 400]
+        assert "CONSULTANT_MODE" in page_snippet
