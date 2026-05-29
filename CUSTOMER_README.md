@@ -23,6 +23,12 @@
 
 ---
 
+## 第一次使用請先閱讀
+
+**請先閱讀 `CUSTOMER_ONBOARDING.md`** — 包含詳細的首次使用步驟、建立第一份報告說明、匯出格式建議與常見問題。
+
+---
+
 ## 第一次安裝
 
 1. 解壓縮下載的 ZIP 壓縮檔
@@ -138,4 +144,4 @@
 
 ---
 
-*Astro Destiny Analyzer v2.0.0 — 客戶版*
+*Astro Destiny Analyzer v2.0.2 — 客戶版*

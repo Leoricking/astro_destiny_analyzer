@@ -1,5 +1,5 @@
 """
-Astro Destiny Analyzer — Release Checklist  V2.0.0
+Astro Destiny Analyzer — Release Checklist  V2.0.2
 Validates that the project source is ready for a customer release build.
 
 Usage:
@@ -16,7 +16,7 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-EXPECTED_VERSION = "2.0.0"
+EXPECTED_VERSION = "2.0.2"
 
 # ── Required files (all profiles) ─────────────────────────────────────────────
 REQUIRED_FILES = [
@@ -26,7 +26,9 @@ REQUIRED_FILES = [
     "requirements.txt",
     "README.md",
     "CUSTOMER_README.md",
+    "CUSTOMER_ONBOARDING.md",
     "RELEASE_NOTES.md",
+    "RELEASE_QA_CHECKLIST.md",
     "VERSION.txt",
     "config.py",
     os.path.join("ui", "streamlit_app.py"),
@@ -164,6 +166,28 @@ def run_checks(profile: str = "customer") -> int:
                     failures += 1
     else:
         _check("CUSTOMER_README.md readable", False, "file not found")
+        failures += 1
+    print()
+
+    # ── 5b. CUSTOMER_ONBOARDING.md content checks ─────────────────────────────
+    print("[CHECK] CUSTOMER_ONBOARDING.md content:")
+    co_path = os.path.join(_PROJECT_ROOT, "CUSTOMER_ONBOARDING.md")
+    if os.path.isfile(co_path):
+        co_text = open(co_path, encoding="utf-8").read()
+        for forbidden in ["run_dev.bat", "Rossi", "golden case", "debug", "calibration"]:
+            found = forbidden.lower() in co_text.lower()
+            ok = not found
+            if not _check(f"No '{forbidden}' in CUSTOMER_ONBOARDING", ok,
+                          "OK" if ok else "Found forbidden term"):
+                failures += 1
+        ok = "setup.bat" in co_text
+        if not _check("Contains setup.bat", ok):
+            failures += 1
+        ok = "run.bat" in co_text
+        if not _check("Contains run.bat", ok):
+            failures += 1
+    else:
+        _check("CUSTOMER_ONBOARDING.md readable", False, "file not found")
         failures += 1
     print()
 

@@ -1,4 +1,4 @@
-# Known Issues — Astro Destiny Analyzer v2.0.0
+# Known Issues — Astro Destiny Analyzer v2.0.2
 
 This document records pre-existing known issues as of the V2.0.0 Commercial MVP release.
 
@@ -17,7 +17,7 @@ This document records pre-existing known issues as of the V2.0.0 Commercial MVP 
 
 **Impact:** Low — does not affect customer-facing report output.
 
-**Resolution:** Planned for V2.0.1 — snapshot refresh and Zi Wei calculation alignment.
+**Resolution:** Pre-existing issue carried forward from V2.0.0. Snapshot refresh and Zi Wei calculation alignment planned for a future version.
 
 ---
 
@@ -77,5 +77,5 @@ This document records pre-existing known issues as of the V2.0.0 Commercial MVP 
 
 ---
 
-*Last updated: 2026-05-29*  
-*Version: 2.0.0*
+*Last updated: 2026-05-30*  
+*Version: 2.0.2*

@@ -1,6 +1,6 @@
 Astro Destiny Analyzer
-Version: 2.0.0
-Release: Commercial MVP Stabilization
+Version: 2.0.2
+Release: Release QA Smoke Test & Customer Onboarding Polish
 Build Profiles: customer | consultant | developer
 Default Mode: Customer Mode
 Generated: 2026-05-29

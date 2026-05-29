@@ -1,6 +1,52 @@
-# Release Notes — Astro Destiny Analyzer v2.0.0
+# Release Notes — Astro Destiny Analyzer v2.0.2
 
 ## Version Summary
+
+**v2.0.2 — Release QA Smoke Test & Customer Onboarding Polish**  
+Release date: 2026-05-30  
+Build type: Commercial MVP — Release QA & UX Polish
+
+This release improves customer onboarding experience, adds release ZIP smoke testing, polishes empty states, and strengthens export format guidance. No new astrology algorithms or external service integrations.
+
+---
+
+## Main Changes (v2.0.2)
+
+- **Customer Onboarding**: New `CUSTOMER_ONBOARDING.md` — step-by-step first-use guide
+- **Release Smoke Test**: New `scripts/release_smoke_test.py` — static ZIP validation tool
+- **Release QA Checklist**: New `RELEASE_QA_CHECKLIST.md` — Go/No-Go QA document
+- **Home Page Onboarding**: Three-step quickstart block with CTA buttons on home page
+- **Empty State Polish**: Clearer guidance messages on all pages when no data exists
+- **Export Format Guidance**: Updated format recommendation table (HTML 最穩定 / Word 可編輯 / PDF 為選用功能)
+- **Config**: `FIRST_RUN_ONBOARDING_ENABLED`, `CUSTOMER_SMOKE_TEST_VERSION` added
+- **Test Coverage**: New test files for smoke test, onboarding, and empty states
+
+### New Files
+
+- `CUSTOMER_ONBOARDING.md` — Customer first-use guide
+- `RELEASE_QA_CHECKLIST.md` — Release QA checklist
+- `scripts/release_smoke_test.py` — ZIP smoke test script
+- `tests/test_release_smoke_test.py`
+- `tests/test_customer_onboarding.py`
+- `tests/test_customer_empty_states.py`
+
+### Not Changed
+
+- Western astrology, BaZi, Zi Wei, Human Design core engines unchanged
+- Three-way mode governance (Customer / Consultant / Developer) unchanged
+- No Email, Payment, or CRM integration added
+- No data transmitted externally
+
+---
+
+## Privacy
+
+All privacy guarantees from V2.0.0 maintained:
+- Customer release ZIP excludes: `.git`, `.venv`, `tests/`, `data/*.json`, `.env`, `*.key`, `*.pem`, `run_dev.bat`
+- No external data transmission
+- All data local-first
+
+---
 
 **v2.0.0 — Commercial MVP Stabilization**  
 Release date: 2026-05-29  

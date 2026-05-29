@@ -416,6 +416,37 @@ if page == "🏠 首頁":
         if st.button("📚 查看歷史報告", use_container_width=True):
             _go_to_page("📚 歷史報告")
 
+    # ── V2.0.2 三步驟 Onboarding ──────────────────────────────────────────────
+    st.divider()
+    st.subheader("快速開始：三步驟建立第一份報告")
+    _ob_c1, _ob_c2, _ob_c3 = st.columns(3)
+    with _ob_c1:
+        with st.container(border=True):
+            st.markdown("**① 輸入資料**")
+            st.caption("填寫生日、出生時間、出生地。國家預設台灣，可自由修改。")
+    with _ob_c2:
+        with st.container(border=True):
+            st.markdown("**② 計算命盤**")
+            st.caption("產生西洋占星、八字、紫微、人類圖與整合摘要。")
+    with _ob_c3:
+        with st.container(border=True):
+            st.markdown("**③ 匯出報告**")
+            st.caption("建議先用 HTML 或 Word，PDF 為選用功能。")
+
+    _cta_c1, _cta_c2, _cta_c3, _cta_c4 = st.columns(4)
+    with _cta_c1:
+        if st.button("📝 開始輸入資料", use_container_width=True, key="home_cta_input"):
+            _go_to_page("📝 輸入資料")
+    with _cta_c2:
+        if st.button("💕 建立合盤分析", use_container_width=True, key="home_cta_compat"):
+            _go_to_page("💕 合盤分析")
+    with _cta_c3:
+        if st.button("🌐 查看免費內容", use_container_width=True, key="home_cta_content"):
+            _go_to_page("🌐 免費內容入口")
+    with _cta_c4:
+        if st.button("🎁 領取免費摘要", use_container_width=True, key="home_cta_free"):
+            _go_to_page("🎁 免費報告")
+
     if SHOW_DEMO_DATA:
         st.divider()
         st.subheader("⚡ 快速體驗")
@@ -600,6 +631,7 @@ elif page == "🎁 免費報告":
 
     st.title("🎁 取得免費命盤摘要")
     st.caption("先用免費摘要了解方向，再決定是否建立完整整合報告。")
+    st.info("填寫 Email 與基本資料後，可產生免費摘要。資料只儲存在本機，不會外送。")
 
     # ── B. Report type selector ───────────────────────────────────────────────
     _REPORT_TYPE_LABELS = {
@@ -1507,7 +1539,7 @@ elif page == "📄 報告預覽":
     st.title("📄 報告預覽")
 
     if st.session_state["report"] is None:
-        st.warning("尚無報告，請先至「🔮 計算命盤」產生報告。")
+        st.info("尚未產生報告。請先到『輸入資料』填寫資料，再到『計算命盤』產生分析結果。")
         st.stop()
 
     report = st.session_state["report"]
@@ -1571,7 +1603,7 @@ elif page == "📚 歷史報告":
 
     reports = list_reports(limit=50)
     if not reports:
-        st.info("尚無歷史報告。請先分析一個命盤。")
+        st.info("目前沒有歷史報告。產生並儲存報告後，會出現在這裡。")
         st.stop()
 
     import pandas as pd
@@ -1614,7 +1646,7 @@ elif page == "📤 匯出":
     st.title("📤 匯出報告")
 
     if st.session_state["report"] is None:
-        st.warning("尚無報告，請先計算命盤。")
+        st.info("目前沒有可匯出的報告。請先完成命盤計算或合盤分析。")
         st.stop()
 
     report = st.session_state["report"]
@@ -1640,14 +1672,14 @@ elif page == "📤 匯出":
             st.caption(modes_summary)
 
     st.divider()
-    with st.expander("📋 推薦匯出格式說明", expanded=False):
+    with st.expander("📋 推薦匯出格式說明", expanded=True):
         st.markdown("""
 | 格式 | 推薦用途 |
 |------|----------|
-| 🌐 HTML | 最適合展示與列印，單一檔案，自含樣式 |
-| 📘 Word | 最適合交付客戶，可人工調整排版 |
-| 📝 Markdown | 最適合二次編輯，版本控制友善 |
-| 📕 PDF | 需環境支援 WeasyPrint（pip install weasyprint） |
+| 🌐 HTML | HTML 最穩定，適合交付與列印。單一檔案，自含樣式 |
+| 📘 Word | Word 可編輯，適合顧問人工修稿。交付客戶最常用 |
+| 📝 Markdown | 適合保存純文字或交給 AI 二次整理 |
+| 📕 PDF | PDF 為選用功能，需要 WeasyPrint；若不可用請先使用 HTML 或 Word |
 """)
     st.divider()
 
@@ -1985,7 +2017,7 @@ elif page == "💕 合盤分析":
         and st.session_state.get("compat_b_profile") is not None
     )
     if not _can_generate:
-        st.info("請確認 A 方與 B 方資料後，再產生合盤分析。")
+        st.info("請先輸入兩人的基本資料，再產生合盤分析。")
 
     if st.button("💕 產生合盤分析", type="primary", use_container_width=True,
                  disabled=not _can_generate, key="compat_generate"):

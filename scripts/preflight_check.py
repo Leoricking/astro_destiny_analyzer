@@ -1,5 +1,5 @@
 """
-Astro Destiny Analyzer — Preflight Health Check  V2.0.0
+Astro Destiny Analyzer — Preflight Health Check  V2.0.2
 Verifies that the environment is ready to run the application.
 
 Usage:
@@ -17,7 +17,7 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-EXPECTED_VERSION = "2.0.0"
+EXPECTED_VERSION = "2.0.2"
 MIN_PYTHON = (3, 10)
 
 REQUIRED_PACKAGES = [

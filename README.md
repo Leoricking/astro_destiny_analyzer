@@ -1,8 +1,34 @@
-# Astro Destiny Analyzer — 命盤整合分析系統
+# Astro Destiny Analyzer — 命盤整合分析系統 v2.0.2
 
 > **免責聲明**  
 > 本系統為「自我探索與娛樂型命盤分析工具」，不構成科學定論、醫療診斷、投資建議或絕對命運預測。  
 > 報告內容僅供使用者進行人格理解、情感觀察、職涯思考與生活規劃參考。
+
+---
+
+## V2.0.2 更新說明 — Release QA Smoke Test & Customer Onboarding Polish
+
+- 新增 `CUSTOMER_ONBOARDING.md` — 客戶首次使用指南
+- 新增 `scripts/release_smoke_test.py` — Release ZIP 靜態 smoke test
+- 新增 `RELEASE_QA_CHECKLIST.md` — Go/No-Go QA 文件
+- 首頁新增「三步驟快速開始」Onboarding 區塊
+- Empty state 文案優化（報告預覽、歷史報告、匯出、合盤、免費報告）
+- 匯出格式建議說明更新（HTML 最穩定 / Word 可編輯 / PDF 為選用功能）
+- `config.py` 新增 `FIRST_RUN_ONBOARDING_ENABLED`、`CUSTOMER_SMOKE_TEST_VERSION`
+
+### Release Smoke Test (V2.0.2)
+
+```bat
+python scripts/release_smoke_test.py --zip release\astro_destiny_analyzer_v2.0.2_customer.zip --profile customer
+```
+
+### Release ZIP Paths (V2.0.2)
+
+```
+release/astro_destiny_analyzer_v2.0.2_customer.zip
+release/astro_destiny_analyzer_v2.0.2_consultant.zip
+release/astro_destiny_analyzer_v2.0.2_developer.zip
+```
 
 ---
 
@@ -43,9 +69,9 @@ python scripts/release_check.py --profile developer
 ### Release ZIP Paths
 
 ```
-release/astro_destiny_analyzer_v2.0.0_customer.zip
-release/astro_destiny_analyzer_v2.0.0_consultant.zip
-release/astro_destiny_analyzer_v2.0.0_developer.zip
+release/astro_destiny_analyzer_v2.0.2_customer.zip
+release/astro_destiny_analyzer_v2.0.2_consultant.zip
+release/astro_destiny_analyzer_v2.0.2_developer.zip
 ```
 
 ### 客戶使用

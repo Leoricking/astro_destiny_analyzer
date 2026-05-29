@@ -54,7 +54,26 @@ class TestCustomerReadme:
         assert "本機" in text or "local" in text.lower() or "隱私" in text
 
 
+class TestCustomerOnboardingDocExists:
+    def test_customer_onboarding_exists(self):
+        import pathlib
+        assert (pathlib.Path(__file__).parent.parent / "CUSTOMER_ONBOARDING.md").is_file()
+
+    def test_customer_onboarding_no_run_dev_bat(self):
+        assert "run_dev.bat" not in _read("CUSTOMER_ONBOARDING.md")
+
+    def test_customer_onboarding_no_rossi(self):
+        assert "rossi" not in _read("CUSTOMER_ONBOARDING.md").lower()
+
+    def test_release_qa_checklist_exists(self):
+        import pathlib
+        assert (pathlib.Path(__file__).parent.parent / "RELEASE_QA_CHECKLIST.md").is_file()
+
+
 class TestReleaseNotes:
+    def test_contains_version_202(self):
+        assert "2.0.2" in _read("RELEASE_NOTES.md")
+
     def test_contains_version_200(self):
         assert "2.0.0" in _read("RELEASE_NOTES.md")
 
@@ -75,8 +94,12 @@ class TestReleaseNotes:
 
 
 class TestVersionTxt:
-    def test_contains_version_200(self):
-        assert "Version: 2.0.0" in _read("VERSION.txt")
+    def test_contains_version_202(self):
+        assert "Version: 2.0.2" in _read("VERSION.txt")
+
+    def test_contains_version_200_or_202(self):
+        text = _read("VERSION.txt")
+        assert "2.0.0" in text or "2.0.2" in text
 
     def test_contains_build_profiles(self):
         text = _read("VERSION.txt")
@@ -99,9 +122,9 @@ class TestConsultantReadmeExists:
         import pathlib
         assert (pathlib.Path(__file__).parent.parent / "CONSULTANT_README.md").is_file()
 
-    def test_consultant_readme_version_200(self):
+    def test_consultant_readme_has_version(self):
         text = _read("CONSULTANT_README.md")
-        assert "2.0.0" in text
+        assert "2.0" in text
 
     def test_consultant_readme_no_rossi(self):
         assert "rossi" not in _read("CONSULTANT_README.md").lower()

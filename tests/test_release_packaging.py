@@ -110,6 +110,38 @@ class TestBuildReleaseZipSafety:
         assert safe("run.bat")
 
 
+class TestV202ReleasePackaging:
+    def _get_should_exclude(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_release_v202", str(ROOT / "scripts" / "build_release.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod._should_exclude
+
+    def test_customer_profile_excludes_run_dev_bat(self):
+        excl = self._get_should_exclude()
+        assert excl("run_dev.bat", profile="customer")
+
+    def test_customer_profile_excludes_tests_dir(self):
+        excl = self._get_should_exclude()
+        assert excl("tests/test_foo.py", profile="customer")
+
+    def test_customer_profile_does_not_exclude_onboarding(self):
+        """CUSTOMER_ONBOARDING.md must NOT be excluded from customer profile."""
+        excl = self._get_should_exclude()
+        assert not excl("CUSTOMER_ONBOARDING.md", profile="customer")
+
+    def test_zip_name_includes_profile(self):
+        src = (ROOT / "scripts" / "build_release.py").read_text(encoding="utf-8")
+        assert "APP_VERSION" in src
+        assert "profile" in src
+
+    def test_release_smoke_test_script_exists(self):
+        assert (ROOT / "scripts" / "release_smoke_test.py").is_file()
+
+
 class TestScriptsImportable:
     def test_release_check_main_importable(self):
         import importlib.util

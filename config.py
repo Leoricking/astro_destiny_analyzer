@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.2"
 APP_MAJOR_VERSION = "2"
 APP_SUBTITLE = "命盤整合分析系統"
 
@@ -97,6 +97,13 @@ LEAD_MAGNET_ENABLED: bool = os.getenv("ASTRO_LEAD_MAGNET_ENABLED", "1").strip().
 LEAD_STORAGE_PATH = DATA_DIR / "leads_mock.json"
 LEAD_EXPORT_DIR = DATA_DIR / "lead_exports"
 FREE_REPORT_VERSION: str = "v1"
+
+# V2.0.2 — First-run onboarding & smoke test versioning
+FIRST_RUN_ONBOARDING_ENABLED: bool = os.getenv(
+    "ASTRO_FIRST_RUN_ONBOARDING_ENABLED", "1"
+).strip().lower() in ("1", "true", "yes", "on")
+
+CUSTOMER_SMOKE_TEST_VERSION: str = "v1"
 
 # Consultant Workflow & Client Case Management (V1.9.8)
 CONSULTANT_MODE: bool = (

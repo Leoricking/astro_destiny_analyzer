@@ -135,6 +135,43 @@ class TestHomePageCustomerMode:
         home_section = src[home_start:next_page]
         assert "📝 輸入資料" in home_section or "輸入" in home_section
 
+    def test_home_has_onboarding_section(self):
+        """V2.0.2: Home page must have onboarding 三步驟 section."""
+        src = _app_src()
+        home_start = src.find('if page == "🏠 首頁"')
+        next_page = src.find('\nelif page ==', home_start + 1)
+        home_section = src[home_start:next_page]
+        assert "三步驟" in home_section or "快速開始" in home_section
+
+    def test_home_onboarding_has_free_content_cta(self):
+        """V2.0.2: Home onboarding must link to free content."""
+        src = _app_src()
+        home_start = src.find('if page == "🏠 首頁"')
+        next_page = src.find('\nelif page ==', home_start + 1)
+        home_section = src[home_start:next_page]
+        assert "免費內容" in home_section
+
+    def test_home_onboarding_has_free_report_cta(self):
+        """V2.0.2: Home onboarding must link to free report."""
+        src = _app_src()
+        home_start = src.find('if page == "🏠 首頁"')
+        next_page = src.find('\nelif page ==', home_start + 1)
+        home_section = src[home_start:next_page]
+        assert "免費摘要" in home_section or "免費報告" in home_section
+
+    def test_home_onboarding_no_developer_words(self):
+        """V2.0.2: Home onboarding must not expose developer terminology."""
+        src = _app_src()
+        home_start = src.find('if page == "🏠 首頁"')
+        next_page = src.find('\nelif page ==', home_start + 1)
+        home_section = src[home_start:next_page]
+        # Developer-only terms must not appear in the non-SHOW_DEMO_DATA area
+        show_demo_idx = home_section.find("if SHOW_DEMO_DATA")
+        pre_demo = home_section[:show_demo_idx] if show_demo_idx != -1 else home_section
+        assert "紫微校準" not in pre_demo
+        assert "calibration" not in pre_demo.lower()
+        assert "golden case" not in pre_demo.lower()
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # D. Demo data gating
