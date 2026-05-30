@@ -98,6 +98,23 @@ class TestStartProtectedBat:
         assert "run.bat" not in src.lower() or "run_" not in src.lower()
 
 
+class TestAppLauncherStubUsage:
+    """Verifies app_launcher.py uses the minimal stub, not the full source."""
+
+    def test_launcher_uses_protected_entry_stub(self):
+        src = _launcher_src()
+        assert "protected_streamlit_entry.py" in src
+
+    def test_launcher_does_not_reference_ui_streamlit_app_as_data(self):
+        src = _launcher_src()
+        # The launcher must not construct a path joining "ui" + "streamlit_app.py"
+        lines = [l for l in src.splitlines()
+                 if "streamlit_app.py" in l and '"ui"' in l]
+        assert len(lines) == 0, (
+            f"Launcher still references ui/streamlit_app.py path: {lines}"
+        )
+
+
 class TestProtectedDocs:
     def test_trial_readme_exists(self):
         assert (ROOT / "TRIAL_README.txt").is_file()

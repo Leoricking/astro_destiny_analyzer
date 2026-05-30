@@ -20,6 +20,26 @@ if _PROJECT_ROOT not in sys.path:
 
 EXPECTED_VERSION = "2.0.3"
 
+# ── Project source packages — must NOT appear as .py inside _internal/ ────────
+_PROJECT_PACKAGE_ROOTS = [
+    "ui/",
+    "core/",
+    "engines/",
+    "reports/",
+    "compatibility/",
+    "human_design/",
+    "human_design_reconciliation/",
+    "public_content/",
+    "lead_magnet/",
+    "consultant_workflow/",
+    "ziwei_reconciliation/",
+]
+
+# ── Known minimal stubs allowed as .py inside _internal/ (no business logic) ──
+_ALLOWED_STUBS_IN_INTERNAL = [
+    "protected_streamlit_entry.py",
+]
+
 # ── Required files in the protected ZIP ───────────────────────────────────────
 REQUIRED_FILES_PROTECTED = [
     "CUSTOMER_README.md",
@@ -102,6 +122,40 @@ def _is_py_source_outside_internal(arc_name: str) -> bool:
     if len(parts) >= 2 and parts[1] == "_internal":
         return False
     return True
+
+
+def _is_project_source_inside_internal(arc_name: str) -> bool:
+    """Return True if the entry is a project source .py inside _internal/.
+
+    Rejects readable project source files (ui/, core/, engines/, etc.) that
+    must not appear in the protected ZIP even inside _internal/.
+    Allows known minimal stubs and third-party library files.
+    """
+    normalized = arc_name.replace("\\", "/").lower()
+    if not normalized.endswith(".py"):
+        return False
+
+    # Only inspect files inside _internal/
+    idx = normalized.find("/_internal/")
+    if idx >= 0:
+        after_internal = normalized[idx + len("/_internal/"):]
+    elif normalized.startswith("_internal/"):
+        after_internal = normalized[len("_internal/"):]
+    else:
+        return False  # outside _internal/ — handled by _is_py_source_outside_internal
+
+    # Allow known minimal stubs (no business logic)
+    for stub in _ALLOWED_STUBS_IN_INTERNAL:
+        if after_internal == stub.lower():
+            return False
+
+    # Reject if the path starts with a project package root
+    for pkg_root in _PROJECT_PACKAGE_ROOTS:
+        if after_internal.startswith(pkg_root.lower()):
+            return True
+
+    # Third-party library files (numpy, pyarrow, streamlit, etc.) — allowed
+    return False
 
 
 def _result(label: str, ok: bool, detail: str = "") -> bool:
@@ -199,7 +253,18 @@ def run_smoke_test(zip_path: str) -> int:
         failures += 1
     print()
 
-    # ── 6. Forbidden entries absent ───────────────────────────────────────────
+    # ── 6. No project source .py inside _internal/ ───────────────────────────
+    print("[CHECK] No project source .py inside _internal/:")
+    leaked_internal = [n for n in names if _is_project_source_inside_internal(n)]
+    if leaked_internal:
+        for entry in leaked_internal[:10]:
+            _result(f"Leaked: {entry}", False, "project source must be bytecode-only")
+            failures += 1
+    else:
+        _result("No project source .py inside _internal/", True, "OK")
+    print()
+
+    # ── 7. Forbidden entries absent ───────────────────────────────────────────
     print("[CHECK] Forbidden entries absent:")
     found_forbidden = [n for n in names if _is_forbidden_entry(n)]
     if found_forbidden:
@@ -210,7 +275,7 @@ def run_smoke_test(zip_path: str) -> int:
         _result("No forbidden entries found", True)
     print()
 
-    # ── 7. tests/ absent (excluding _internal/ which may have library tests) ──
+    # ── 8. tests/ absent (excluding _internal/ which may have library tests) ──
     print("[CHECK] No tests/ directory outside _internal/:")
     has_tests = any(
         "tests/" in n.replace("\\", "/").lower()
@@ -222,7 +287,7 @@ def run_smoke_test(zip_path: str) -> int:
         failures += 1
     print()
 
-    # ── 8. demo/ absent ──────────────────────────────────────────────────────
+    # ── 9. demo/ absent ──────────────────────────────────────────────────────
     print("[CHECK] No demo/ directory:")
     has_demo = any(
         "demo/" in n.replace("\\", "/").lower()
@@ -234,7 +299,7 @@ def run_smoke_test(zip_path: str) -> int:
         failures += 1
     print()
 
-    # ── 9. VERSION.txt content ────────────────────────────────────────────────
+    # ── 10. VERSION.txt content ───────────────────────────────────────────────
     print("[CHECK] VERSION.txt content:")
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:

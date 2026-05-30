@@ -22,7 +22,7 @@ else:
     # Normal Python execution (development / testing)
     _base = os.path.dirname(os.path.abspath(__file__))
 
-_app_script = os.path.join(_base, "ui", "streamlit_app.py")
+_app_script = os.path.join(_base, "protected_streamlit_entry.py")
 
 if not os.path.isfile(_app_script):
     print(f"[ERROR] App script not found: {_app_script}")

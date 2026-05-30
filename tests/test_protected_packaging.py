@@ -224,3 +224,103 @@ class TestProtectedForbiddenChecker:
     def test_allows_start_protected_bat(self):
         mod = self._mod()
         assert not mod._is_forbidden_entry("start_protected.bat")
+
+
+class TestProtectedInternalSourceChecker:
+    """Tests for _is_project_source_inside_internal() — project source must not
+    appear as readable .py inside the _internal/ PyInstaller bundle."""
+
+    def _mod(self):
+        return _load_smoke_test()
+
+    def test_rejects_internal_ui_streamlit_app(self):
+        mod = self._mod()
+        assert mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/ui/streamlit_app.py"
+        )
+
+    def test_rejects_internal_core_models(self):
+        mod = self._mod()
+        assert mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/core/models.py"
+        )
+
+    def test_rejects_internal_engines_ziwei(self):
+        mod = self._mod()
+        assert mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/engines/ziwei.py"
+        )
+
+    def test_rejects_internal_human_design_engine(self):
+        mod = self._mod()
+        assert mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/human_design/engine.py"
+        )
+
+    def test_allows_internal_pyarrow_tests(self):
+        mod = self._mod()
+        assert not mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/pyarrow/tests/test_x.py"
+        )
+
+    def test_allows_internal_numpy_core(self):
+        mod = self._mod()
+        assert not mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/numpy/_core/foo.py"
+        )
+
+    def test_allows_known_stub(self):
+        mod = self._mod()
+        assert not mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/protected_streamlit_entry.py"
+        )
+
+    def test_rejects_without_dist_prefix(self):
+        mod = self._mod()
+        assert mod._is_project_source_inside_internal(
+            "_internal/ui/streamlit_app.py"
+        )
+        assert mod._is_project_source_inside_internal(
+            "_internal/engines/ziwei.py"
+        )
+
+    def test_ignores_non_py_in_internal(self):
+        mod = self._mod()
+        assert not mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/ui/streamlit_app.pyc"
+        )
+
+    def test_still_rejects_rossi(self):
+        mod = self._mod()
+        assert mod._is_forbidden_entry("Rossi_data.json")
+
+    def test_still_rejects_dot_env(self):
+        mod = self._mod()
+        assert mod._is_forbidden_entry(".env")
+
+
+class TestProtectedBuildUsesStub:
+    """Tests that build_protected.py uses the protected_streamlit_entry.py stub
+    and does NOT add ui/streamlit_app.py as a data file."""
+
+    def _src(self) -> str:
+        return BUILD_PROTECTED.read_text(encoding="utf-8")
+
+    def test_references_protected_streamlit_entry(self):
+        assert "protected_streamlit_entry.py" in self._src()
+
+    def test_does_not_add_data_streamlit_app(self):
+        src = self._src()
+        # --add-data for ui/streamlit_app.py must NOT be present
+        lines = [l for l in src.splitlines() if "add-data" in l or "add_data" in l]
+        for line in lines:
+            assert "streamlit_app.py" not in line, (
+                f"build_protected.py still adds streamlit_app.py as data: {line}"
+            )
+
+    def test_collects_project_submodules(self):
+        src = self._src()
+        assert "collect-submodules" in src or "collect_submodules" in src
+
+    def test_stub_file_exists(self):
+        assert (ROOT / "protected_streamlit_entry.py").is_file()

@@ -66,6 +66,23 @@ _HIDDEN_IMPORTS = [
     "streamlit.runtime",
     "altair",
     "pydeck",
+    "config",
+    "runpy",
+]
+
+# ── Project packages to collect as compiled bytecode (no .py source exposed) ──
+_COLLECT_SUBMODULES = [
+    "ui",
+    "core",
+    "engines",
+    "reports",
+    "compatibility",
+    "human_design",
+    "human_design_reconciliation",
+    "public_content",
+    "lead_magnet",
+    "consultant_workflow",
+    "ziwei_reconciliation",
 ]
 
 
@@ -80,16 +97,21 @@ def _check_pyinstaller() -> bool:
 def _run_pyinstaller() -> bool:
     """Run PyInstaller to create a one-folder build."""
     launcher = str(_ROOT / "app_launcher.py")
-    ui_script = str(_ROOT / "ui" / "streamlit_app.py")
+    stub = str(_ROOT / "protected_streamlit_entry.py")
 
     hidden = []
     for hi in _HIDDEN_IMPORTS:
         hidden += ["--hidden-import", hi]
 
-    # Include ui/streamlit_app.py as data file so the launcher can reference it
+    # Collect all project submodules as compiled bytecode — no .py source exposed
+    collect = []
+    for pkg in _COLLECT_SUBMODULES:
+        collect += ["--collect-submodules", pkg]
+
+    # Include only the minimal stub as a data file (no business logic)
     sep = ";" if sys.platform == "win32" else ":"
     add_data = [
-        "--add-data", f"{ui_script}{sep}ui",
+        "--add-data", f"{stub}{sep}.",
     ]
 
     cmd = [
@@ -102,6 +124,7 @@ def _run_pyinstaller() -> bool:
         "--noconfirm",
         "--clean",
         *hidden,
+        *collect,
         *add_data,
         launcher,
     ]
