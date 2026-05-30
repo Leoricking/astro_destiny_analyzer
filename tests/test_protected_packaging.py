@@ -324,3 +324,115 @@ class TestProtectedBuildUsesStub:
 
     def test_stub_file_exists(self):
         assert (ROOT / "protected_streamlit_entry.py").is_file()
+
+    def test_collects_all_streamlit(self):
+        src = self._src()
+        assert "collect-all" in src or "collect_all" in src
+        assert "streamlit" in src
+
+    def test_copies_streamlit_metadata(self):
+        src = self._src()
+        assert "copy-metadata" in src or "copy_metadata" in src
+        assert "streamlit" in src
+
+
+class TestProtectedZipRootLayout:
+    """Tests that build_protected.py produces a ZIP with a root folder wrapper."""
+
+    def test_build_has_zip_root_dir_constant(self):
+        mod = _load_build_protected()
+        assert hasattr(mod, "ZIP_ROOT_DIR")
+
+    def test_zip_root_dir_matches_expected_name(self):
+        mod = _load_build_protected()
+        assert mod.ZIP_ROOT_DIR == "astro_destiny_analyzer_v2.0.3_protected_trial"
+
+    def test_smoke_test_has_zip_root_dir_constant(self):
+        mod = _load_smoke_test()
+        assert hasattr(mod, "ZIP_ROOT_DIR")
+
+    def test_smoke_test_zip_root_dir_matches_expected_name(self):
+        mod = _load_smoke_test()
+        assert mod.ZIP_ROOT_DIR == "astro_destiny_analyzer_v2.0.3_protected_trial"
+
+
+class TestProtectedBatSyntaxChecker:
+    """Tests that the smoke test validates Windows batch syntax in start_protected.bat."""
+
+    def _mod(self):
+        return _load_smoke_test()
+
+    def _run_bat_check(self, bat_content: str) -> list:
+        """Simulate smoke test bat syntax checks; returns list of failure labels."""
+        failures = []
+        has_script_dir = 'set "SCRIPT_DIR=%~dp0"' in bat_content
+        if not has_script_dir:
+            failures.append("missing set SCRIPT_DIR=%~dp0")
+        no_bare_dp0 = "~dp0" not in bat_content.replace("%~dp0", "")
+        if not no_bare_dp0:
+            failures.append("bare ~dp0 without %")
+        no_dollar_env = "$env" not in bat_content.lower()
+        if not no_dollar_env:
+            failures.append("$env found")
+        no_env_colon = "env:" not in bat_content.lower()
+        if not no_env_colon:
+            failures.append("env: found")
+        return failures
+
+    def test_rejects_bare_dp0_without_percent(self):
+        bad = '@echo off\nset "SCRIPT_DIR=~dp0"\nset EXE=AstroDestinyAnalyzer.exe\n'
+        assert self._run_bat_check(bad) != []
+
+    def test_rejects_dollar_env_syntax(self):
+        bad = '@echo off\nset "SCRIPT_DIR=%~dp0"\n$env:STREAMLIT_SERVER_PORT=8501\n'
+        assert "bare ~dp0 without %" not in self._run_bat_check(bad)
+        assert "$env found" in self._run_bat_check(bad)
+
+    def test_rejects_env_colon_syntax(self):
+        bad = '@echo off\nset "SCRIPT_DIR=%~dp0"\nenv:STREAMLIT_SERVER_PORT=8501\n'
+        assert "env: found" in self._run_bat_check(bad)
+
+    def test_accepts_valid_batch_syntax(self):
+        good = (
+            '@echo off\nchcp 65001 >nul\nsetlocal\n'
+            'set "SCRIPT_DIR=%~dp0"\n'
+            'set "EXE=%SCRIPT_DIR%AstroDestinyAnalyzer\\AstroDestinyAnalyzer.exe"\n'
+            'set "STREAMLIT_GLOBAL_DEVELOPMENT_MODE=false"\n'
+            'set "STREAMLIT_SERVER_PORT=8501"\n'
+            '"%EXE%"\n'
+        )
+        assert self._run_bat_check(good) == []
+
+
+class TestProtectedSmokeStreamlitChecks:
+    """Tests that the smoke test enforces streamlit runtime and correct exe path."""
+
+    def _mod(self):
+        return _load_smoke_test()
+
+    def test_has_required_exe_path_constant(self):
+        mod = self._mod()
+        assert hasattr(mod, "REQUIRED_EXE_PATH")
+        assert "AstroDestinyAnalyzer/AstroDestinyAnalyzer.exe" in mod.REQUIRED_EXE_PATH
+
+    def test_has_required_streamlit_dir_constant(self):
+        mod = self._mod()
+        assert hasattr(mod, "REQUIRED_STREAMLIT_DIR")
+        assert "streamlit" in mod.REQUIRED_STREAMLIT_DIR
+
+    def test_has_required_streamlit_distinfo_constant(self):
+        mod = self._mod()
+        assert hasattr(mod, "REQUIRED_STREAMLIT_DISTINFO_PREFIX")
+        assert "streamlit" in mod.REQUIRED_STREAMLIT_DISTINFO_PREFIX
+
+    def test_forbidden_checker_allows_internal_streamlit_runtime(self):
+        mod = self._mod()
+        assert not mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/streamlit/runtime/scriptrunner/magic_funcs.py"
+        )
+
+    def test_forbidden_checker_still_rejects_internal_ui_streamlit_app(self):
+        mod = self._mod()
+        assert mod._is_project_source_inside_internal(
+            "AstroDestinyAnalyzer/_internal/ui/streamlit_app.py"
+        )

@@ -29,6 +29,7 @@ DIST_DIR = _ROOT / "dist" / DIST_NAME
 RELEASE_DIR = _ROOT / "release"
 ZIP_NAME = f"astro_destiny_analyzer_v{APP_VERSION}_protected_trial.zip"
 ZIP_PATH = RELEASE_DIR / ZIP_NAME
+ZIP_ROOT_DIR = f"astro_destiny_analyzer_v{APP_VERSION}_protected_trial"
 
 # ── Docs to include alongside the executable ───────────────────────────────────
 _INCLUDE_DOCS = [
@@ -70,6 +71,28 @@ _HIDDEN_IMPORTS = [
     "runpy",
 ]
 
+# ── Third-party packages: collect all files + copy dist-info metadata ─────────
+# Required so streamlit's importlib.metadata lookups succeed at runtime.
+_COLLECT_ALL_THIRD_PARTY = [
+    "streamlit",
+    "altair",
+    "pydeck",
+    "watchdog",
+    "blinker",
+    "click",
+    "cachetools",
+]
+
+_COPY_METADATA = [
+    "streamlit",
+    "altair",
+    "pydeck",
+    "watchdog",
+    "blinker",
+    "click",
+    "cachetools",
+]
+
 # ── Project packages to collect as compiled bytecode (no .py source exposed) ──
 _COLLECT_SUBMODULES = [
     "ui",
@@ -103,10 +126,19 @@ def _run_pyinstaller() -> bool:
     for hi in _HIDDEN_IMPORTS:
         hidden += ["--hidden-import", hi]
 
+    # Collect all third-party runtime files + metadata (streamlit, altair, etc.)
+    collect_all = []
+    for pkg in _COLLECT_ALL_THIRD_PARTY:
+        collect_all += ["--collect-all", pkg]
+
+    copy_meta = []
+    for pkg in _COPY_METADATA:
+        copy_meta += ["--copy-metadata", pkg]
+
     # Collect all project submodules as compiled bytecode — no .py source exposed
-    collect = []
+    collect_sub = []
     for pkg in _COLLECT_SUBMODULES:
-        collect += ["--collect-submodules", pkg]
+        collect_sub += ["--collect-submodules", pkg]
 
     # Include only the minimal stub as a data file (no business logic)
     sep = ";" if sys.platform == "win32" else ":"
@@ -124,7 +156,9 @@ def _run_pyinstaller() -> bool:
         "--noconfirm",
         "--clean",
         *hidden,
-        *collect,
+        *collect_all,
+        *copy_meta,
+        *collect_sub,
         *add_data,
         launcher,
     ]
@@ -141,25 +175,27 @@ def _create_zip() -> pathlib.Path:
 
     files_added = 0
     with zipfile.ZipFile(str(ZIP_PATH), "w", zipfile.ZIP_DEFLATED) as zf:
-        # Add everything from the PyInstaller dist folder
+        # Add everything from the PyInstaller dist folder under the root wrapper
         if DIST_DIR.exists():
             for f in DIST_DIR.rglob("*"):
                 if not f.is_file():
                     continue
-                arc_name = str(f.relative_to(DIST_DIR.parent))
+                rel = f.relative_to(DIST_DIR.parent).as_posix()
+                arc_name = ZIP_ROOT_DIR + "/" + rel
                 zf.write(str(f), arc_name)
                 files_added += 1
 
-        # Add docs alongside the exe (at root level of ZIP, not inside DIST_NAME/)
+        # Add docs inside the root wrapper folder
         for doc in _INCLUDE_DOCS:
             src = _ROOT / doc
             if src.exists():
-                zf.write(str(src), doc)
+                arc_name = ZIP_ROOT_DIR + "/" + doc
+                zf.write(str(src), arc_name)
                 files_added += 1
 
-        # Empty data directories
-        zf.writestr("data/.gitkeep", "")
-        zf.writestr("data/exports/.gitkeep", "")
+        # Empty data directories inside root wrapper
+        zf.writestr(ZIP_ROOT_DIR + "/data/.gitkeep", "")
+        zf.writestr(ZIP_ROOT_DIR + "/data/exports/.gitkeep", "")
 
     return files_added
 

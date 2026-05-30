@@ -19,6 +19,7 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 EXPECTED_VERSION = "2.0.3"
+ZIP_ROOT_DIR = f"astro_destiny_analyzer_v{EXPECTED_VERSION}_protected_trial"
 
 # ── Project source packages — must NOT appear as .py inside _internal/ ────────
 _PROJECT_PACKAGE_ROOTS = [
@@ -48,11 +49,18 @@ REQUIRED_FILES_PROTECTED = [
     "RELEASE_NOTES.md",
 ]
 
+# Specific exe path within the ZIP (subdirectory from PyInstaller one-folder build)
+REQUIRED_EXE_PATH = "AstroDestinyAnalyzer/AstroDestinyAnalyzer.exe"
+
 # At least one of these must be present (exe OR launcher bat)
 REQUIRED_EXECUTABLE_ANY = [
     "AstroDestinyAnalyzer.exe",
     "start_protected.bat",
 ]
+
+# ── Streamlit runtime — must be present for the app to start ─────────────────
+REQUIRED_STREAMLIT_DIR = "_internal/streamlit/"
+REQUIRED_STREAMLIT_DISTINFO_PREFIX = "_internal/streamlit-"
 
 # ── Forbidden entries (all must be absent) ────────────────────────────────────
 FORBIDDEN_ENTRIES_PROTECTED = [
@@ -241,7 +249,120 @@ def run_smoke_test(zip_path: str) -> int:
             failures += 1
     print()
 
-    # ── 5. No .py source files outside _internal/ ─────────────────────────────
+    # ── 5. EXE at correct subdirectory path ───────────────────────────────────
+    print("[CHECK] EXE at correct subdirectory path:")
+    has_subdir_exe = any(
+        n.replace("\\", "/").lower().endswith(REQUIRED_EXE_PATH.lower())
+        for n in names
+    )
+    if not _result(
+        f"{REQUIRED_EXE_PATH} present",
+        has_subdir_exe,
+        "OK" if has_subdir_exe else "MISSING — EXE not found at expected subdirectory path",
+    ):
+        failures += 1
+    print()
+
+    # ── 5b. start_protected.bat points to subdirectory EXE ────────────────────
+    print("[CHECK] start_protected.bat EXE path and Windows batch syntax:")
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            bat_entries = [n for n in names if n.lower().endswith("start_protected.bat")
+                           and "_internal" not in n.lower()]
+            if bat_entries:
+                bat_content = zf.read(bat_entries[0]).decode("utf-8", errors="replace")
+                subdir_ref = "AstroDestinyAnalyzer\\AstroDestinyAnalyzer.exe" in bat_content \
+                             or "AstroDestinyAnalyzer/AstroDestinyAnalyzer.exe" in bat_content
+                if not _result(
+                    "start_protected.bat references AstroDestinyAnalyzer\\AstroDestinyAnalyzer.exe",
+                    subdir_ref,
+                    "OK" if subdir_ref else "FAIL — bat points to wrong EXE path",
+                ):
+                    failures += 1
+                has_devmode = "STREAMLIT_GLOBAL_DEVELOPMENT_MODE=false" in bat_content
+                if not _result(
+                    "start_protected.bat disables developmentMode",
+                    has_devmode,
+                    "OK" if has_devmode else "MISSING — STREAMLIT_GLOBAL_DEVELOPMENT_MODE=false not set",
+                ):
+                    failures += 1
+                has_8501 = "127.0.0.1:8501" in bat_content or "8501" in bat_content
+                if not _result(
+                    "start_protected.bat contains port 8501",
+                    has_8501,
+                    "OK" if has_8501 else "MISSING — bat does not set port 8501",
+                ):
+                    failures += 1
+                no_3000 = "3000" not in bat_content
+                if not _result(
+                    "start_protected.bat does not reference port 3000",
+                    no_3000,
+                    "OK" if no_3000 else "FAIL — bat still references port 3000",
+                ):
+                    failures += 1
+                # ── Windows batch syntax validation ──────────────────────────
+                has_script_dir = 'set "SCRIPT_DIR=%~dp0"' in bat_content
+                if not _result(
+                    'start_protected.bat has set "SCRIPT_DIR=%~dp0"',
+                    has_script_dir,
+                    "OK" if has_script_dir else "MISSING or malformed — %~dp0 not found",
+                ):
+                    failures += 1
+                no_bare_dp0 = "~dp0" not in bat_content.replace("%~dp0", "")
+                if not _result(
+                    "start_protected.bat has no bare ~dp0 without %",
+                    no_bare_dp0,
+                    "OK" if no_bare_dp0 else "FAIL — bare ~dp0 found (missing % prefix)",
+                ):
+                    failures += 1
+                no_dollar_env = "$env" not in bat_content.lower()
+                if not _result(
+                    "start_protected.bat has no $env (PowerShell syntax)",
+                    no_dollar_env,
+                    "OK" if no_dollar_env else "FAIL — $env found in bat file",
+                ):
+                    failures += 1
+                no_env_colon = "env:" not in bat_content.lower()
+                if not _result(
+                    "start_protected.bat has no env: (Linux syntax)",
+                    no_env_colon,
+                    "OK" if no_env_colon else "FAIL — env: found in bat file",
+                ):
+                    failures += 1
+            else:
+                _result("start_protected.bat found in ZIP", False, "NOT FOUND")
+                failures += 1
+    except Exception as exc:
+        _result("start_protected.bat readable", False, str(exc))
+        failures += 1
+    print()
+
+    # ── 5c. Streamlit runtime present ─────────────────────────────────────────
+    print("[CHECK] Streamlit runtime in _internal/:")
+    has_streamlit_dir = any(
+        REQUIRED_STREAMLIT_DIR in n.replace("\\", "/").lower()
+        for n in names
+    )
+    if not _result(
+        f"{REQUIRED_STREAMLIT_DIR} present",
+        has_streamlit_dir,
+        "OK" if has_streamlit_dir else "MISSING — streamlit not bundled",
+    ):
+        failures += 1
+
+    has_streamlit_dist = any(
+        REQUIRED_STREAMLIT_DISTINFO_PREFIX in n.replace("\\", "/").lower()
+        for n in names
+    )
+    if not _result(
+        "streamlit dist-info present",
+        has_streamlit_dist,
+        "OK" if has_streamlit_dist else "MISSING — streamlit metadata not bundled",
+    ):
+        failures += 1
+    print()
+
+    # ── 7. No .py source files outside _internal/ ─────────────────────────────
     print("[CHECK] No .py source files exposed at top level:")
     exposed_py = [n for n in names if _is_py_source_outside_internal(n)]
     ok = len(exposed_py) == 0
@@ -253,7 +374,7 @@ def run_smoke_test(zip_path: str) -> int:
         failures += 1
     print()
 
-    # ── 6. No project source .py inside _internal/ ───────────────────────────
+    # ── 8. No project source .py inside _internal/ ───────────────────────────
     print("[CHECK] No project source .py inside _internal/:")
     leaked_internal = [n for n in names if _is_project_source_inside_internal(n)]
     if leaked_internal:
@@ -264,7 +385,7 @@ def run_smoke_test(zip_path: str) -> int:
         _result("No project source .py inside _internal/", True, "OK")
     print()
 
-    # ── 7. Forbidden entries absent ───────────────────────────────────────────
+    # ── 9. Forbidden entries absent ───────────────────────────────────────────
     print("[CHECK] Forbidden entries absent:")
     found_forbidden = [n for n in names if _is_forbidden_entry(n)]
     if found_forbidden:
@@ -275,7 +396,7 @@ def run_smoke_test(zip_path: str) -> int:
         _result("No forbidden entries found", True)
     print()
 
-    # ── 8. tests/ absent (excluding _internal/ which may have library tests) ──
+    # ── 10. tests/ absent (excluding _internal/ which may have library tests) ──
     print("[CHECK] No tests/ directory outside _internal/:")
     has_tests = any(
         "tests/" in n.replace("\\", "/").lower()
@@ -287,7 +408,7 @@ def run_smoke_test(zip_path: str) -> int:
         failures += 1
     print()
 
-    # ── 9. demo/ absent ──────────────────────────────────────────────────────
+    # ── 11. demo/ absent ──────────────────────────────────────────────────────
     print("[CHECK] No demo/ directory:")
     has_demo = any(
         "demo/" in n.replace("\\", "/").lower()
@@ -299,7 +420,7 @@ def run_smoke_test(zip_path: str) -> int:
         failures += 1
     print()
 
-    # ── 10. VERSION.txt content ───────────────────────────────────────────────
+    # ── 12. VERSION.txt content ───────────────────────────────────────────────
     print("[CHECK] VERSION.txt content:")
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
