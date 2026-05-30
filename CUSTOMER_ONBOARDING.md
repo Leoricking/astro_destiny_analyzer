@@ -1,13 +1,13 @@
 # Astro Destiny Analyzer — 客戶首次使用指南
 
-> **版本**：v2.0.2  
+> **版本**：v2.0.3  
 > **適用對象**：首次收到 ZIP 壓縮檔的使用者
 
 ---
 
 ## 一、ZIP 解壓縮
 
-1. 找到您收到的 ZIP 壓縮檔（例如：`astro_destiny_analyzer_v2.0.2_customer.zip`）
+1. 找到您收到的 ZIP 壓縮檔（例如：`astro_destiny_analyzer_v2.0.3_customer.zip`）
 2. 在檔案上按右鍵 → 「解壓縮至目前位置」或「全部解壓縮」
 3. 進入解壓縮後產生的資料夾
 4. 確認資料夾內有 `setup.bat`、`run.bat`、`CUSTOMER_README.md` 等檔案
@@ -143,4 +143,4 @@
 
 ---
 
-*Astro Destiny Analyzer v2.0.2 — 客戶首次使用指南*
+*Astro Destiny Analyzer v2.0.3 — 客戶首次使用指南*

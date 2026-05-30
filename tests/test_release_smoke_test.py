@@ -118,7 +118,7 @@ class TestForbiddenEntryHelper:
 class TestVersionCheck:
     def test_expected_version_is_202(self):
         mod = _load_smoke_test()
-        assert mod.EXPECTED_VERSION == "2.0.2"
+        assert mod.EXPECTED_VERSION == "2.0.3"
 
 
 class TestOptionalDemoCheck:

@@ -1,8 +1,37 @@
-# Astro Destiny Analyzer — 命盤整合分析系統 v2.0.2
+# Astro Destiny Analyzer — 命盤整合分析系統 v2.0.3
 
 > **免責聲明**  
 > 本系統為「自我探索與娛樂型命盤分析工具」，不構成科學定論、醫療診斷、投資建議或絕對命運預測。  
 > 報告內容僅供使用者進行人格理解、情感觀察、職涯思考與生活規劃參考。
+
+---
+
+## V2.0.3 更新說明 — Protected Trial EXE Package
+
+- 新增 `scripts/build_protected.py` — PyInstaller one-folder protected trial 打包腳本
+- 新增 `scripts/protected_smoke_test.py` — Protected ZIP 靜態 smoke test
+- 新增 `app_launcher.py` — PyInstaller 入口點，自動設定 Customer/Trial 模式環境變數
+- 新增 `start_protected.bat` — Protected trial 啟動腳本
+- 新增 `TRIAL_README.txt`、`試用說明.txt`、`requirements-build.txt`
+- `release_check.py` 新增 `protected_trial` profile
+
+### Protected Trial Build (V2.0.3)
+
+```bat
+.venv\Scripts\python scripts\build_protected.py
+.venv\Scripts\python scripts\protected_smoke_test.py --zip release\astro_destiny_analyzer_v2.0.3_protected_trial.zip
+```
+
+### Protected Trial ZIP Path (V2.0.3)
+
+```
+release/astro_destiny_analyzer_v2.0.3_protected_trial.zip
+```
+
+### 限制說明
+
+- Python 打包不是絕對防逆向（PyInstaller 主要目標是不直接暴露 .py source code）
+- 若要更高保護，後續評估 Nuitka / PyArmor / 核心演算法 API 化
 
 ---
 

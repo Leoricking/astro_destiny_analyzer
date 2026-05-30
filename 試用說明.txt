@@ -1,0 +1,21 @@
+Astro Destiny Analyzer — 試用版說明
+版本：2.0.3（Protected Trial 封裝版）
+
+此版本為保護性封裝試用版，Python source code 未隨附。
+請使用 start_protected.bat 或 AstroDestinyAnalyzer.exe 啟動應用程式。
+
+啟動方式：
+  雙擊 start_protected.bat
+  ── 或 ──
+  雙擊 AstroDestinyAnalyzer.exe
+
+注意事項：
+  本試用版為封裝版，客戶不需要查看或修改 source code。
+  若遇到問題，請聯絡服務人員，勿自行修改內部檔案。
+
+隱私說明：
+  所有資料均儲存於本機 data/ 目錄，不會傳送至外部伺服器。
+
+免責聲明：
+  本系統定位為「自我探索與娛樂型命盤分析工具」。
+  所有分析結果僅供參考，不構成科學定論、醫療診斷、投資建議或絕對命運預測。

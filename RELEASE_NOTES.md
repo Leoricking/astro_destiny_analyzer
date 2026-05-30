@@ -1,3 +1,45 @@
+# Release Notes — Astro Destiny Analyzer v2.0.3
+
+## Version Summary
+
+**v2.0.3 — Protected Trial EXE Package**
+Release date: 2026-05-30
+Build type: Commercial MVP — Protected Trial Build
+
+This release adds a PyInstaller one-folder protected trial build.
+Customers receive a compiled executable package — Python source code is not directly exposed.
+No new astrology algorithms or external service integrations.
+
+---
+
+## Main Changes (v2.0.3)
+
+- **Protected Trial Build**: New `scripts/build_protected.py` — PyInstaller one-folder EXE build
+- **Protected Smoke Test**: New `scripts/protected_smoke_test.py` — validates protected ZIP
+- **App Launcher**: New `app_launcher.py` — PyInstaller entry point with customer/trial env vars
+- **Trial Docs**: New `TRIAL_README.txt`, `試用說明.txt`, `start_protected.bat`
+- **Release Check**: Added `protected_trial` profile to `release_check.py`
+- **Test Coverage**: New `tests/test_protected_packaging.py`, `tests/test_protected_customer_mode.py`
+
+### New Files (v2.0.3)
+
+- `app_launcher.py` — PyInstaller launcher entry point
+- `start_protected.bat` — Protected trial startup script
+- `TRIAL_README.txt` — Trial version readme (English)
+- `試用說明.txt` — Trial version readme (Chinese)
+- `requirements-build.txt` — Build-time dependencies (pyinstaller)
+- `scripts/build_protected.py` — Protected trial build script
+- `scripts/protected_smoke_test.py` — Protected ZIP smoke test
+
+### Privacy & Security (v2.0.3)
+
+- Protected trial build contains no Python source code at the top level
+- Source modules compiled to bytecode inside `_internal/` (PyInstaller bundle)
+- Note: Python bytecode is not absolute protection against reverse engineering
+- Future options: Nuitka, PyArmor, cloud API for core algorithms
+
+---
+
 # Release Notes — Astro Destiny Analyzer v2.0.2
 
 ## Version Summary

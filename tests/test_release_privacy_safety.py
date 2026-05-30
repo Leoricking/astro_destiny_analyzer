@@ -126,7 +126,7 @@ class TestReleaseCheckScript:
     def test_release_check_detects_version(self):
         mod = _load_release_check()
         assert hasattr(mod, "EXPECTED_VERSION")
-        assert mod.EXPECTED_VERSION == "2.0.2"
+        assert mod.EXPECTED_VERSION == "2.0.3"
 
     def test_forbidden_keywords_list_includes_password(self):
         mod = _load_release_check()

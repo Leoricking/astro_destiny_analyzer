@@ -23,6 +23,16 @@
 
 ---
 
+## 試用版（Protected Trial）說明
+
+若您收到的是 **Protected Trial** 封裝版（ZIP 內含 `AstroDestinyAnalyzer.exe`）：
+
+- 此版本為封裝版，Python source code 未隨附，客戶不需要查看或修改任何程式碼
+- 請使用 **`start_protected.bat`** 或直接雙擊 **`AstroDestinyAnalyzer.exe`** 啟動
+- 詳見 `TRIAL_README.txt` 或 `試用說明.txt`
+
+---
+
 ## 第一次使用請先閱讀
 
 **請先閱讀 `CUSTOMER_ONBOARDING.md`** — 包含詳細的首次使用步驟、建立第一份報告說明、匯出格式建議與常見問題。
@@ -144,4 +154,4 @@
 
 ---
 
-*Astro Destiny Analyzer v2.0.2 — 客戶版*
+*Astro Destiny Analyzer v2.0.3 — 客戶版*

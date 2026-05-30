@@ -1,7 +1,7 @@
 Astro Destiny Analyzer
-Version: 2.0.2
-Release: Release QA Smoke Test & Customer Onboarding Polish
-Build Profiles: customer | consultant | developer
+Version: 2.0.3
+Release: Protected Trial EXE Package
+Build Profiles: customer | consultant | developer | protected_trial
 Default Mode: Customer Mode
 Generated: 2026-05-29
 

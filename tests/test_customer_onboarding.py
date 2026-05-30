@@ -58,8 +58,8 @@ class TestCustomerOnboardingContent:
         # "calibration" as developer term should not appear
         assert "calibration" not in self._text().lower()
 
-    def test_contains_version_202(self):
-        assert "2.0.2" in self._text()
+    def test_contains_version_203(self):
+        assert "2.0.3" in self._text()
 
 
 class TestCustomerReadmeLinksOnboarding:
@@ -67,6 +67,6 @@ class TestCustomerReadmeLinksOnboarding:
         text = _read("CUSTOMER_README.md")
         assert "CUSTOMER_ONBOARDING.md" in text
 
-    def test_customer_readme_version_202(self):
+    def test_customer_readme_version_203(self):
         text = _read("CUSTOMER_README.md")
-        assert "2.0.2" in text
+        assert "2.0.3" in text

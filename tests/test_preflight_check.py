@@ -58,9 +58,9 @@ class TestPreflightPackageLists:
 
 
 class TestPreflightVersionCheck:
-    def test_expected_version_is_202(self):
+    def test_expected_version_is_203(self):
         mod = _load_preflight()
-        assert mod.EXPECTED_VERSION == "2.0.2"
+        assert mod.EXPECTED_VERSION == "2.0.3"
 
 
 class TestPreflightForbiddenPages:

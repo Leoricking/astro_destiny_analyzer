@@ -1,5 +1,5 @@
 """
-Astro Destiny Analyzer — Release Checklist  V2.0.2
+Astro Destiny Analyzer — Release Checklist  V2.0.3
 Validates that the project source is ready for a customer release build.
 
 Usage:
@@ -16,7 +16,7 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-EXPECTED_VERSION = "2.0.2"
+EXPECTED_VERSION = "2.0.3"
 
 # ── Required files (all profiles) ─────────────────────────────────────────────
 REQUIRED_FILES = [
@@ -114,7 +114,7 @@ def run_checks(profile: str = "customer") -> int:
     found_creds = []
     for dirpath, _, filenames in os.walk(_PROJECT_ROOT):
         rel_dir = os.path.relpath(dirpath, _PROJECT_ROOT)
-        if any(p in rel_dir.split(os.sep) for p in [".git", ".venv", "release"]):
+        if any(p in rel_dir.split(os.sep) for p in [".git", ".venv", "release", "dist", "build"]):
             continue
         for fn in filenames:
             _, ext = os.path.splitext(fn)
@@ -287,6 +287,35 @@ def run_checks(profile: str = "customer") -> int:
         else:
             _check("run_dev.bat readable", False, "file not found")
             failures += 1
+    elif profile == "protected_trial":
+        # Protected trial: verify all required scripts and docs exist
+        for required_file in [
+            os.path.join("scripts", "build_protected.py"),
+            os.path.join("scripts", "protected_smoke_test.py"),
+            "app_launcher.py",
+            "start_protected.bat",
+        ]:
+            abs_p = os.path.join(_PROJECT_ROOT, required_file)
+            ok = os.path.isfile(abs_p)
+            if not _check(required_file, ok, "" if ok else "NOT FOUND"):
+                failures += 1
+        # Verify build_protected.py excludes source .py, tests, demo, private data
+        bp_path = os.path.join(_PROJECT_ROOT, "scripts", "build_protected.py")
+        if os.path.isfile(bp_path):
+            bp_text = open(bp_path, encoding="utf-8").read()
+            for must_have in [".py", "tests", "demo", "run_dev.bat", "run_consultant.bat",
+                               "leads_mock", "rossi"]:
+                ok = must_have.lower() in bp_text.lower()
+                if not _check(f"build_protected.py references '{must_have}'", ok):
+                    failures += 1
+        # Verify start_protected.bat does not call run_dev or run_consultant
+        sp_path = os.path.join(_PROJECT_ROOT, "start_protected.bat")
+        if os.path.isfile(sp_path):
+            sp_text = open(sp_path, encoding="utf-8").read()
+            for forbidden in ["run_dev.bat", "run_consultant.bat"]:
+                ok = forbidden not in sp_text
+                if not _check(f"start_protected.bat does not call {forbidden}", ok):
+                    failures += 1
     print()
 
     # ── Summary ───────────────────────────────────────────────────────────────
@@ -304,9 +333,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Astro Destiny Analyzer Release Checker")
     parser.add_argument(
         "--profile",
-        choices=["customer", "consultant", "developer"],
+        choices=["customer", "consultant", "developer", "protected_trial"],
         default="customer",
-        help="Release profile: customer (default) | consultant | developer",
+        help="Release profile: customer (default) | consultant | developer | protected_trial",
     )
     args = parser.parse_args()
     failures = run_checks(profile=args.profile)
