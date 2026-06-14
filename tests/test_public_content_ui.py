@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PUBLIC_PAGE = "🌐 免費內容入口"
+PUBLIC_PAGE = "PAGE_PUBLIC_CONTENT"
+_PUBLIC_ELIF = 'elif page == PAGE_PUBLIC_CONTENT:'
 
 
 def _read(rel: str) -> str:
@@ -47,7 +48,7 @@ def _get_pages_dev_block(src: str) -> str:
 
 
 def _get_public_page_block(src: str) -> str:
-    start = src.find(f'elif page == "{PUBLIC_PAGE}"')
+    start = src.find(_PUBLIC_ELIF)
     end = src.find("# PAGE: 輸入資料", start)
     return src[start:end] if start != -1 else ""
 
@@ -74,7 +75,7 @@ class TestPublicContentUIPageLists:
 
     def test_page_impl_present(self):
         src = _app_src()
-        assert f'elif page == "{PUBLIC_PAGE}"' in src
+        assert _PUBLIC_ELIF in src
 
 
 class TestPublicContentUIPageContent:

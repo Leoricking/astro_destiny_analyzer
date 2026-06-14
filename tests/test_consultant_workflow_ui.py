@@ -8,34 +8,33 @@ SRC = pathlib.Path("ui/streamlit_app.py").read_text(encoding="utf-8")
 
 class TestPageListInclusion:
     def test_pages_dev_contains_client_case(self):
-        # _PAGES_DEV must contain 客戶個案
-        assert "🗂️ 客戶個案" in SRC
+        # _PAGES_DEV must contain client_cases canonical ID
+        assert "PAGE_CLIENT_CASES" in SRC
         # The list definition
         dev_block_start = SRC.find("_PAGES_DEV = [")
         dev_block_end = SRC.find("]", dev_block_start)
         dev_block = SRC[dev_block_start:dev_block_end]
-        assert "客戶個案" in dev_block
+        assert "PAGE_CLIENT_CASES" in dev_block
 
     def test_pages_base_does_not_contain_client_case(self):
-        # _PAGES_BASE must NOT contain 客戶個案
+        # _PAGES_BASE must NOT contain PAGE_CLIENT_CASES
         base_block_start = SRC.find("_PAGES_BASE = [")
         base_block_end = SRC.find("]", base_block_start)
         base_block = SRC[base_block_start:base_block_end]
-        assert "客戶個案" not in base_block
+        assert "PAGE_CLIENT_CASES" not in base_block
 
     def test_customer_mode_cannot_see_client_case(self):
-        # _PAGES (customer mode) uses _PAGES_BASE which has no 客戶個案
-        # Confirm _PAGES_BASE has no 客戶個案 (same as above, but checking explicitly)
+        # _PAGES (customer mode) uses _PAGES_BASE which has no PAGE_CLIENT_CASES
         base_block_start = SRC.find("_PAGES_BASE = [")
         base_block_end = SRC.find("]", base_block_start)
         base_block = SRC[base_block_start:base_block_end]
-        assert "客戶個案" not in base_block
+        assert "PAGE_CLIENT_CASES" not in base_block
 
     def test_developer_mode_can_see_client_case(self):
         dev_block_start = SRC.find("_PAGES_DEV = [")
         dev_block_end = SRC.find("]", dev_block_start)
         dev_block = SRC[dev_block_start:dev_block_end]
-        assert "客戶個案" in dev_block
+        assert "PAGE_CLIENT_CASES" in dev_block
 
     def test_pages_selector_uses_consultant_mode(self):
         # _PAGES must be determined by CONSULTANT_MODE (not raw DEVELOPER_MODE)
@@ -79,7 +78,7 @@ class TestUIContentPresent:
 class TestCustomerModeGating:
     def test_consultant_mode_guard_on_page(self):
         # The page must check CONSULTANT_MODE before rendering content
-        page_block_start = SRC.find('elif page == "🗂️ 客戶個案":')
+        page_block_start = SRC.find('elif page == PAGE_CLIENT_CASES:')
         assert page_block_start != -1
         # The guard should appear near the start of that page block
         page_snippet = SRC[page_block_start:page_block_start + 300]

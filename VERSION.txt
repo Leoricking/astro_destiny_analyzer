@@ -1,6 +1,6 @@
 Astro Destiny Analyzer
-Version: 2.0.3
-Release: Protected Trial EXE Package
+Version: 2.0.5
+Release: Full UI Localization & RTL Support
 Build Profiles: customer | consultant | developer | protected_trial
 Default Mode: Customer Mode
 Generated: 2026-05-29

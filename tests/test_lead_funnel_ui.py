@@ -14,7 +14,7 @@ def _src() -> str:
 
 class TestLeadFunnelPageExists:
     def test_lead_funnel_page_in_source(self):
-        assert '== "📊 Lead Funnel"' in _src()
+        assert 'PAGE_LEAD_FUNNEL' in _src()
 
     def test_lead_funnel_in_consultant_pages(self):
         src = _src()
@@ -22,27 +22,27 @@ class TestLeadFunnelPageExists:
         idx = src.find("CONSULTANT_PAGES")
         end = src.find("]", idx)
         block = src[idx:end] if idx != -1 else ""
-        assert "Lead Funnel" in block
+        assert "PAGE_LEAD_FUNNEL" in block
 
     def test_lead_funnel_in_developer_pages(self):
         src = _src()
         idx = src.find("_PAGES_DEV = [")
         end = src.find("]", idx)
         block = src[idx:end] if idx != -1 else ""
-        assert "Lead Funnel" in block
+        assert "PAGE_LEAD_FUNNEL" in block
 
     def test_lead_funnel_not_in_customer_pages(self):
         src = _src()
         idx = src.find("_PAGES_BASE = [")
         end = src.find("]", idx)
         block = src[idx:end] if idx != -1 else ""
-        assert "Lead Funnel" not in block
+        assert "PAGE_LEAD_FUNNEL" not in block
 
 
 class TestLeadFunnelPageGating:
     def _get_funnel_block(self) -> str:
         src = _src()
-        start = src.find('elif page == "📊 Lead Funnel"')
+        start = src.find('elif page == PAGE_LEAD_FUNNEL:')
         if start == -1:
             return ""
         end = src.find("\n\n# ", start + 10)
@@ -76,6 +76,6 @@ class TestLeadFunnelPageGating:
 class TestLeadFunnelImports:
     def test_lead_funnel_imports_load_leads(self):
         src = _src()
-        funnel_start = src.find('elif page == "📊 Lead Funnel"')
+        funnel_start = src.find('elif page == PAGE_LEAD_FUNNEL:')
         funnel_block = src[funnel_start:funnel_start + 1000] if funnel_start != -1 else ""
         assert "load_leads" in funnel_block

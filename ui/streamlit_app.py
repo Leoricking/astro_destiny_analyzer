@@ -25,7 +25,9 @@ from config import (
     DEVELOPER_MODE, CUSTOMER_MODE, CONSULTANT_MODE, SHOW_DEMO_DATA, SHOW_INTERNAL_VERSION_INFO,
     BRAND_NAME, BRAND_TAGLINE, REPORT_WATERMARK,
     CLIENT_CASE_STORAGE_PATH, BUILD_PROFILE,
+    APP_LANGUAGE, DEFAULT_LANGUAGE,  # V2.0.4 i18n
 )
+from i18n.translator import t, get_language_options  # V2.0.4 i18n
 from core.models import (
     BirthProfile, Gender, BloodType, AnalysisTheme,
     ReportLanguage, ReportLength,
@@ -64,24 +66,40 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Canonical Page IDs (V2.0.4) ──────────────────────────────────────────────
+PAGE_HOME = "home"
+PAGE_PUBLIC_CONTENT = "public_content"
+PAGE_FREE_REPORT = "free_report"
+PAGE_INPUT = "input"
+PAGE_CALCULATE = "calculate"
+PAGE_REPORT_PREVIEW = "report_preview"
+PAGE_HISTORY = "history"
+PAGE_EXPORT = "export"
+PAGE_COMPATIBILITY = "compatibility"
+PAGE_SETTINGS = "settings"
+PAGE_LEAD_FUNNEL = "lead_funnel"
+PAGE_CLIENT_CASES = "client_cases"
+PAGE_ZIWEI_RECONCILIATION = "ziwei_reconciliation"
+PAGE_HD_RECONCILIATION = "human_design_reconciliation"
+
 _PAGES_BASE = [
-    "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
-    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
-    "⚙️ 設定",
+    PAGE_HOME, PAGE_PUBLIC_CONTENT, PAGE_FREE_REPORT, PAGE_INPUT, PAGE_CALCULATE,
+    PAGE_REPORT_PREVIEW, PAGE_HISTORY, PAGE_EXPORT, PAGE_COMPATIBILITY,
+    PAGE_SETTINGS,
 ]
 _PAGES_DEV = [
-    "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
-    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
-    "📊 Lead Funnel", "🗂️ 客戶個案",
-    "🧭 紫微校準", "🔷 人類圖校準", "⚙️ 設定",
+    PAGE_HOME, PAGE_PUBLIC_CONTENT, PAGE_FREE_REPORT, PAGE_INPUT, PAGE_CALCULATE,
+    PAGE_REPORT_PREVIEW, PAGE_HISTORY, PAGE_EXPORT, PAGE_COMPATIBILITY,
+    PAGE_LEAD_FUNNEL, PAGE_CLIENT_CASES,
+    PAGE_ZIWEI_RECONCILIATION, PAGE_HD_RECONCILIATION, PAGE_SETTINGS,
 ]
 
 # ── V2.0.0 Mode-specific page lists ──────────────────────────────────────────
 CONSULTANT_PAGES: list = [
-    "🏠 首頁", "🌐 免費內容入口", "🎁 免費報告", "📝 輸入資料", "🔮 計算命盤",
-    "📄 報告預覽", "📚 歷史報告", "📤 匯出", "💕 合盤分析",
-    "📊 Lead Funnel", "🗂️ 客戶個案",
-    "⚙️ 設定",
+    PAGE_HOME, PAGE_PUBLIC_CONTENT, PAGE_FREE_REPORT, PAGE_INPUT, PAGE_CALCULATE,
+    PAGE_REPORT_PREVIEW, PAGE_HISTORY, PAGE_EXPORT, PAGE_COMPATIBILITY,
+    PAGE_LEAD_FUNNEL, PAGE_CLIENT_CASES,
+    PAGE_SETTINGS,
 ]
 CUSTOMER_PAGES: list = _PAGES_BASE
 DEVELOPER_PAGES: list = _PAGES_DEV
@@ -102,6 +120,12 @@ def is_page_allowed(page: str) -> bool:
     return page in get_active_pages()
 
 
+def page_label(page_id: str, language: str | None = None) -> str:
+    """Return the translated display label for a canonical page ID."""
+    lang = language or st.session_state.get("app_language", DEFAULT_LANGUAGE)
+    return t(f"nav.{page_id}", language=lang, default=page_id)
+
+
 _PAGES = get_active_pages()  # CONSULTANT_MODE → CONSULTANT_PAGES; DEVELOPER_MODE → DEVELOPER_PAGES
 
 _DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
@@ -119,7 +143,7 @@ _GLOBAL_DEFAULTS: dict = {
     "profile": None,
     "report": None,
     "active_report_id": None,
-    "nav_page": "🏠 首頁",
+    "nav_page": PAGE_HOME,
     "ziwei_rec_report": None,
 }
 for _k, _v in _GLOBAL_DEFAULTS.items():
@@ -230,7 +254,7 @@ if (
 
 # ── Navigation helper ─────────────────────────────────────────────────────────
 
-def _go_to_page(page_name: str) -> None:
+def _go_to_page(page_id: str) -> None:
     """Programmatically navigate to a page and rerun safely.
 
     The sidebar radio owns ``st.session_state["nav_page"]``. Streamlit raises
@@ -238,8 +262,8 @@ def _go_to_page(page_name: str) -> None:
     already been instantiated in the same run. Store the requested page in a
     pending key and apply it before creating the sidebar radio on the next run.
     """
-    if page_name in _PAGES:
-        st.session_state["_pending_nav_page"] = page_name
+    if page_id in _PAGES:
+        st.session_state["_pending_nav_page"] = page_id
     st.rerun()
 
 
@@ -335,7 +359,7 @@ def _load_sample(index: int) -> None:
     st.session_state["profile"] = profile
     st.session_state["report"] = None
     st.session_state["_demo_loaded"] = True
-    st.session_state["_pending_nav_page"] = "🔮 計算命盤"
+    st.session_state["_pending_nav_page"] = PAGE_CALCULATE
 
 
 # Apply pending navigation before the radio widget is instantiated.
@@ -350,25 +374,71 @@ if "_pending_nav_page" in st.session_state:
 # Also keeps V1.x backward compat guards for developer-only calibration pages.
 _active_pages = get_active_pages()
 if st.session_state.get("nav_page") not in _active_pages:
-    st.session_state["nav_page"] = "🏠 首頁"
+    st.session_state["nav_page"] = PAGE_HOME
 # Legacy explicit guards (retained for test compatibility and clarity):
-if not DEVELOPER_MODE and st.session_state.get("nav_page") == "🧭 紫微校準":
-    st.session_state["nav_page"] = "🏠 首頁"
-if not DEVELOPER_MODE and st.session_state.get("nav_page") == "🔷 人類圖校準":
-    st.session_state["nav_page"] = "🏠 首頁"
+if not DEVELOPER_MODE and st.session_state.get("nav_page") == PAGE_ZIWEI_RECONCILIATION:
+    st.session_state["nav_page"] = PAGE_HOME
+if not DEVELOPER_MODE and st.session_state.get("nav_page") == PAGE_HD_RECONCILIATION:
+    st.session_state["nav_page"] = PAGE_HOME
+
+
+# ── V2.0.4: Initialize language session state ─────────────────────────────
+if "app_language" not in st.session_state:
+    st.session_state["app_language"] = APP_LANGUAGE
+if "report_language" not in st.session_state:
+    st.session_state["report_language"] = "auto"
+
+
+def _tr(key: str, **kwargs) -> str:
+    """Translate key using current app language."""
+    return t(key, language=st.session_state.get("app_language", DEFAULT_LANGUAGE), **kwargs)
+
+
+# V2.0.5: Apply RTL direction if needed
+from i18n.rtl import apply_streamlit_direction as _apply_direction
+_apply_direction(st.session_state.get("app_language", DEFAULT_LANGUAGE))
 
 
 # ── Sidebar Navigation ────────────────────────────────────────────────────────
 with st.sidebar:
     st.title(f"✨ {APP_NAME}")
-    st.caption(APP_SUBTITLE)
+    st.caption(_tr("app.subtitle"))
     st.divider()
-    page = st.radio(
-        "導航",
-        _PAGES,
-        key="nav_page",
+    # Language selector
+    _lang_options = get_language_options()
+    _lang_codes = [c for c, _ in _lang_options]
+    _lang_labels = [lbl for _, lbl in _lang_options]
+    _cur_lang = st.session_state.get("app_language", DEFAULT_LANGUAGE)
+    _cur_lang_idx = _lang_codes.index(_cur_lang) if _cur_lang in _lang_codes else 0
+    _selected_lang_label = st.selectbox(
+        _tr("language.label"),
+        _lang_labels,
+        index=_cur_lang_idx,
+        key="_lang_sel_widget",
+    )
+    _selected_lang_code = _lang_codes[_lang_labels.index(_selected_lang_label)]
+    if _selected_lang_code != st.session_state.get("app_language"):
+        st.session_state["app_language"] = _selected_lang_code
+        st.rerun()
+    st.divider()
+    # Navigation — show translated labels, store canonical IDs
+    _cur_pages = get_active_pages()
+    _page_labels = [page_label(pid) for pid in _cur_pages]
+    _cur_page_id = st.session_state.get("nav_page", PAGE_HOME)
+    if _cur_page_id not in _cur_pages:
+        _cur_page_id = _cur_pages[0]
+    _cur_page_idx = _cur_pages.index(_cur_page_id)
+    _selected_label = st.radio(
+        "nav",
+        _page_labels,
+        index=_cur_page_idx,
+        key="_nav_radio",
         label_visibility="collapsed",
     )
+    # Map label back to canonical ID
+    _label_to_id = {page_label(pid): pid for pid in _cur_pages}
+    page = _label_to_id.get(_selected_label, _cur_page_id)
+    st.session_state["nav_page"] = page
     st.divider()
     if DEVELOPER_MODE:
         st.caption(f"v{APP_VERSION} · DEV MODE")
@@ -382,79 +452,75 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 首頁
 # ══════════════════════════════════════════════════════════════════════════════
-if page == "🏠 首頁":
-    st.title(f"✨ {APP_NAME}")
-    st.subheader(APP_SUBTITLE)
-    st.markdown("""
-歡迎使用命盤整合分析系統。本系統整合以下五套命理體系，為您生成一份深度個人化的人生分析報告。
-
-| 模組 | 說明 |
-|------|------|
-| 🌟 西洋占星 | 行星、宮位、相位、上升、天頂等完整星盤 |
-| ☯️ 八字命理 | 四柱、五行、十神、大運、流年 |
-| 🏮 紫微斗數 | 十二宮、十四主星、四化 |
-| 🩸 血型分析 | 個性、感情、職場、財富輔助分析 |
-| 🔢 生命靈數 | 生命靈數、天賦數、個人年運 |
-
-### 如何開始？
-1. 點選左側「**📝 輸入資料**」填寫您的出生資訊
-2. 前往「**🔮 計算命盤**」執行分析
-3. 在「**📄 報告預覽**」閱讀完整報告
-4. 透過「**📤 匯出**」下載 Markdown / HTML / Word 檔案
-
----
-> ⚠️ 本系統定位為自我探索與娛樂工具，不構成科學定論、醫療診斷或投資建議。
-""")
+if page == PAGE_HOME:
+    st.title(f"✨ {_tr('app.title')}")
+    st.subheader(_tr("app.subtitle"))
+    st.markdown(
+        _tr("home.welcome") + "\n\n"
+        f"| {_tr('home.modules_table_header_module')} | {_tr('home.modules_table_header_desc')} |\n"
+        "|------|------|\n"
+        f"| {_tr('home.module_western')} | {_tr('home.module_western_desc')} |\n"
+        f"| {_tr('home.module_bazi')} | {_tr('home.module_bazi_desc')} |\n"
+        f"| {_tr('home.module_ziwei')} | {_tr('home.module_ziwei_desc')} |\n"
+        f"| {_tr('home.module_blood')} | {_tr('home.module_blood_desc')} |\n"
+        f"| {_tr('home.module_numerology')} | {_tr('home.module_numerology_desc')} |\n\n"
+        f"{_tr('home.how_to_start')}\n"
+        f"{_tr('home.step1')}\n"
+        f"{_tr('home.step2')}\n"
+        f"{_tr('home.step3')}\n"
+        f"{_tr('home.step4')}\n\n"
+        f"---\n> {_tr('home.disclaimer')}"
+    )
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("支援命理系統", "5")
+        st.metric(_tr("home.metric_systems"), "5")
     with col2:
-        st.metric("報告章節", "32")
+        st.metric(_tr("home.metric_sections"), "32")
     with col3:
-        st.metric("報告格式", "Markdown / HTML / Word")
+        st.metric(_tr("home.metric_formats"), "Markdown / HTML / Word")
 
     _home_c1, _home_c2, _home_c3 = st.columns(3)
     with _home_c1:
-        if st.button("🚀 開始建立個人命盤", type="primary", use_container_width=True):
-            _go_to_page("📝 輸入資料")
+        if st.button(_tr("home.btn_start_chart"), type="primary", use_container_width=True):
+            _go_to_page(PAGE_INPUT)
     with _home_c2:
-        if st.button("💕 建立合盤報告", use_container_width=True):
-            _go_to_page("💕 合盤分析")
+        if st.button(_tr("home.btn_compatibility"), use_container_width=True):
+            _go_to_page(PAGE_COMPATIBILITY)
     with _home_c3:
-        if st.button("📚 查看歷史報告", use_container_width=True):
-            _go_to_page("📚 歷史報告")
+        if st.button(_tr("home.btn_history"), use_container_width=True):
+            _go_to_page(PAGE_HISTORY)
 
     # ── V2.0.2 三步驟 Onboarding ──────────────────────────────────────────────
     st.divider()
-    st.subheader("快速開始：三步驟建立第一份報告")
+    st.subheader(_tr("home.quick_start.title"))
     _ob_c1, _ob_c2, _ob_c3 = st.columns(3)
     with _ob_c1:
         with st.container(border=True):
-            st.markdown("**① 輸入資料**")
-            st.caption("填寫生日、出生時間、出生地。國家預設台灣，可自由修改。")
+            st.markdown(f"**{_tr('home.quick_start.step1.title')}**")
+            st.caption(_tr("home.quick_start.step1.description"))
     with _ob_c2:
         with st.container(border=True):
-            st.markdown("**② 計算命盤**")
-            st.caption("產生西洋占星、八字、紫微、人類圖與整合摘要。")
+            st.markdown(f"**{_tr('home.quick_start.step2.title')}**")
+            st.caption(_tr("home.quick_start.step2.description"))
     with _ob_c3:
         with st.container(border=True):
-            st.markdown("**③ 匯出報告**")
-            st.caption("建議先用 HTML 或 Word，PDF 為選用功能。")
+            st.markdown(f"**{_tr('home.quick_start.step3.title')}**")
+            st.caption(_tr("home.quick_start.step3.description"))
 
     _cta_c1, _cta_c2, _cta_c3, _cta_c4 = st.columns(4)
     with _cta_c1:
-        if st.button("📝 開始輸入資料", use_container_width=True, key="home_cta_input"):
-            _go_to_page("📝 輸入資料")
+        if st.button(_tr("home.btn_input"), use_container_width=True, key="home_cta_input"):
+            _go_to_page(PAGE_INPUT)
     with _cta_c2:
-        if st.button("💕 建立合盤分析", use_container_width=True, key="home_cta_compat"):
-            _go_to_page("💕 合盤分析")
+        if st.button(_tr("home.btn_compat"), use_container_width=True, key="home_cta_compat"):
+            _go_to_page(PAGE_COMPATIBILITY)
     with _cta_c3:
-        if st.button("🌐 查看免費內容", use_container_width=True, key="home_cta_content"):
-            _go_to_page("🌐 免費內容入口")
+        if st.button(_tr("home.btn_content"), use_container_width=True, key="home_cta_content"):
+            _go_to_page(PAGE_PUBLIC_CONTENT)
     with _cta_c4:
-        if st.button("🎁 領取免費摘要", use_container_width=True, key="home_cta_free"):
-            _go_to_page("🎁 免費報告")
+        if st.button(_tr("home.btn_free"), use_container_width=True, key="home_cta_free"):
+            _go_to_page(PAGE_FREE_REPORT)
 
     if SHOW_DEMO_DATA and not SAMPLE_PROFILES and DEVELOPER_MODE:
         st.info("Demo profiles are not included in this release package.")
@@ -484,7 +550,7 @@ if page == "🏠 首頁":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 免費內容入口
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🌐 免費內容入口":
+elif page == PAGE_PUBLIC_CONTENT:
     from public_content.content_registry import (
         get_public_content_catalog, get_public_page, list_public_pages, list_featured_pages,
     )
@@ -501,13 +567,13 @@ elif page == "🌐 免費內容入口":
     _catalog = get_public_content_catalog()
 
     # ── A. Header ─────────────────────────────────────────────────────────────
-    st.title("🌐 免費內容入口")
-    st.caption("從星座、人類圖、合盤、紫微、八字開始，快速了解自己，再建立完整整合報告。")
+    st.title(_tr("free_content.title"))
+    st.caption(_tr("free_content.subtitle"))
 
     # ── B. Featured cards ─────────────────────────────────────────────────────
     _featured = list_featured_pages()
     if _featured:
-        st.subheader("精選內容")
+        st.subheader(_tr("free_content.featured"))
         _fcols = st.columns(min(len(_featured), 3))
         for _i, _fp in enumerate(_featured):
             with _fcols[_i % 3]:
@@ -569,7 +635,7 @@ elif page == "🌐 免費內容入口":
                         "🎁 先領免費摘要",
                         key="public_content_free_report_cta",
                     ):
-                        st.session_state["nav_page"] = "🎁 免費報告"
+                        st.session_state["nav_page"] = PAGE_FREE_REPORT
                         st.session_state["free_report_type_preset"] = _sel_page.free_report_cta_slug
                         st.rerun()
 
@@ -626,13 +692,13 @@ elif page == "🌐 免費內容入口":
                         mime="text/html",
                     )
     else:
-        st.info("此分類目前沒有內容頁面。")
+        st.info(_tr("free_content.no_content"))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 免費報告
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🎁 免費報告":
+elif page == PAGE_FREE_REPORT:
     from lead_magnet.models import LeadProfile, PartnerProfile, LeadCapture
     from lead_magnet.storage import validate_email, append_lead, load_leads, export_leads_csv, delete_all_leads
     from lead_magnet.engine import generate_free_report
@@ -640,9 +706,9 @@ elif page == "🎁 免費報告":
     from lead_magnet.exporters import export_free_report_markdown, export_free_report_html, safe_free_report_filename
     import config as _lcfg
 
-    st.title("🎁 取得免費命盤摘要")
-    st.caption("先用免費摘要了解方向，再決定是否建立完整整合報告。")
-    st.info("填寫 Email 與基本資料後，可產生免費摘要。資料只儲存在本機，不會外送。")
+    st.title(_tr("free_report.title"))
+    st.caption(_tr("free_report.subtitle"))
+    st.info(_tr("free_report.info"))
 
     # ── B. Report type selector ───────────────────────────────────────────────
     _REPORT_TYPE_LABELS = {
@@ -807,27 +873,31 @@ elif page == "🎁 免費報告":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 輸入資料
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📝 輸入資料":
-    st.title("📝 輸入出生資料")
+elif page == PAGE_INPUT:
+    st.title(_tr("input.title"))
 
     # ── Reactive input container ──────────────────────────────────────────────
     # Do not use st.form here: birth_time_is_known must rerender immediately so
     # the time fields appear/disappear without an extra submit click.
     with st.container(border=True):
-        st.subheader("基本資料")
+        st.subheader(_tr("input.basic_info"))
         col1, col2 = st.columns(2)
         with col1:
-            st.text_input("姓名 / 暱稱 *", placeholder="例：小明", key="input_name")
+            st.text_input(_tr("input.name"), placeholder=_tr("input.name_placeholder"), key="input_name")
         with col2:
-            st.selectbox("性別（可選填）", ["不填寫", "男", "女", "其他"],
-                         key="input_gender")
+            _gender_options = ["不填寫", "男", "女", "其他"]
+            _gender_labels = [_tr("input.gender_unspecified"), _tr("input.gender_male"), _tr("input.gender_female"), _tr("input.gender_other")]
+            _cur_gender = st.session_state.get("input_gender", "不填寫")
+            _cur_gender_idx = _gender_options.index(_cur_gender) if _cur_gender in _gender_options else 0
+            _sel_gender_label = st.selectbox(_tr("input.gender"), _gender_labels, index=_cur_gender_idx, key="_gender_display")
+            st.session_state["input_gender"] = _gender_options[_gender_labels.index(_sel_gender_label)]
 
-        st.subheader("出生日期")
+        st.subheader(_tr("input.birth_date"))
         _normalize_birth_year_state()
         col1, col2, col3 = st.columns(3)
         with col1:
             st.number_input(
-                "西元年 *",
+                _tr("input.birth_year"),
                 min_value=MIN_BIRTH_YEAR,
                 max_value=MAX_BIRTH_YEAR,
                 step=1,
@@ -835,98 +905,90 @@ elif page == "📝 輸入資料":
                 on_change=_mark_birth_year_touched,
             )
         with col2:
-            st.number_input("月 *", min_value=1, max_value=12, step=1,
+            st.number_input(_tr("input.birth_month"), min_value=1, max_value=12, step=1,
                             key="input_birth_month")
         with col3:
-            st.number_input("日 *", min_value=1, max_value=31, step=1,
+            st.number_input(_tr("input.birth_day"), min_value=1, max_value=31, step=1,
                             key="input_birth_day")
 
-        st.subheader("出生時間")
+        st.subheader(_tr("input.birth_time_section"))
         st.checkbox(
-            "我知道精確出生時間",
+            _tr("input.birth_time_known"),
             key="birth_time_is_known",
         )
         if st.session_state["birth_time_is_known"]:
             col_h, col_m = st.columns(2)
             with col_h:
-                st.number_input("時（24H）", min_value=0, max_value=23, step=1,
+                st.number_input(_tr("input.birth_hour"), min_value=0, max_value=23, step=1,
                                 key="input_birth_hour")
             with col_m:
-                st.number_input("分", min_value=0, max_value=59, step=1,
+                st.number_input(_tr("input.birth_minute"), min_value=0, max_value=59, step=1,
                                 key="input_birth_minute")
-            st.caption(
-                "ℹ️ 23:00～23:59 子時換日規則可依派別不同；本版預設晚子時不換日（late_zi_same_day）。"
-            )
+            st.caption(_tr("input.birth_time_zi_note"))
         else:
-            st.caption(
-                "⚠️ 出生時間未填：行星以中午 12:00 估算（可能有誤差）；"
-                "上升星座與天頂無法精確計算。"
-            )
+            st.caption(_tr("input.birth_time_unknown_note"))
 
-        st.subheader("出生地")
+        st.subheader(_tr("input.birth_place"))
         col1, col2 = st.columns(2)
         with col1:
             tw_city_options = ["其他 / 手動輸入"] + TAIWAN_CITY_DISPLAY_NAMES
-            tw_city_sel = st.selectbox("台灣城市（快速選擇）", tw_city_options,
+            tw_city_sel = st.selectbox(_tr("input.city_taiwan"), tw_city_options,
                                        key="input_tw_city_sel")
         with col2:
             st.text_input(
-                "國家 *",
-                placeholder="例：台灣",
+                _tr("input.country"),
+                placeholder=_tr("input.country_placeholder"),
                 key="input_birth_country",
-                help="預設為台灣；若為海外出生地，可自行修改國家並使用進階經緯度。",
+                help=_tr("input.country_help"),
             )
 
         if tw_city_sel == "其他 / 手動輸入":
-            st.text_input("城市（手動輸入）*", placeholder="例：東京、首爾、Paris",
+            st.text_input(_tr("input.city_manual"), placeholder=_tr("input.city_manual_placeholder"),
                           key="input_birth_city")
         else:
-            st.caption(f"已選擇：{tw_city_sel}（將自動帶入經緯度）")
+            st.caption(_tr("input.city_selected", city=tw_city_sel))
 
-        with st.expander("進階：手動輸入經緯度（可選）"):
-            st.caption(
-                "若城市從上方下拉選單可自動取得，可不填。"
-                "若出生地非台灣，請補充以精確計算上升與天頂。"
-            )
+        with st.expander(_tr("input.advanced_latlon")):
+            st.caption(_tr("input.advanced_latlon_help"))
             adv1, adv2 = st.columns(2)
             with adv1:
-                st.number_input("出生地緯度（南為負）", min_value=-90.0, max_value=90.0,
+                st.number_input(_tr("input.latitude"), min_value=-90.0, max_value=90.0,
                                 step=0.0001, format="%.4f", key="input_manual_lat")
             with adv2:
-                st.number_input("出生地經度（西為負）", min_value=-180.0, max_value=180.0,
+                st.number_input(_tr("input.longitude"), min_value=-180.0, max_value=180.0,
                                 step=0.0001, format="%.4f", key="input_manual_lon")
-            st.number_input("時區偏移（UTC+？，台灣=8）", min_value=-12.0, max_value=14.0,
+            st.number_input(_tr("input.timezone"), min_value=-12.0, max_value=14.0,
                             step=0.5, key="input_manual_tz")
-            st.checkbox("使用以上手動經緯度覆蓋自動查詢",
+            st.checkbox(_tr("input.use_manual_latlon"),
                         key="input_use_manual_latlon")
 
-        st.subheader("居住地（可選填）")
+        st.subheader(_tr("input.residence"))
         col1, col2 = st.columns(2)
         with col1:
-            st.text_input("目前居住城市", placeholder="例：高雄市", key="input_res_city")
+            st.text_input(_tr("input.res_city"), placeholder=_tr("input.res_city_placeholder"), key="input_res_city")
         with col2:
-            st.text_input("目前居住國家", placeholder="例：台灣", key="input_res_country")
+            st.text_input(_tr("input.res_country"), placeholder=_tr("input.res_country_placeholder"), key="input_res_country")
 
-        st.subheader("血型")
-        st.selectbox("血型", ["Unknown", "A", "B", "O", "AB"], key="input_blood_type")
+        st.subheader(_tr("input.blood_type"))
+        st.selectbox(_tr("input.blood_type"), ["Unknown", "A", "B", "O", "AB"], key="input_blood_type")
 
-        st.subheader("分析主題（可複選）")
+        st.subheader(_tr("input.themes"))
         theme_options = list(_DEFAULT_THEME_VALUES)
         if not st.session_state.get("input_themes"):
             st.session_state["input_themes"] = list(_DEFAULT_THEME_VALUES)
-        st.multiselect("請選擇您想深入分析的主題", theme_options,
+        st.multiselect(_tr("input.themes_select"), theme_options,
                        key="input_themes")
 
-        st.subheader("報告設定")
+        st.subheader(_tr("input.report_settings"))
         col1, col2 = st.columns(2)
         with col1:
-            st.selectbox("報告語言", ["繁體中文", "簡體中文", "English"],
+            st.selectbox(_tr("input.report_lang"), ["繁體中文", "簡體中文", "English"],
                          key="input_report_lang")
         with col2:
-            st.selectbox("報告長度", ["簡短版", "標準版", "萬字完整版"],
+            st.selectbox(_tr("input.report_len"), ["簡短版", "標準版", "萬字完整版"],
                          key="input_report_len")
 
-        submitted = st.button("✅ 確認資料", type="primary",
+        submitted = st.button(_tr("input.submit"), type="primary",
                               use_container_width=True)
 
     # ── Submit handler ────────────────────────────────────────────────────────
@@ -972,7 +1034,7 @@ elif page == "📝 輸入資料":
         if not ok:
             errors.append(msg)
         if not birth_country:
-            errors.append("出生國家不得為空。")
+            errors.append(_tr("input.error_country_required"))
 
         if errors:
             for e in errors:
@@ -1024,77 +1086,70 @@ elif page == "📝 輸入資料":
 
             # Feedback messages
             if resolved_lat is not None:
-                st.info(f"📍 已取得出生地座標：緯度 {resolved_lat:.4f}，經度 {resolved_lon:.4f}")
+                st.info(_tr("input.coord_found", lat=resolved_lat, lon=resolved_lon))
             else:
-                st.warning("⚠️ 未取得出生地經緯度，上升與天頂將無法精確計算。")
+                st.warning(_tr("input.coord_not_found"))
             if not time_known:
-                st.warning("⚠️ 未填寫出生時間，上升與天頂將無法精確計算。")
+                st.warning(_tr("input.time_not_filled"))
             if time_known and resolved_lat is not None:
-                st.success("✅ 出生時間與地點完整，可精準計算上升星座（ASC）與天頂（MC）。")
-            st.success(
-                f"✅ 資料已儲存！{name} 的出生資料登錄完成。請前往「🔮 計算命盤」。"
-            )
+                st.success(_tr("input.time_and_coord_complete"))
+            st.success(_tr("input.saved", name=name))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 計算命盤
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🔮 計算命盤":
-    st.title("🔮 計算命盤")
+elif page == PAGE_CALCULATE:
+    st.title(_tr("calculate.title"))
 
     profile = st.session_state.get("profile")
 
     if profile is None:
-        st.warning("尚未輸入出生資料，請先前往輸入資料頁面。")
-        if st.button("📝 前往輸入資料", type="primary"):
-            _go_to_page("📝 輸入資料")
+        st.warning(_tr("calculate.no_profile"))
+        if st.button(_tr("calculate.btn_go_input"), type="primary"):
+            _go_to_page(PAGE_INPUT)
         st.stop()
 
     # Profile summary
-    time_label = profile.birth_time.strftime("%H:%M") if profile.birth_time else "未知"
-    loc_label  = profile.birth_city or "未提供"
-    st.info(
-        f"**目前資料：{profile.name}**　｜　"
-        f"出生日期：{profile.birth_date}　｜　"
-        f"出生時間：{time_label}　｜　"
-        f"出生地：{loc_label}"
-    )
+    time_label = profile.birth_time.strftime("%H:%M") if profile.birth_time else _tr("calculate.time_unknown")
+    loc_label  = profile.birth_city or _tr("calculate.place_unknown")
+    st.info(_tr("calculate.current_data", name=profile.name, date=profile.birth_date, time=time_label, place=loc_label))
 
     # Navigation buttons (always visible when profile exists)
     col_edit, col_clear = st.columns(2)
     with col_edit:
-        if st.button("📝 返回修改資料", use_container_width=True):
+        if st.button(_tr("calculate.btn_edit"), use_container_width=True):
             _sync_input_state_from_profile(profile)
-            _go_to_page("📝 輸入資料")
+            _go_to_page(PAGE_INPUT)
     with col_clear:
-        if st.button("🗑️ 清空並重新輸入", use_container_width=True, type="secondary"):
+        if st.button(_tr("calculate.btn_clear"), use_container_width=True, type="secondary"):
             _clear_input_state()
-            _go_to_page("📝 輸入資料")
+            _go_to_page(PAGE_INPUT)
 
     st.divider()
 
     report = st.session_state.get("report")
     if report is not None:
-        st.success(f"✅ 命盤已計算完成！報告 ID：{report.report_id}")
+        st.success(_tr("calculate.done", report_id=report.report_id))
         col_recalc, col_preview = st.columns(2)
         with col_recalc:
-            do_calculate = st.button("🔄 重新計算", type="primary",
+            do_calculate = st.button(_tr("calculate.btn_recalc"), type="primary",
                                      use_container_width=True)
         with col_preview:
-            if st.button("📄 前往報告預覽", use_container_width=True):
-                _go_to_page("📄 報告預覽")
+            if st.button(_tr("calculate.btn_preview"), use_container_width=True):
+                _go_to_page(PAGE_REPORT_PREVIEW)
     else:
-        do_calculate = st.button("🔮 開始計算命盤", type="primary",
+        do_calculate = st.button(_tr("calculate.btn_start"), type="primary",
                                  use_container_width=True)
 
     if do_calculate:
-        with st.spinner("正在運算五套命盤系統，請稍候…"):
+        with st.spinner(_tr("calculate.spinner")):
             try:
                 gen = ReportGenerator()
                 new_report = gen.generate(profile, persist=True)
                 st.session_state["report"] = new_report
             except Exception as e:
-                st.error(f"計算失敗：{e}")
+                st.error(_tr("calculate.error", error=str(e)))
                 st.exception(e)
         st.rerun()
 
@@ -1102,10 +1157,10 @@ elif page == "🔮 計算命盤":
     if st.session_state.get("report") is not None:
         report = st.session_state["report"]
         st.divider()
-        st.subheader("命盤速覽")
+        st.subheader(_tr("calculate.overview"))
 
         tab_w, tab_b, tab_z, tab_n, tab_hd = st.tabs(
-            ["🌟 西洋占星", "☯️ 八字", "🏮 紫微", "🔢 靈數", "🔷 人類圖"]
+            [_tr("calculate.tab_western"), _tr("calculate.tab_bazi"), _tr("calculate.tab_ziwei"), _tr("calculate.tab_numerology"), _tr("calculate.tab_hd")]
         )
 
         with tab_w:
@@ -1115,44 +1170,40 @@ elif page == "🔮 計算命盤":
                 with col1:
                     sun_pos = next(
                         (p for p in wc.planet_positions if p.planet.value == "太陽"), None)
-                    st.metric("太陽星座", sun_pos.sign.value if sun_pos else "─")
+                    st.metric(_tr("calculate.western_sun"), sun_pos.sign.value if sun_pos else "─")
                 with col2:
                     moon_pos = next(
                         (p for p in wc.planet_positions if p.planet.value == "月亮"), None)
-                    st.metric("月亮星座", moon_pos.sign.value if moon_pos else "─")
+                    st.metric(_tr("calculate.western_moon"), moon_pos.sign.value if moon_pos else "─")
                 with col3:
                     if wc.ascendant_accuracy == "precise":
-                        st.metric("上升星座", wc.ascendant.value)
+                        st.metric(_tr("calculate.western_asc"), wc.ascendant.value)
                     else:
-                        st.metric("上升星座", "─ 需補充資料")
+                        st.metric(_tr("calculate.western_asc"), _tr("calculate.western_need_data"))
                 with col4:
                     if wc.mc_accuracy == "precise":
-                        st.metric("天頂 MC", wc.mc.value)
+                        st.metric(_tr("calculate.western_mc"), wc.mc.value)
                     else:
-                        st.metric("天頂 MC", "─ 需補充資料")
+                        st.metric(_tr("calculate.western_mc"), _tr("calculate.western_need_data"))
 
                 mode = wc.calculation_mode
                 if mode == "swiss_ephemeris":
-                    st.success("🔭 Swiss Ephemeris 精確計算（行星 + 上升 + 天頂）")
+                    st.success(_tr("calculate.western_mode_precise"))
                 elif mode == "partial_real":
-                    st.info(
-                        "🔭 Swiss Ephemeris 行星計算；上升與天頂需要出生時間與經緯度。"
-                    )
+                    st.info(_tr("calculate.western_mode_partial"))
                 else:
-                    st.warning("⚠️ Mock 計算層（pyswisseph 不可用）。")
+                    st.warning(_tr("calculate.western_mode_mock"))
 
                 if wc.accuracy_note:
                     st.caption(wc.accuracy_note)
                 if wc.ascendant_accuracy != "precise":
-                    st.caption(
-                        "ℹ️ 上升與天頂：請在「輸入資料」頁補填精確出生時間與出生地經緯度。"
-                    )
+                    st.caption(_tr("calculate.western_asc_hint"))
 
-                with st.expander("行星位置詳表"):
+                with st.expander(_tr("calculate.western_planets_expander")):
                     render_planet_table(wc.planet_positions)
-                with st.expander("宮位分析"):
+                with st.expander(_tr("calculate.western_houses_expander")):
                     render_house_table(wc.houses)
-                with st.expander("主要相位"):
+                with st.expander(_tr("calculate.western_aspects_expander")):
                     render_aspect_table(wc.aspects)
 
         with tab_b:
@@ -1162,19 +1213,19 @@ elif page == "🔮 計算命盤":
                     st.caption(f"ℹ️ {bc.accuracy_note}")
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.metric("日主",
+                    st.metric(_tr("calculate.bazi_day_master"),
                               f"{bc.day_master.value}（{bc.day_master_element.value}）")
                 with col2:
                     fav = "、".join(e.value for e in bc.favorable_elements)
-                    st.metric("喜用神", fav)
+                    st.metric(_tr("calculate.bazi_favorable"), fav)
                 render_bazi_pillars(bc)
-                with st.expander("五行比例"):
+                with st.expander(_tr("calculate.bazi_elements_expander")):
                     render_five_element_chart(bc)
-                with st.expander("大運"):
+                with st.expander(_tr("calculate.bazi_daxian_expander")):
                     import pandas as pd
                     dy_rows = [
-                        {"起始": f"{dy.start_age}歲", "結束": f"{dy.end_age}歲",
-                         "天干地支": dy.stem.value + dy.branch.value}
+                        {_tr("calculate.bazi_start_age"): f"{dy.start_age}歲", _tr("calculate.bazi_end_age"): f"{dy.end_age}歲",
+                         _tr("calculate.bazi_stem_branch"): dy.stem.value + dy.branch.value}
                         for dy in bc.da_yun
                     ]
                     st.dataframe(pd.DataFrame(dy_rows), hide_index=True)
@@ -1546,12 +1597,20 @@ elif page == "🔮 計算命盤":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 報告預覽
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📄 報告預覽":
-    st.title("📄 報告預覽")
+elif page == PAGE_REPORT_PREVIEW:
+    st.title(_tr("report_preview.title"))
 
     if st.session_state["report"] is None:
-        st.info("尚未產生報告。請先到『輸入資料』填寫資料，再到『計算命盤』產生分析結果。")
+        st.info(_tr("report_preview.empty"))
         st.stop()
+
+    # Report language selector (V2.0.4)
+    _report_lang_options_labels = [_tr("report.language_auto")] + [lbl for _, lbl in get_language_options()]
+    _report_lang_codes = ["auto"] + [c for c, _ in get_language_options()]
+    _cur_rl = st.session_state.get("report_language", "auto")
+    _cur_rl_idx = _report_lang_codes.index(_cur_rl) if _cur_rl in _report_lang_codes else 0
+    _sel_rl = st.selectbox(_tr("report.language_selector"), _report_lang_options_labels, index=_cur_rl_idx, key="report_language_sel")
+    st.session_state["report_language"] = _report_lang_codes[_report_lang_options_labels.index(_sel_rl)]
 
     report = st.session_state["report"]
 
@@ -1563,13 +1622,13 @@ elif page == "📄 報告預覽":
     with st.container(border=True):
         rc1, rc2, rc3, rc4 = st.columns(4)
         with rc1:
-            st.metric("姓名", report.profile.name)
+            st.metric(_tr("report_preview.col_name"), report.profile.name)
         with rc2:
-            st.metric("報告長度", report.profile.report_length.value)
+            st.metric(_tr("report_preview.col_length"), report.profile.report_length.value)
         with rc3:
-            st.metric("版本", f"v{APP_VERSION}")
+            st.metric(_tr("settings.version"), f"v{APP_VERSION}")
         with rc4:
-            st.metric("生成時間", report.created_at[:16] if report.created_at else "─")
+            st.metric(_tr("report_preview.col_created"), report.created_at[:16] if report.created_at else "─")
 
     # ── Calculation mode expander ─────────────────────────────────────────────
     with st.expander("計算模式摘要"):
@@ -1593,13 +1652,13 @@ elif page == "📄 報告預覽":
         if aux_note:
             st.caption(f"輔星：{aux_note}")
 
-    view_mode = st.radio("顯示模式", ["整合分析（互動式）", "Markdown 原文"], horizontal=True)
+    view_mode = st.radio(_tr("report_preview.view_mode"), [_tr("report_preview.view_interactive"), _tr("report_preview.view_markdown")], horizontal=True)
 
-    if view_mode == "整合分析（互動式）":
+    if view_mode == _tr("report_preview.view_interactive"):
         if report.synthesis:
             render_synthesis_section(report.synthesis)
         else:
-            st.warning("整合分析尚未產生。")
+            st.warning(_tr("report_preview.synthesis_not_ready"))
     else:
         from reports.markdown_exporter import MarkdownExporter
         md_text = MarkdownExporter().export(report)
@@ -1609,12 +1668,12 @@ elif page == "📄 報告預覽":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 歷史報告
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📚 歷史報告":
-    st.title("📚 歷史報告")
+elif page == PAGE_HISTORY:
+    st.title(_tr("history.title"))
 
     reports = list_reports(limit=50)
     if not reports:
-        st.info("目前沒有歷史報告。產生並儲存報告後，會出現在這裡。")
+        st.info(_tr("history.no_reports"))
         st.stop()
 
     import pandas as pd
@@ -1622,42 +1681,42 @@ elif page == "📚 歷史報告":
     df_display = df[
         ["id", "name", "birth_date", "title", "language", "length", "created_at"]
     ].copy()
-    df_display.columns = ["ID", "姓名", "出生日期", "報告標題", "語言", "長度", "生成時間"]
+    df_display.columns = ["ID", _tr("report_preview.col_name"), _tr("history.col_birth_date"), _tr("history.col_title"), _tr("history.col_lang"), _tr("history.col_length"), _tr("report_preview.col_created")]
     st.dataframe(df_display, use_container_width=True, hide_index=True)
 
     st.divider()
     col1, col2 = st.columns(2)
     with col1:
-        load_id = st.number_input("載入報告 ID", min_value=1, step=1)
-        if st.button("載入此報告"):
+        load_id = st.number_input(_tr("history.load_id"), min_value=1, step=1)
+        if st.button(_tr("history.load")):
             row = get_report(int(load_id))
             if row:
                 st.session_state["active_report_id"] = int(load_id)
                 st.session_state["_loaded_report_markdown"] = row["markdown_body"]
-                st.success(f"已載入報告 ID {load_id}")
+                st.success(_tr("history.loaded", id=load_id))
             else:
-                st.error("找不到此報告 ID。")
+                st.error(_tr("history.not_found"))
     with col2:
-        del_id = st.number_input("刪除報告 ID", min_value=1, step=1, key="del_id")
-        if st.button("刪除此報告", type="secondary"):
+        del_id = st.number_input(_tr("history.delete_id"), min_value=1, step=1, key="del_id")
+        if st.button(_tr("history.delete"), type="secondary"):
             delete_report(int(del_id))
-            st.success(f"報告 ID {del_id} 已刪除。")
+            st.success(_tr("history.deleted"))
             st.rerun()
 
     if st.session_state.get("_loaded_report_markdown"):
         st.divider()
-        st.markdown("### 已載入的報告內容")
+        st.markdown(f"### {_tr('history.loaded_content')}")
         st.markdown(st.session_state["_loaded_report_markdown"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 匯出
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📤 匯出":
-    st.title("📤 匯出報告")
+elif page == PAGE_EXPORT:
+    st.title(_tr("export.title"))
 
     if st.session_state["report"] is None:
-        st.info("目前沒有可匯出的報告。請先完成命盤計算或合盤分析。")
+        st.info(_tr("export.no_report"))
         st.stop()
 
     report = st.session_state["report"]
@@ -1666,11 +1725,11 @@ elif page == "📤 匯出":
     with st.container(border=True):
         ec1, ec2, ec3, ec4 = st.columns(4)
         with ec1:
-            st.metric("姓名", report.profile.name)
+            st.metric(_tr("report_preview.col_name"), report.profile.name)
         with ec2:
-            st.metric("生成時間", report.created_at[:16] if report.created_at else "─")
+            st.metric(_tr("report_preview.col_created"), report.created_at[:16] if report.created_at else "─")
         with ec3:
-            st.metric("報告長度", report.profile.report_length.value)
+            st.metric(_tr("report_preview.col_length"), report.profile.report_length.value)
         with ec4:
             wc = report.western_chart
             bc = report.bazi_chart
@@ -1683,14 +1742,14 @@ elif page == "📤 匯出":
             st.caption(modes_summary)
 
     st.divider()
-    with st.expander("📋 推薦匯出格式說明", expanded=True):
-        st.markdown("""
-| 格式 | 推薦用途 |
+    with st.expander(f"📋 {_tr('export.format_section')}", expanded=True):
+        st.markdown(f"""
+| {_tr('export.format_col')} | {_tr('export.usage_col')} |
 |------|----------|
-| 🌐 HTML | HTML 最穩定，適合交付與列印。單一檔案，自含樣式 |
-| 📘 Word | Word 可編輯，適合顧問人工修稿。交付客戶最常用 |
-| 📝 Markdown | 適合保存純文字或交給 AI 二次整理 |
-| 📕 PDF | PDF 為選用功能，需要 WeasyPrint；若不可用請先使用 HTML 或 Word |
+| 🌐 HTML | {_tr('export.html_desc')} |
+| 📘 Word | {_tr('export.word_desc')} |
+| 📝 Markdown | {_tr('export.md_desc')} |
+| 📕 PDF | {_tr('export.pdf_desc')} |
 """)
     st.divider()
 
@@ -1701,10 +1760,10 @@ elif page == "📤 匯出":
 
     with col1:
         st.markdown("**Markdown**")
-        st.caption("適合二次編輯")
+        st.caption(_tr("export.md_desc"))
         md_content = MarkdownExporter().export(report)
         st.download_button(
-            label="📝 下載 Markdown",
+            label=_tr("report.download_md"),
             data=md_content.encode("utf-8"),
             file_name=make_export_filename(report.profile.name, "md"),
             mime="text/markdown",
@@ -1713,10 +1772,10 @@ elif page == "📤 匯出":
 
     with col2:
         st.markdown("**HTML**")
-        st.caption("適合瀏覽與列印")
+        st.caption(_tr("export.html_desc"))
         html_content = HtmlExporter().export(report)
         st.download_button(
-            label="🌐 下載 HTML",
+            label=_tr("report.download_html"),
             data=html_content.encode("utf-8"),
             file_name=make_export_filename(report.profile.name, "html"),
             mime="text/html",
@@ -1725,24 +1784,24 @@ elif page == "📤 匯出":
 
     with col3:
         st.markdown("**Word**")
-        st.caption("適合交付客戶與人工排版")
+        st.caption(_tr("export.word_desc"))
         docx_exp = DocxExporter()
         if docx_exp.is_available():
             try:
                 docx_bytes = docx_exp.export(report)
                 st.download_button(
-                    label="📘 下載 Word",
+                    label=_tr("report.download_word"),
                     data=docx_bytes,
                     file_name=make_export_filename(report.profile.name, "docx"),
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True,
                 )
             except Exception as e:
-                st.button("📘 Word 匯出失敗", disabled=True,
+                st.button(_tr("export.word_failed"), disabled=True,
                           use_container_width=True)
                 st.caption(str(e))
         else:
-            st.button("📘 Word（未安裝）", disabled=True,
+            st.button(_tr("export.word_not_installed"), disabled=True,
                       use_container_width=True)
             st.warning(
                 "需安裝 python-docx：請執行 `setup.bat` 或 "
@@ -1751,24 +1810,24 @@ elif page == "📤 匯出":
 
     with col4:
         st.markdown("**PDF**")
-        st.caption("若環境支援 WeasyPrint 則可用")
+        st.caption(_tr("export.pdf_desc"))
         pdf_exp = PdfExporter()
         if pdf_exp.is_available():
             try:
                 pdf_bytes = pdf_exp.export(report)
                 st.download_button(
-                    label="📕 下載 PDF",
+                    label=_tr("report.download_pdf"),
                     data=pdf_bytes,
                     file_name=make_export_filename(report.profile.name, "pdf"),
                     mime="application/pdf",
                     use_container_width=True,
                 )
             except RuntimeError as e:
-                st.button("📕 PDF（環境問題）", disabled=True,
+                st.button(_tr("export.pdf_env_error"), disabled=True,
                           use_container_width=True)
                 st.warning(str(e))
         else:
-            st.button("📕 PDF（未安裝）", disabled=True,
+            st.button(_tr("export.pdf_not_installed"), disabled=True,
                       use_container_width=True)
             st.info(
                 "PDF 需要 WeasyPrint；Windows 可能需要 GTK/Pango。\n\n"
@@ -1780,14 +1839,10 @@ elif page == "📤 匯出":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 合盤分析
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "💕 合盤分析":
-    st.title("💕 合盤分析")
-    st.caption("情侶、伴侶、合作夥伴、親子、朋友、同事 — 多系統關係互動分析")
-    st.info(
-        "**合盤分數不是絕對適合度，而是互動模式地圖。**\n\n"
-        "高衝突不一定不好，低衝突也不一定代表長期成長。"
-        "分數描述的是互動模式的可觀察指標，關係品質由兩人共同創造。"
-    )
+elif page == PAGE_COMPATIBILITY:
+    st.title(_tr("compatibility.title"))
+    st.caption(_tr("compatibility.caption"))
+    st.info(_tr("compatibility.disclaimer"))
 
     from compatibility.engine import CompatibilityEngine
     from compatibility.models import CompatibilityInput, RelationshipType
@@ -2030,11 +2085,11 @@ elif page == "💕 合盤分析":
         and st.session_state.get("compat_b_profile") is not None
     )
     if not _can_generate:
-        st.info("請先輸入兩人的基本資料，再產生合盤分析。")
+        st.info(_tr("compatibility.not_ready"))
 
-    if st.button("💕 產生合盤分析", type="primary", use_container_width=True,
+    if st.button(_tr("compatibility.generate"), type="primary", use_container_width=True,
                  disabled=not _can_generate, key="compat_generate"):
-        with st.spinner("正在計算合盤分析，請稍候…"):
+        with st.spinner(_tr("compatibility.spinner")):
             try:
                 _ci = CompatibilityInput(
                     person_a=st.session_state["compat_a_profile"],
@@ -2044,7 +2099,7 @@ elif page == "💕 合盤分析":
                 _engine = CompatibilityEngine()
                 _cr = _engine.generate(_ci)
                 st.session_state["compatibility_report"] = _cr
-                st.success("合盤分析完成！")
+                st.success(_tr("compatibility.done"))
             except Exception as _err:
                 st.error(f"合盤計算錯誤：{_err}")
 
@@ -2513,7 +2568,7 @@ elif page == "💕 合盤分析":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 紫微校準
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🧭 紫微校準":
+elif page == PAGE_ZIWEI_RECONCILIATION:
     if not DEVELOPER_MODE:
         st.warning("此頁面僅開發人員模式可用。")
         st.info(
@@ -2542,7 +2597,7 @@ elif page == "🧭 紫微校準":
     if _zc is None:
         st.warning("⚠️ 尚無本機紫微命盤，請先在「📝 輸入資料」填寫資料並計算命盤。")
         if st.button("前往輸入資料"):
-            _go_to_page("📝 輸入資料")
+            _go_to_page(PAGE_INPUT)
         st.stop()
 
     with st.expander("📋 本機紫微盤摘要", expanded=False):
@@ -2697,7 +2752,7 @@ elif page == "🧭 紫微校準":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 人類圖校準
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🔷 人類圖校準":
+elif page == PAGE_HD_RECONCILIATION:
     if not DEVELOPER_MODE:
         st.warning("此頁面僅開發人員模式可用。")
         st.info(
@@ -2725,7 +2780,7 @@ elif page == "🔷 人類圖校準":
     if _hd_local is None:
         st.warning("⚠️ 尚無本機人類圖，請先在「📝 輸入資料」填寫資料並計算命盤。")
         if st.button("前往輸入資料"):
-            _go_to_page("📝 輸入資料")
+            _go_to_page(PAGE_INPUT)
         st.stop()
 
     with st.expander("📋 本機人類圖摘要", expanded=True):
@@ -3092,73 +3147,73 @@ elif page == "🔷 人類圖校準":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 設定
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "⚙️ 設定":
-    st.title("⚙️ 應用程式設定")
+elif page == PAGE_SETTINGS:
+    st.title(_tr("settings.title"))
 
     # ── Delivery mode status ──────────────────────────────────────────────────
-    st.subheader("交付模式狀態")
+    st.subheader(_tr("settings.mode_status"))
     if DEVELOPER_MODE:
-        st.info("🛠️ **DEV MODE 啟用** — 紫微校準、Demo 資料、內部工具均可用。")
+        st.info(f"🛠️ **{_tr('settings.mode_developer')}** — {_tr('settings.dev_mode_info')}")
         dm1, dm2, dm3, dm4 = st.columns(4)
         with dm1:
-            st.metric("DEV MODE", "啟用 ✅")
+            st.metric("DEV MODE", f"{_tr('settings.enabled')} ✅")
         with dm2:
-            st.metric("紫微校準", "可用 ✅")
+            st.metric(_tr("settings.ziwei_cal"), f"{_tr('settings.enabled')} ✅")
         with dm3:
-            st.metric("Demo 資料", "可用 ✅")
+            st.metric(_tr("settings.demo_data"), f"{_tr('settings.enabled')} ✅")
         with dm4:
-            st.metric("客戶模式", "關閉")
+            st.metric(_tr("settings.mode_customer"), _tr("settings.off"))
     else:
-        st.success("📦 **客戶交付模式** — 已啟用，開發工具已隱藏。")
+        st.success(f"📦 **{_tr('settings.mode_customer')}** — {_tr('settings.customer_mode_info')}")
         dm1, dm2, dm3, dm4 = st.columns(4)
         with dm1:
-            st.metric("客戶模式", "啟用 ✅")
+            st.metric(_tr("settings.mode_customer"), f"{_tr('settings.enabled')} ✅")
         with dm2:
-            st.metric("開發者工具", "隱藏")
+            st.metric(_tr("settings.dev_tools"), _tr("settings.hidden"))
         with dm3:
-            st.metric("Demo 資料", "隱藏")
+            st.metric(_tr("settings.demo_data"), _tr("settings.hidden"))
         with dm4:
-            st.metric("紫微校準", "隱藏")
+            st.metric(_tr("settings.ziwei_cal"), _tr("settings.hidden"))
 
     # ── System info ───────────────────────────────────────────────────────────
     st.divider()
-    st.subheader("系統資訊")
+    st.subheader(_tr("settings.system_info"))
     from config import DB_PATH, SWISSEPH_DATA_PATH
     si1, si2 = st.columns(2)
     with si1:
-        st.metric("版本", f"v{APP_VERSION}")
-        st.write(f"**資料庫路徑**：`{DB_PATH}`")
+        st.metric(_tr("settings.version"), f"v{APP_VERSION}")
+        st.write(f"**{_tr('settings.db_path')}**：`{DB_PATH}`")
     with si2:
         sweph_status = "已設定 ✅" if SWISSEPH_DATA_PATH else "未設定（Moshier 內建）⚠️"
         st.write(f"**Swiss Ephemeris**：{sweph_status}")
 
     # ── Supported features ────────────────────────────────────────────────────
     st.divider()
-    st.subheader("支援功能")
-    st.markdown("""
-| 功能 | 狀態 |
+    st.subheader(_tr("settings.features"))
+    st.markdown(f"""
+| {_tr('settings.feature')} | {_tr('settings.status')} |
 |------|------|
-| 西洋占星（Swiss Ephemeris） | ✅ 支援 |
-| 八字（節氣精確計算） | ✅ 支援 |
-| 紫微斗數（正式排盤 Phase 1） | ✅ 支援 |
-| 紫微輔星 / 煞星（V1.5.5） | ✅ 支援 |
-| 紫微大限 Phase 1（V1.5.5） | ✅ 支援 |
-| 血型分析 | ✅ 支援 |
-| 生命靈數 | ✅ 支援 |
+| Western Astrology (Swiss Ephemeris) | ✅ {_tr('settings.supported')} |
+| BaZi | ✅ {_tr('settings.supported')} |
+| Zi Wei Dou Shu Phase 1 | ✅ {_tr('settings.supported')} |
+| Zi Wei auxiliary stars (V1.5.5) | ✅ {_tr('settings.supported')} |
+| Zi Wei Da Xian Phase 1 (V1.5.5) | ✅ {_tr('settings.supported')} |
+| Blood Type Analysis | ✅ {_tr('settings.supported')} |
+| Numerology | ✅ {_tr('settings.supported')} |
 """)
 
     # ── Export format availability ────────────────────────────────────────────
     st.divider()
-    st.subheader("可用匯出格式")
+    st.subheader(_tr("settings.export_formats"))
     _docx_ok = DocxExporter().is_available()
     _pdf_ok  = PdfExporter().is_available()
     ef1, ef2, ef3, ef4 = st.columns(4)
     with ef1:
         st.success("📝 Markdown ✅")
-        st.caption("適合二次編輯")
+        st.caption(_tr("export.md_desc"))
     with ef2:
         st.success("🌐 HTML ✅")
-        st.caption("適合瀏覽與列印")
+        st.caption(_tr("export.html_desc"))
     with ef3:
         if _docx_ok:
             st.success("📘 Word ✅")
@@ -3174,36 +3229,33 @@ elif page == "⚙️ 設定":
 
     # ── Swiss Ephemeris path ──────────────────────────────────────────────────
     st.divider()
-    st.subheader("Swiss Ephemeris 設定（可選）")
-    st.caption(
-        "設定後可指定星曆資料目錄（.se1 檔案）。"
-        "未設定時使用 Moshier 內建星曆（精度足夠一般用途）。"
-    )
+    st.subheader(_tr("settings.ephemeris"))
+    st.caption(_tr("settings.ephemeris_desc"))
     sweph_path = st.text_input(
-        "Swiss Ephemeris 資料路徑",
+        _tr("settings.ephemeris_path"),
         value=get_setting("swisseph_path", ""),
         placeholder="例：/usr/share/swisseph",
     )
-    if st.button("儲存設定"):
+    if st.button(_tr("common.save")):
         set_setting("swisseph_path", sweph_path)
-        st.success("設定已儲存。請重新啟動應用程式以生效。")
+        st.success(_tr("settings.saved"))
 
     # ── Data management ───────────────────────────────────────────────────────
     st.divider()
-    st.subheader("資料管理")
+    st.subheader(_tr("settings.data_management"))
     dm1, dm2 = st.columns(2)
     with dm1:
         full_reports = list_reports(limit=9999)
-        st.metric("已儲存報告數", len(full_reports))
+        st.metric(_tr("settings.saved_reports"), len(full_reports))
     with dm2:
         full_profiles = list_birth_profiles(limit=9999)
-        st.metric("已儲存命盤數", len(full_profiles))
+        st.metric(_tr("settings.saved_profiles"), len(full_profiles))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: Lead Funnel (Consultant / Developer mode only)
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📊 Lead Funnel":
+elif page == PAGE_LEAD_FUNNEL:
     if not CONSULTANT_MODE:
         st.error("🔒 此頁面僅供顧問 / 開發者模式使用。")
         st.stop()
@@ -3273,7 +3325,7 @@ elif page == "📊 Lead Funnel":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: 客戶個案 (Developer / Consultant mode only)
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🗂️ 客戶個案":
+elif page == PAGE_CLIENT_CASES:
     if not CONSULTANT_MODE:
         st.error("🔒 此頁面僅供顧問 / 開發者模式使用。")
         st.stop()

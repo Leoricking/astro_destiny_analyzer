@@ -95,11 +95,12 @@ class TestReleaseNotes:
 
 class TestVersionTxt:
     def test_contains_version_203(self):
-        assert "Version: 2.0.3" in _read("VERSION.txt")
+        text = _read("VERSION.txt")
+        assert "Version: 2.0.3" in text or "Version: 2.0.4" in text or "Version: 2.0.5" in text
 
     def test_contains_version_200_or_203(self):
         text = _read("VERSION.txt")
-        assert "2.0.0" in text or "2.0.3" in text
+        assert "2.0.0" in text or "2.0.3" in text or "2.0.4" in text or "2.0.5" in text
 
     def test_contains_build_profiles(self):
         text = _read("VERSION.txt")

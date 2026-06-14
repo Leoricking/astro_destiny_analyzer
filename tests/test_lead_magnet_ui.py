@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FREE_REPORT_PAGE = "🎁 免費報告"
+FREE_REPORT_PAGE = "PAGE_FREE_REPORT"
 
 
 def _read(rel: str) -> str:
@@ -47,7 +47,7 @@ def _get_pages_dev_block(src: str) -> str:
 
 
 def _get_free_report_block(src: str) -> str:
-    start = src.find(f'elif page == "{FREE_REPORT_PAGE}"')
+    start = src.find('elif page == PAGE_FREE_REPORT:')
     end = src.find("# PAGE: 輸入資料", start)
     return src[start:end] if start != -1 else ""
 
@@ -74,7 +74,7 @@ class TestFreeReportUIPageLists:
 
     def test_page_impl_present(self):
         src = _app_src()
-        assert f'elif page == "{FREE_REPORT_PAGE}"' in src
+        assert 'elif page == PAGE_FREE_REPORT:' in src
 
 
 class TestFreeReportUIPageContent:
@@ -119,16 +119,16 @@ class TestFreeReportUIPageContent:
 
 class TestPublicContentFreeReportIntegration:
     def _get_public_page_block(self, src: str) -> str:
-        start = src.find('elif page == "🌐 免費內容入口"')
+        start = src.find('elif page == PAGE_PUBLIC_CONTENT:')
         end = src.find("# PAGE: 輸入資料", start)
         return src[start:end] if start != -1 else ""
 
     def test_public_content_has_free_report_cta(self):
         src = _app_src()
         block = self._get_public_page_block(src)
-        assert "free_report" in block.lower() or "免費報告" in block
+        assert "free_report" in block.lower() or "免費報告" in block or FREE_REPORT_PAGE in block
 
     def test_free_report_target_in_public_content_block(self):
         src = _app_src()
         block = self._get_public_page_block(src)
-        assert FREE_REPORT_PAGE in block or "free_report" in block
+        assert FREE_REPORT_PAGE in block or "free_report" in block.lower()

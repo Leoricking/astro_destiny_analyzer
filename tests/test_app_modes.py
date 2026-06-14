@@ -36,19 +36,19 @@ class TestCustomerPages:
         return _get_block(src, "_PAGES_BASE = [")
 
     def test_customer_pages_no_lead_funnel(self):
-        assert "Lead Funnel" not in self._customer_block()
+        assert "PAGE_LEAD_FUNNEL" not in self._customer_block()
 
     def test_customer_pages_no_client_case(self):
-        assert "客戶個案" not in self._customer_block()
+        assert "PAGE_CLIENT_CASES" not in self._customer_block()
 
     def test_customer_pages_no_ziwei(self):
-        assert "紫微校準" not in self._customer_block()
+        assert "PAGE_ZIWEI_RECONCILIATION" not in self._customer_block()
 
     def test_customer_pages_no_hd_calibration(self):
-        assert "人類圖校準" not in self._customer_block()
+        assert "PAGE_HD_RECONCILIATION" not in self._customer_block()
 
     def test_customer_pages_has_home(self):
-        assert "首頁" in self._customer_block()
+        assert "PAGE_HOME" in self._customer_block()
 
     def test_customer_pages_alias_defined(self):
         assert "CUSTOMER_PAGES" in _src()
@@ -66,19 +66,19 @@ class TestConsultantPages:
         return _get_block(src, "CONSULTANT_PAGES")
 
     def test_consultant_pages_has_lead_funnel(self):
-        assert "Lead Funnel" in self._consultant_block()
+        assert "PAGE_LEAD_FUNNEL" in self._consultant_block()
 
     def test_consultant_pages_has_client_case(self):
-        assert "客戶個案" in self._consultant_block()
+        assert "PAGE_CLIENT_CASES" in self._consultant_block()
 
     def test_consultant_pages_no_ziwei(self):
-        assert "紫微校準" not in self._consultant_block()
+        assert "PAGE_ZIWEI_RECONCILIATION" not in self._consultant_block()
 
     def test_consultant_pages_no_hd_calibration(self):
-        assert "人類圖校準" not in self._consultant_block()
+        assert "PAGE_HD_RECONCILIATION" not in self._consultant_block()
 
     def test_consultant_pages_has_home(self):
-        assert "首頁" in self._consultant_block()
+        assert "PAGE_HOME" in self._consultant_block()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -91,16 +91,16 @@ class TestDeveloperPages:
         return _get_block(src, "_PAGES_DEV = [")
 
     def test_developer_pages_has_lead_funnel(self):
-        assert "Lead Funnel" in self._dev_block()
+        assert "PAGE_LEAD_FUNNEL" in self._dev_block()
 
     def test_developer_pages_has_client_case(self):
-        assert "客戶個案" in self._dev_block()
+        assert "PAGE_CLIENT_CASES" in self._dev_block()
 
     def test_developer_pages_has_ziwei(self):
-        assert "紫微校準" in self._dev_block()
+        assert "PAGE_ZIWEI_RECONCILIATION" in self._dev_block()
 
     def test_developer_pages_has_hd_calibration(self):
-        assert "人類圖校準" in self._dev_block()
+        assert "PAGE_HD_RECONCILIATION" in self._dev_block()
 
     def test_developer_pages_alias_defined(self):
         assert "DEVELOPER_PAGES" in _src()

@@ -1,5 +1,5 @@
 Astro Destiny Analyzer — Trial Version
-Version: 2.0.3 (Protected Trial)
+Version: 2.0.4 (Protected Trial)
 
 This is a protected trial build. Python source code is not included.
 Please use start_protected.bat or AstroDestinyAnalyzer.exe to launch the app.
@@ -13,6 +13,14 @@ NOTE:
   This package is a compiled/bundled version. You do not need to view
   or modify any source code files. If you encounter issues, please
   contact your support representative.
+
+LANGUAGE:
+  This version supports four UI languages:
+    Traditional Chinese (繁體中文) — default
+    English
+    Thai (ไทย)
+    Japanese (日本語)
+  Use the language selector in the left sidebar after launching.
 
 PRIVACY:
   All data is stored locally in the data/ directory.

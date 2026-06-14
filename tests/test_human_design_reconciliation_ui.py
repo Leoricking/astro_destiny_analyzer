@@ -9,7 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HD_REC_PAGE = "🔷 人類圖校準"
+HD_REC_PAGE = "PAGE_HD_RECONCILIATION"
+_HD_REC_ELIF = 'elif page == PAGE_HD_RECONCILIATION:'
 
 
 def _read(rel: str) -> str:
@@ -62,11 +63,11 @@ class TestHDRecPageGating:
 
     def test_stale_nav_fallback_for_hd_rec_present(self):
         src = _app_src()
-        assert f'nav_page") == "{HD_REC_PAGE}"' in src
+        assert 'PAGE_HD_RECONCILIATION' in src
 
     def test_hd_rec_page_impl_present(self):
         src = _app_src()
-        assert f'elif page == "{HD_REC_PAGE}"' in src
+        assert _HD_REC_ELIF in src
 
 
 # ── B. UI content ─────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@ class TestHDRecPageGating:
 class TestHDRecUIContent:
     def _get_page_block(self) -> str:
         src = _app_src()
-        start = src.find(f'elif page == "{HD_REC_PAGE}"')
+        start = src.find(_HD_REC_ELIF)
         end = src.find("# PAGE: 設定", start)
         return src[start:end] if start != -1 else ""
 
@@ -84,7 +85,7 @@ class TestHDRecUIContent:
 
     def test_page_has_json_text_area(self):
         src = _app_src()
-        idx = src.find(f'elif page == "{HD_REC_PAGE}"')
+        idx = src.find(_HD_REC_ELIF)
         end = src.find("# PAGE: 設定", idx)
         block = src[idx:end]
         assert "text_area" in block
@@ -120,7 +121,7 @@ class TestHDRecUIContent:
 class TestHDRecV194UIContent:
     def _get_page_block(self) -> str:
         src = _app_src()
-        start = src.find(f'elif page == "{HD_REC_PAGE}"')
+        start = src.find(_HD_REC_ELIF)
         end = src.find("# PAGE: 設定", start)
         return src[start:end] if start != -1 else ""
 

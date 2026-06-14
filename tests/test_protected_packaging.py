@@ -85,7 +85,7 @@ class TestBuildProtectedImportable:
     def test_has_app_version(self):
         mod = _load_build_protected()
         assert hasattr(mod, "APP_VERSION")
-        assert mod.APP_VERSION == "2.0.3"
+        assert mod.APP_VERSION == "2.0.5"
 
     def test_has_forbidden_patterns(self):
         mod = _load_build_protected()
@@ -123,7 +123,7 @@ class TestProtectedSmokeTestImportable:
 
     def test_has_expected_version_203(self):
         mod = _load_smoke_test()
-        assert mod.EXPECTED_VERSION == "2.0.3"
+        assert mod.EXPECTED_VERSION == "2.0.5"
 
     def test_required_files_include_trial_readme(self):
         mod = _load_smoke_test()
@@ -345,7 +345,7 @@ class TestProtectedZipRootLayout:
 
     def test_zip_root_dir_matches_expected_name(self):
         mod = _load_build_protected()
-        assert mod.ZIP_ROOT_DIR == "astro_destiny_analyzer_v2.0.3_protected_trial"
+        assert mod.ZIP_ROOT_DIR == "astro_destiny_analyzer_v2.0.5_protected_trial"
 
     def test_smoke_test_has_zip_root_dir_constant(self):
         mod = _load_smoke_test()
@@ -353,7 +353,7 @@ class TestProtectedZipRootLayout:
 
     def test_smoke_test_zip_root_dir_matches_expected_name(self):
         mod = _load_smoke_test()
-        assert mod.ZIP_ROOT_DIR == "astro_destiny_analyzer_v2.0.3_protected_trial"
+        assert mod.ZIP_ROOT_DIR == "astro_destiny_analyzer_v2.0.5_protected_trial"
 
 
 class TestProtectedBatSyntaxChecker:

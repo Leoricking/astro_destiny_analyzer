@@ -1,3 +1,81 @@
+# Release Notes — Astro Destiny Analyzer v2.0.5
+
+## Version Summary
+
+**v2.0.5 — Full UI Localization & RTL Support**
+Release date: 2026-06-14
+Build type: Commercial MVP — Full UI Localization
+
+This release completes the UI localization layer: all customer-visible Chinese text in the main pages (Home, Input, Calculate, Free Content) is now wrapped in `_tr()` calls. Spanish (es) and Arabic (ar) locales have been added, bringing the total to 6 supported UI languages. Arabic uses RTL CSS injection via the new `i18n/rtl.py` module.
+
+---
+
+## Main Changes (v2.0.5)
+
+- **Spanish locale** (`i18n/locales/es.py`): Full translation of all UI strings
+- **Arabic locale** (`i18n/locales/ar.py`): Full translation with RTL support
+- **RTL module** (`i18n/rtl.py`): CSS injection for right-to-left layout when Arabic is selected
+- **i18n helpers** (`ui/i18n_helpers.py`): Utility functions for translated booleans, mode names, page labels
+- **Home page**: Fully localized (welcome text, module table, metric labels, CTA buttons)
+- **Input page**: All labels, placeholders, subheaders, validation messages localized
+- **Calculate page**: All titles, tabs, metric labels, spinner, error messages localized
+- **Free Content page**: Title, subtitle, subheader, empty state localized
+- **Config**: `SUPPORTED_UI_LANGUAGES` extended with "es" and "ar"; `RTL_LANGUAGES` set added
+- **All existing locales** (zh-TW, en, th, ja): New keys added for complete coverage
+
+### New Files (v2.0.5)
+
+- `i18n/rtl.py` — RTL CSS layout support
+- `i18n/locales/es.py` — Spanish translations
+- `i18n/locales/ar.py` — Arabic translations
+- `ui/i18n_helpers.py` — UI i18n utility functions
+- `tests/test_i18n_spanish.py` — Spanish locale tests
+- `tests/test_i18n_arabic.py` — Arabic locale and RTL tests
+- `tests/test_i18n_full_ui_coverage.py` — Full UI coverage tests
+
+---
+
+# Release Notes — Astro Destiny Analyzer v2.0.4
+
+## Version Summary
+
+**v2.0.4 — Multilingual UI & Report Localization**
+Release date: 2026-06-14
+Build type: Commercial MVP — Multilingual Release
+
+This release adds a full i18n layer supporting Traditional Chinese (zh-TW), English (en), Thai (th), and Japanese (ja). The UI language can be switched live from the sidebar. Navigation uses stable canonical page IDs instead of translated strings, enabling language switching without breaking session state.
+
+---
+
+## Main Changes (v2.0.4)
+
+- **i18n Module**: New `i18n/` package with `translator.py`, `display_names.py`, and locale files for zh-TW, English, Thai, and Japanese
+- **Language Selector**: Sidebar language selector — switches UI language without clearing input state
+- **Canonical Page IDs**: `nav_page` session key now stores stable canonical IDs (e.g. `"home"`, `"input"`) instead of translated emoji+label strings
+- **Report Language Selector**: Language selector on Report Preview page for future report localization
+- **Display Name Translations**: `translate_gender`, `translate_hd_type`, `translate_authority`, `translate_center`, `translate_zodiac` for display layer
+- **Home Page Onboarding**: Three-step quick start section now uses `_tr()` for all labels
+- **Config**: Added `SUPPORTED_UI_LANGUAGES`, `DEFAULT_LANGUAGE`, `APP_LANGUAGE` to `config.py`
+- **Build**: Added `i18n` to `_COLLECT_SUBMODULES` in `build_protected.py`
+
+### New Files (v2.0.4)
+
+- `i18n/__init__.py` — i18n package re-exports
+- `i18n/translator.py` — core translation engine with fallback chain
+- `i18n/display_names.py` — canonical value display translators
+- `i18n/locales/__init__.py` — locales package
+- `i18n/locales/zh_TW.py` — Traditional Chinese translations
+- `i18n/locales/en.py` — English translations
+- `i18n/locales/th.py` — Thai translations
+- `i18n/locales/ja.py` — Japanese translations
+- `tests/test_i18n_translator.py` — translator unit tests
+- `tests/test_i18n_locale_completeness.py` — locale key completeness tests
+- `tests/test_i18n_display_names.py` — display name translation tests
+- `tests/test_i18n_report.py` — report language tests
+- `tests/test_i18n_ui.py` — UI integration tests
+
+---
+
 # Release Notes — Astro Destiny Analyzer v2.0.3
 
 ## Version Summary

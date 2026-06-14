@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "2.0.3"
+APP_VERSION = "2.0.5"
 APP_MAJOR_VERSION = "2"
 APP_SUBTITLE = "命盤整合分析系統"
 
@@ -67,6 +67,21 @@ REPORT_FULL_WORD_TARGET = 10000
 
 # Supported languages
 SUPPORTED_LANGUAGES = ["繁體中文", "簡體中文", "English"]
+
+# V2.0.5 — i18n language settings
+SUPPORTED_UI_LANGUAGES: dict = {
+    "zh-TW": "繁體中文",
+    "en": "English",
+    "th": "ไทย",
+    "ja": "日本語",
+    "es": "Español",
+    "ar": "العربية",
+}
+RTL_LANGUAGES: set = {"ar"}
+DEFAULT_LANGUAGE: str = "zh-TW"
+LANGUAGE_ENV_KEY: str = "ASTRO_DEFAULT_LANGUAGE"
+_env_lang = os.getenv(LANGUAGE_ENV_KEY, DEFAULT_LANGUAGE)
+APP_LANGUAGE: str = _env_lang if _env_lang in SUPPORTED_UI_LANGUAGES else DEFAULT_LANGUAGE
 
 # BaZi 子時換日 policy
 # "late_zi_same_day"  : 23:00-23:59 stays on the same calendar day (default)

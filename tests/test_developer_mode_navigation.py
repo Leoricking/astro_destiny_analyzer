@@ -12,7 +12,7 @@ import pytest
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-ZIWEI_PAGE = "🧭 紫微校準"
+ZIWEI_PAGE = "PAGE_ZIWEI_RECONCILIATION"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -118,7 +118,7 @@ class TestPageLists:
         src_path = os.path.join(PROJECT_ROOT, "ui", "streamlit_app.py")
         with open(src_path, encoding="utf-8") as f:
             src = f.read()
-        assert "🏠 首頁" in src
+        assert "PAGE_HOME" in src
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -138,7 +138,7 @@ class TestNavFallback:
 
     def test_ziwei_page_has_stop_guard(self):
         src = self._src()
-        idx = src.find('elif page == "🧭 紫微校準"')
+        idx = src.find('elif page == PAGE_ZIWEI_RECONCILIATION:')
         assert idx != -1
         snippet = src[idx: idx + 600]
         assert "st.stop()" in snippet
@@ -147,7 +147,7 @@ class TestNavFallback:
     def test_ziwei_page_no_crash_without_dev_mode(self):
         """Guard must appear before any ziwei_reconciliation imports."""
         src = self._src()
-        idx = src.find('elif page == "🧭 紫微校準"')
+        idx = src.find('elif page == PAGE_ZIWEI_RECONCILIATION:')
         assert idx != -1
         guard_idx = src.find("not DEVELOPER_MODE", idx)
         stop_idx = src.find("st.stop()", idx)

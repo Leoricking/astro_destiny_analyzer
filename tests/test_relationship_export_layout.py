@@ -18,7 +18,9 @@ def _read_app_src() -> str:
 
 
 def _get_export_section(src: str) -> str:
-    start = src.find('elif page == "📤 匯出"')
+    start = src.find('elif page == PAGE_EXPORT:')
+    if start == -1:
+        start = src.find('elif page == "📤 匯出"')
     if start == -1:
         start = src.find('page == "📤 匯出"')
     next_page = src.find('\nelif page ==', start + 1)

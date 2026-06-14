@@ -73,13 +73,13 @@ class TestOptionalDemoImport:
 class TestDemoSectionGuards:
     def _home_block(self) -> str:
         src = _app_src()
-        start = src.find('if page == "🏠 首頁"')
+        start = src.find('if page == PAGE_HOME:')
         end = src.find('\nelif page ==', start + 1)
         return src[start:end] if start != -1 else ""
 
     def _compat_block(self) -> str:
         src = _app_src()
-        start = src.find('elif page == "💕 合盤分析"')
+        start = src.find('elif page == PAGE_COMPATIBILITY:')
         end = src.find('\nelif page ==', start + 1)
         return src[start:end] if start != -1 else ""
 

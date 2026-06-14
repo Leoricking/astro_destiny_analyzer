@@ -105,7 +105,7 @@ class TestReadmeDeveloperNotes:
 class TestHomePageSource:
     def _home_section(self):
         src = _read("ui/streamlit_app.py")
-        start = src.find('if page == "🏠 首頁"')
+        start = src.find('if page == PAGE_HOME:')
         end = src.find('\nelif page ==', start + 1)
         return src[start:end]
 
@@ -121,7 +121,7 @@ class TestHomePageSource:
 
     def test_customer_cta_present(self):
         home = self._home_section()
-        assert "輸入資料" in home or "開始" in home
+        assert "輸入資料" in home or "開始" in home or "PAGE_INPUT" in home
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -131,7 +131,7 @@ class TestHomePageSource:
 class TestCompatPageDemoGate:
     def _compat_section(self):
         src = _read("ui/streamlit_app.py")
-        start = src.find('elif page == "💕 合盤分析"')
+        start = src.find('elif page == PAGE_COMPATIBILITY:')
         end = src.find('\nelif page ==', start + 1)
         return src[start:end]
 

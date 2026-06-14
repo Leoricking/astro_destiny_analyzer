@@ -23,7 +23,7 @@ import pathlib
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT = pathlib.Path(_SCRIPT_DIR).parent
 
-APP_VERSION = "2.0.3"
+APP_VERSION = "2.0.5"
 DIST_NAME = "AstroDestinyAnalyzer"
 DIST_DIR = _ROOT / "dist" / DIST_NAME
 RELEASE_DIR = _ROOT / "release"
@@ -106,6 +106,11 @@ _COLLECT_SUBMODULES = [
     "lead_magnet",
     "consultant_workflow",
     "ziwei_reconciliation",
+    "i18n",
+    "i18n.locales.es",
+    "i18n.locales.ar",
+    "i18n.rtl",
+    "ui.i18n_helpers",
 ]
 
 

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ZIWEI_PAGE = "🧭 紫微校準"
+ZIWEI_PAGE = "PAGE_ZIWEI_RECONCILIATION"
 
 
 def _read(rel: str) -> str:
@@ -119,7 +119,7 @@ class TestPageLists:
 class TestHomePageCustomerMode:
     def test_home_demo_section_gated_by_show_demo_data(self):
         src = _app_src()
-        home_start = src.find('if page == "🏠 首頁"')
+        home_start = src.find('if page == PAGE_HOME:')
         next_page = src.find('\nelif page ==', home_start + 1)
         home_section = src[home_start:next_page]
         # Demo buttons must be inside SHOW_DEMO_DATA guard
@@ -130,45 +130,45 @@ class TestHomePageCustomerMode:
 
     def test_home_has_customer_cta(self):
         src = _app_src()
-        home_start = src.find('if page == "🏠 首頁"')
+        home_start = src.find('if page == PAGE_HOME:')
         next_page = src.find('\nelif page ==', home_start + 1)
         home_section = src[home_start:next_page]
-        assert "📝 輸入資料" in home_section or "輸入" in home_section
+        assert "PAGE_INPUT" in home_section or "輸入" in home_section
 
     def test_home_has_onboarding_section(self):
         """V2.0.2: Home page must have onboarding 三步驟 section."""
         src = _app_src()
-        home_start = src.find('if page == "🏠 首頁"')
+        home_start = src.find('if page == PAGE_HOME:')
         next_page = src.find('\nelif page ==', home_start + 1)
         home_section = src[home_start:next_page]
-        assert "三步驟" in home_section or "快速開始" in home_section
+        assert "三步驟" in home_section or "快速開始" in home_section or "quick_start" in home_section
 
     def test_home_onboarding_has_free_content_cta(self):
         """V2.0.2: Home onboarding must link to free content."""
         src = _app_src()
-        home_start = src.find('if page == "🏠 首頁"')
+        home_start = src.find('if page == PAGE_HOME:')
         next_page = src.find('\nelif page ==', home_start + 1)
         home_section = src[home_start:next_page]
-        assert "免費內容" in home_section
+        assert "PAGE_PUBLIC_CONTENT" in home_section or "免費內容" in home_section
 
     def test_home_onboarding_has_free_report_cta(self):
         """V2.0.2: Home onboarding must link to free report."""
         src = _app_src()
-        home_start = src.find('if page == "🏠 首頁"')
+        home_start = src.find('if page == PAGE_HOME:')
         next_page = src.find('\nelif page ==', home_start + 1)
         home_section = src[home_start:next_page]
-        assert "免費摘要" in home_section or "免費報告" in home_section
+        assert "PAGE_FREE_REPORT" in home_section or "免費摘要" in home_section or "免費報告" in home_section
 
     def test_home_onboarding_no_developer_words(self):
         """V2.0.2: Home onboarding must not expose developer terminology."""
         src = _app_src()
-        home_start = src.find('if page == "🏠 首頁"')
+        home_start = src.find('if page == PAGE_HOME:')
         next_page = src.find('\nelif page ==', home_start + 1)
         home_section = src[home_start:next_page]
         # Developer-only terms must not appear in the non-SHOW_DEMO_DATA area
         show_demo_idx = home_section.find("if SHOW_DEMO_DATA")
         pre_demo = home_section[:show_demo_idx] if show_demo_idx != -1 else home_section
-        assert "紫微校準" not in pre_demo
+        assert "PAGE_ZIWEI_RECONCILIATION" not in pre_demo
         assert "calibration" not in pre_demo.lower()
         assert "golden case" not in pre_demo.lower()
 
@@ -225,7 +225,7 @@ class TestStaleFallback:
 
     def test_ziwei_page_stop_guard_present(self):
         src = _app_src()
-        idx = src.find('elif page == "🧭 紫微校準"')
+        idx = src.find('elif page == PAGE_ZIWEI_RECONCILIATION:')
         assert idx != -1
         snippet = src[idx: idx + 600]
         assert "st.stop()" in snippet
@@ -235,7 +235,7 @@ class TestStaleFallback:
 # G. V1.9.2 — Human Design Reconciliation page gating
 # ══════════════════════════════════════════════════════════════════════════════
 
-HD_REC_PAGE = "🔷 人類圖校準"
+HD_REC_PAGE = "PAGE_HD_RECONCILIATION"
 
 
 class TestHDReconciliationPageGating:
@@ -265,7 +265,8 @@ class TestHDReconciliationPageGating:
                 if "]" in line and "_PAGES_DEV = [" not in line:
                     break
         dev_block = "\n".join(block)
-        assert HD_REC_PAGE in dev_block
+        # HD_REC_PAGE is the canonical ID constant name
+        assert "PAGE_HD_RECONCILIATION" in dev_block
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -275,7 +276,7 @@ class TestHDReconciliationPageGating:
 class TestV194CustomerModeHidesCalibration:
     def _get_hd_page_block(self) -> str:
         src = _app_src()
-        start = src.find(f'elif page == "{HD_REC_PAGE}"')
+        start = src.find('elif page == PAGE_HD_RECONCILIATION:')
         end = src.find("# PAGE: 設定", start)
         return src[start:end] if start != -1 else ""
 
@@ -314,7 +315,7 @@ class TestV194CustomerModeHidesCalibration:
 # I. V1.9.5 — Public Content Landing Page visibility
 # ══════════════════════════════════════════════════════════════════════════════
 
-PUBLIC_CONTENT_PAGE = "🌐 免費內容入口"
+PUBLIC_CONTENT_PAGE = "PAGE_PUBLIC_CONTENT"
 
 
 class TestV195PublicContentVisibility:
@@ -355,7 +356,7 @@ class TestV195PublicContentVisibility:
     def test_customer_pages_no_seo_debug(self):
         """SEO debug section must be gated by DEVELOPER_MODE in the page block."""
         src = _app_src()
-        start = src.find(f'elif page == "{PUBLIC_CONTENT_PAGE}"')
+        start = src.find('elif page == PAGE_PUBLIC_CONTENT:')
         end = src.find("# PAGE: 輸入資料", start)
         block = src[start:end] if start != -1 else ""
         # validate_seo_data must be inside DEVELOPER_MODE guard
@@ -367,7 +368,7 @@ class TestV195PublicContentVisibility:
 
     def test_developer_mode_public_content_tools_present(self):
         src = _app_src()
-        start = src.find(f'elif page == "{PUBLIC_CONTENT_PAGE}"')
+        start = src.find('elif page == PAGE_PUBLIC_CONTENT:')
         end = src.find("# PAGE: 輸入資料", start)
         block = src[start:end] if start != -1 else ""
         assert "DEVELOPER_MODE" in block
@@ -378,7 +379,7 @@ class TestV195PublicContentVisibility:
 # J. V1.9.6 — Free Report Lead Magnet page visibility
 # ══════════════════════════════════════════════════════════════════════════════
 
-FREE_REPORT_PAGE = "🎁 免費報告"
+FREE_REPORT_PAGE = "PAGE_FREE_REPORT"
 
 
 class TestV196FreeReportVisibility:
@@ -395,7 +396,7 @@ class TestV196FreeReportVisibility:
         return "\n".join(block)
 
     def _get_free_report_block(self, src: str) -> str:
-        start = src.find(f'elif page == "{FREE_REPORT_PAGE}"')
+        start = src.find('elif page == PAGE_FREE_REPORT:')
         end = src.find("# PAGE: 輸入資料", start)
         return src[start:end] if start != -1 else ""
 
@@ -433,7 +434,7 @@ class TestV196FreeReportVisibility:
 # K. V1.9.8 — Consultant Workflow page gating
 # ══════════════════════════════════════════════════════════════════════════════
 
-CLIENT_CASE_PAGE = "🗂️ 客戶個案"
+CLIENT_CASE_PAGE = "PAGE_CLIENT_CASES"
 
 
 class TestV198ConsultantWorkflowGating:
@@ -454,8 +455,8 @@ class TestV198ConsultantWorkflowGating:
         assert CLIENT_CASE_PAGE not in self._get_base_block()
 
     def test_developer_pages_contains_client_case(self):
-        """_PAGES_DEV must contain 客戶個案."""
-        assert CLIENT_CASE_PAGE in self._get_dev_block() or "客戶個案" in self._get_dev_block()
+        """_PAGES_DEV must contain PAGE_CLIENT_CASES."""
+        assert CLIENT_CASE_PAGE in self._get_dev_block()
 
     def test_customer_mode_no_case_notes_exposed(self):
         """case notes should be behind consultant/developer guard."""
@@ -470,7 +471,7 @@ class TestV198ConsultantWorkflowGating:
         """case exports should be behind consultant/developer guard."""
         src = _app_src()
         # CSV export for cases must be inside 客戶個案 page (CONSULTANT_MODE-gated)
-        case_page_idx = src.find('elif page == "🗂️ 客戶個案"')
+        case_page_idx = src.find('elif page == PAGE_CLIENT_CASES:')
         assert case_page_idx != -1
         case_page_block = src[case_page_idx:case_page_idx + 5000]
         assert "CSV" in case_page_block or "csv" in case_page_block.lower()
@@ -484,7 +485,7 @@ class TestV198ConsultantWorkflowGating:
     def test_client_case_page_guard_is_consultant_mode(self):
         """The 客戶個案 page must check CONSULTANT_MODE, not DEVELOPER_MODE alone."""
         src = _app_src()
-        page_start = src.find('elif page == "🗂️ 客戶個案"')
+        page_start = src.find('elif page == PAGE_CLIENT_CASES:')
         page_snippet = src[page_start:page_start + 400]
         assert "CONSULTANT_MODE" in page_snippet
 
@@ -515,22 +516,22 @@ class TestV200ModeGovernance:
     def test_consultant_pages_not_exposed_to_customer(self):
         """Consultant-only pages must not appear in CUSTOMER_PAGES / _PAGES_BASE."""
         base = self._customer_block()
-        assert "Lead Funnel" not in base
-        assert "客戶個案" not in base
+        assert "PAGE_LEAD_FUNNEL" not in base
+        assert "PAGE_CLIENT_CASES" not in base
 
     def test_developer_pages_not_exposed_to_customer(self):
         """Developer-only pages must not appear in _PAGES_BASE."""
         base = self._customer_block()
-        assert "紫微校準" not in base
-        assert "人類圖校準" not in base
+        assert "PAGE_ZIWEI_RECONCILIATION" not in base
+        assert "PAGE_HD_RECONCILIATION" not in base
 
     def test_consultant_pages_include_lead_funnel(self):
         block = self._consultant_block()
-        assert "Lead Funnel" in block
+        assert "PAGE_LEAD_FUNNEL" in block
 
     def test_consultant_pages_include_client_case(self):
         block = self._consultant_block()
-        assert "客戶個案" in block
+        assert "PAGE_CLIENT_CASES" in block
 
     def test_developer_pages_alias_defined(self):
         src = _app_src()
@@ -570,7 +571,7 @@ class TestV2021OptionalDemoImport:
     def test_demo_buttons_guarded_by_sample_profiles(self):
         """Home demo buttons must be inside SAMPLE_PROFILES guard."""
         src = _app_src()
-        home_start = src.find('if page == "🏠 首頁"')
+        home_start = src.find('if page == PAGE_HOME:')
         next_page = src.find('\nelif page ==', home_start + 1)
         home_section = src[home_start:next_page]
         assert "SAMPLE_PROFILES" in home_section
