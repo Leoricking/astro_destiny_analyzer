@@ -110,7 +110,7 @@ def _gen_zodiac(lead: LeadCapture) -> FreeReportResult:
         cta_title="想了解完整命盤？",
         cta_description="建立包含太陽、月亮、上升、行星、宮位的完整西洋占星命盤報告。",
         cta_button_label="建立完整命盤報告",
-        cta_target="📝 輸入資料",
+        cta_target="input",
         disclaimer=_DISCLAIMER,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
@@ -228,7 +228,7 @@ def _gen_human_design(lead: LeadCapture) -> FreeReportResult:
         cta_title="想了解完整人類圖？",
         cta_description="建立完整人類圖報告，包含 Type、Strategy、Authority、Profile 與各中心詳細解讀。",
         cta_button_label="建立完整人類圖報告",
-        cta_target="📝 輸入資料",
+        cta_target="input",
         disclaimer=_DISCLAIMER,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
@@ -301,7 +301,7 @@ def _gen_compatibility(lead: LeadCapture) -> FreeReportResult:
         cta_title="想了解完整合盤？",
         cta_description="建立完整合盤報告，包含 Synastry 相位分析、Composite 合盤與多維度相容性評分。",
         cta_button_label="建立完整合盤報告",
-        cta_target="💕 合盤分析",
+        cta_target="compatibility",
         disclaimer=_DISCLAIMER,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
@@ -356,7 +356,7 @@ def _gen_integrated(lead: LeadCapture) -> FreeReportResult:
         cta_title="準備好建立完整整合命盤了嗎？",
         cta_description="輸入出生資料，建立包含西洋占星、八字、紫微、人類圖的完整整合命盤報告。",
         cta_button_label="建立完整整合命盤報告",
-        cta_target="📝 輸入資料",
+        cta_target="input",
         disclaimer=_DISCLAIMER,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )

@@ -42,25 +42,25 @@ _UPGRADE_CTA = {
         "title": "建立完整命盤報告",
         "description": "完整西洋占星命盤包含太陽、月亮、上升、行星、宮位與相位解讀。",
         "button_label": "建立完整命盤報告",
-        "target": "📝 輸入資料",
+        "target": "input",
     },
     "human_design_free_summary": {
         "title": "建立完整人類圖報告",
         "description": "完整人類圖報告包含 Type、Authority、Profile 與所有中心、閘門通道解讀。",
         "button_label": "建立完整人類圖報告",
-        "target": "📝 輸入資料",
+        "target": "input",
     },
     "compatibility_free_summary": {
         "title": "建立完整合盤報告",
         "description": "完整合盤報告包含 Synastry 相位分析、Composite 合盤與多維度相容性評分。",
         "button_label": "建立完整合盤報告",
-        "target": "💕 合盤分析",
+        "target": "compatibility",
     },
     "integrated_free_summary": {
         "title": "建立完整整合命盤報告",
         "description": "完整整合命盤報告包含西洋占星、八字、紫微斗數與人類圖的多系統解讀。",
         "button_label": "建立完整整合命盤報告",
-        "target": "📝 輸入資料",
+        "target": "input",
     },
 }
 
