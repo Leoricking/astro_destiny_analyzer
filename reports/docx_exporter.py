@@ -37,7 +37,7 @@ class DocxExporter:
     def is_available(self) -> bool:
         return _docx_available()
 
-    def export(self, report: FullReport) -> bytes:
+    def export(self, report: FullReport, language: str = "zh-TW") -> bytes:
         """Export report as .docx bytes."""
         if not self.is_available():
             raise ImportError(
@@ -47,8 +47,15 @@ class DocxExporter:
         from docx.shared import Pt
         from io import BytesIO
 
+        from reports.localized_renderer import normalize_report_language, report_text, render_localized_markdown
+        language = normalize_report_language(language)
+        localized = report_text(language)
         meta = build_report_meta(report)
-        markdown_text = render_report(report, version=APP_VERSION)
+        markdown_text = (
+            render_report(report, version=APP_VERSION)
+            if language == "zh-TW"
+            else render_localized_markdown(report, language=language, version=APP_VERSION)
+        )
         document = docx.Document()
 
         # ── Default Normal style ──────────────────────────────────────────────
@@ -61,7 +68,7 @@ class DocxExporter:
 
         # ── Cover ─────────────────────────────────────────────────────────────
         document.add_heading(BRAND_NAME, level=0)
-        document.add_heading("命盤整合分析報告", level=1)
+        document.add_heading(localized["title"], level=1)
 
         cover_table = document.add_table(rows=6, cols=2)
         try:
@@ -69,12 +76,12 @@ class DocxExporter:
         except Exception:
             pass
         cover_data = [
-            ("姓名", meta["name"]),
-            ("出生日期", meta["birth_date"]),
-            ("出生時間", meta["birth_time"]),
-            ("出生地", meta["location"]),
-            ("產生時間", meta["created_at"]),
-            ("系統版本", f"v{APP_VERSION}"),
+            (localized["name"], meta["name"]),
+            (localized["birth_date"], meta["birth_date"]),
+            (localized["birth_time"], meta["birth_time"]),
+            (localized["location"], meta["location"]),
+            (localized["created"], meta["created_at"]),
+            (localized["version"], f"v{APP_VERSION}"),
         ]
         for i, (k, v) in enumerate(cover_data):
             cover_table.cell(i, 0).text = k
@@ -82,7 +89,7 @@ class DocxExporter:
         document.add_page_break()
 
         # ── Disclaimer ────────────────────────────────────────────────────────
-        document.add_heading("免責聲明", level=2)
+        document.add_heading(localized["disclaimer"], level=2)
         disc_p = document.add_paragraph(meta["disclaimer"])
         try:
             if "Quote" in document.styles:
@@ -93,7 +100,7 @@ class DocxExporter:
         document.add_paragraph()
 
         # ── Basic Info Table ──────────────────────────────────────────────────
-        document.add_heading("基本資料", level=2)
+        document.add_heading(localized["basic"], level=2)
         info_table = document.add_table(rows=8, cols=2)
         try:
             info_table.style = "Table Grid"

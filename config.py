@@ -11,7 +11,7 @@ DB_PATH = DATA_DIR / "astro_destiny.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Astro Destiny Analyzer"
-APP_VERSION = "2.0.5"
+APP_VERSION = "2.0.6"
 APP_MAJOR_VERSION = "2"
 APP_SUBTITLE = "命盤整合分析系統"
 
@@ -19,6 +19,8 @@ APP_SUBTITLE = "命盤整合分析系統"
 APP_RELEASE_CHANNEL: str = os.getenv("ASTRO_RELEASE_CHANNEL", "commercial_mvp")
 # BUILD_PROFILE: customer | consultant | developer
 BUILD_PROFILE: str = os.getenv("ASTRO_BUILD_PROFILE", "customer")
+
+ENABLE_ONLINE_GEOCODING: bool = os.getenv("ASTRO_ONLINE_GEOCODING", "0").strip().lower() in ("1", "true", "yes", "on")
 
 COMMERCIAL_MVP_MODE: bool = os.getenv(
     "ASTRO_COMMERCIAL_MVP_MODE", "1"

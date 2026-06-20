@@ -93,7 +93,11 @@ _COVER_TEMPLATE = """\
 
 
 class MarkdownExporter:
-    def export(self, report: FullReport) -> str:
+    def export(self, report: FullReport, language: str = "zh-TW") -> str:
+        from reports.localized_renderer import normalize_report_language, render_localized_markdown
+        language = normalize_report_language(language)
+        if language != "zh-TW":
+            return render_localized_markdown(report, language=language, version=_cfg.APP_VERSION)
         meta = build_report_meta(report)
         cover = _COVER_TEMPLATE.format(**meta)
         body = render_report(report, version=_cfg.APP_VERSION)
@@ -102,7 +106,7 @@ class MarkdownExporter:
         footer = f"\n\n---\n\n*{_cfg.REPORT_WATERMARK} · v{_cfg.APP_VERSION}*\n"
         return cover + body + footer
 
-    def save(self, report: FullReport, path: str) -> None:
-        content = self.export(report)
+    def save(self, report: FullReport, path: str, language: str = "zh-TW") -> None:
+        content = self.export(report, language=language)
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)

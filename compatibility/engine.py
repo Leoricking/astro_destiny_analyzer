@@ -831,6 +831,96 @@ class CompatibilityEngine:
             "請優先尋求現實支持與專業協助，建立安全界線優先於任何命盤分析。"
         )
 
+        # Precision evidence: preserve the existing score model while exposing the
+        # concrete observations that drove each dimension. This makes the result
+        # auditable and specific without changing any calculation engine.
+        dimension_evidence = {
+            "emotional": [
+                f"月亮配對：{astro.moon_pair}",
+                f"情感共鳴分數：{scores.emotional_score}/100",
+                f"八字日主關係：{bazi.day_master_relation or '資料不足'}",
+            ],
+            "communication": [
+                f"水星配對：{astro.mercury_pair}",
+                f"溝通契合分數：{scores.communication_score}/100",
+                f"生命靈數配對：{num.life_path_pair or '資料不足'}",
+            ],
+            "attraction": [
+                f"金星／火星配對：{astro.venus_mars_pair}",
+                f"吸引力分數：{scores.attraction_score}/100",
+            ],
+            "stability": [
+                f"穩定性分數：{scores.stability_score}/100",
+                f"八字五行互動：{bazi.five_element_balance or '資料不足'}",
+                f"紫微主星共鳴：{ziwei.main_star_resonance or '資料不足'}",
+            ],
+            "conflict": [
+                f"衝突強度：{scores.conflict_score}/100",
+                f"血型衝突風格：{blood.conflict_style or '資料不足'}",
+                f"主要張力：{astro.tension_factors[0] if astro.tension_factors else '未偵測明顯張力'}",
+            ],
+            "growth": [
+                f"成長潛力：{scores.growth_score}/100",
+                f"協作效能：{scores.collaboration_score}/100",
+                f"靈數挑戰主題：{num.challenge_theme or '資料不足'}",
+            ],
+        }
+
+        score_drivers: List[str] = []
+        ranked_dimensions = sorted([
+            ("情感共鳴", scores.emotional_score),
+            ("溝通契合", scores.communication_score),
+            ("吸引力", scores.attraction_score),
+            ("穩定性", scores.stability_score),
+            ("成長潛力", scores.growth_score),
+            ("協作效能", scores.collaboration_score),
+        ], key=lambda item: item[1], reverse=True)
+        if ranked_dimensions:
+            score_drivers.append(
+                f"最高優勢維度為「{ranked_dimensions[0][0]}」{ranked_dimensions[0][1]} 分；"
+                f"次高為「{ranked_dimensions[1][0]}」{ranked_dimensions[1][1]} 分。"
+            )
+            score_drivers.append(
+                f"最需要經營的正向維度為「{ranked_dimensions[-1][0]}」{ranked_dimensions[-1][1]} 分。"
+            )
+        score_drivers.append(
+            f"衝突強度 {scores.conflict_score} 分；此值代表互動張力，不直接等同關係好壞。"
+        )
+        if astro.key_aspects:
+            score_drivers.append(f"最具影響力的占星相位：{astro.key_aspects[0]}")
+
+        priority_actions: List[str] = []
+        if scores.communication_score < 65:
+            priority_actions.append("先建立固定的溝通流程：每次討論先確認事實、感受、需求與下一步。")
+        if scores.emotional_score < 65:
+            priority_actions.append("每週安排一次情緒需求確認，避免用推測取代直接詢問。")
+        if scores.conflict_score >= 65:
+            priority_actions.append("優先建立衝突暫停與修復規則，包含暫停時間、恢復對話時間與不可踩的界線。")
+        if scores.stability_score < 60:
+            priority_actions.append("對金錢、時間、家務或合作責任建立書面共識，降低角色模糊。")
+        if scores.attraction_score >= 75:
+            priority_actions.append("保留兩人自然吸引力的同時，將期待與承諾說清楚，避免只靠感覺推進。")
+        if not priority_actions:
+            priority_actions.append("維持目前優勢，並每月檢視一次關係滿意度與下一個共同目標。")
+
+        uncertainty_notes: List[str] = []
+        if not ci.person_a.birth_time or not ci.person_b.birth_time:
+            uncertainty_notes.append("至少一方缺少精確出生時間；月亮、上升、宮位、紫微命宮與 Composite 四軸精度會下降。")
+        if not getattr(ci.person_a, "birth_latitude", None) or not getattr(ci.person_b, "birth_latitude", None):
+            uncertainty_notes.append("至少一方缺少精確座標；上升、宮位與 Composite ASC/MC 不納入或僅供參考。")
+        if astro.accuracy_note:
+            uncertainty_notes.append(f"西洋占星：{astro.accuracy_note}")
+        if bazi.accuracy_note:
+            uncertainty_notes.append(f"八字：{bazi.accuracy_note}")
+        if ziwei.accuracy_note:
+            uncertainty_notes.append(f"紫微：{ziwei.accuracy_note}")
+
+        precision_summary = (
+            f"本次分析以 {name_a} 與 {name_b} 的西洋占星、八字、紫微、生命靈數與血型資料交叉判讀。"
+            f"整體分數 {scores.overall_score}/100；最高優勢為 {ranked_dimensions[0][0]}，"
+            f"最需經營的是 {ranked_dimensions[-1][0]}，衝突張力為 {scores.conflict_score}/100。"
+        )
+
         return CompatibilitySynthesis(
             relationship_summary=summary,
             strengths=strengths,
@@ -842,5 +932,10 @@ class CompatibilityEngine:
             long_term_potential=long_term,
             practical_advice=practical_advice,
             thirty_day_practice=thirty_day,
+            dimension_evidence=dimension_evidence,
+            score_drivers=score_drivers,
+            priority_actions=priority_actions,
+            uncertainty_notes=uncertainty_notes,
+            precision_summary=precision_summary,
             warning_note=warning,
         )

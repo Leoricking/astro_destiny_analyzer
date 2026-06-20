@@ -37,6 +37,47 @@ _CAPTURE_COPY = {
     },
 }
 
+_CAPTURE_COPY_I18N = {
+    "en": {
+        "zodiac_free_summary": {"title":"Get a Free Zodiac Snapshot","description":"Enter your birth date to receive a personalized Sun-sign snapshot.","form_hint":"Enter your name, email, and birth date to generate the free zodiac snapshot.","consent_text":"I agree to store the information above locally to generate the free summary and test follow-up contact. This version does not send the data to external services.","button_label":"Get Free Zodiac Snapshot"},
+        "human_design_free_summary": {"title":"Get a Free Human Design Type Snapshot","description":"Enter your birth date, time, and place to receive a Type and Authority snapshot.","form_hint":"Human Design needs accurate birth time and location for a reliable Type calculation.","consent_text":"I agree to store the information above locally to generate the free summary and test follow-up contact. This version does not send the data to external services.","button_label":"Get Human Design Snapshot"},
+        "compatibility_free_summary": {"title":"Get a Free Compatibility Snapshot","description":"Enter both people’s birth details to receive an initial relationship overview.","form_hint":"Enter both names, email, and birth dates to generate the compatibility snapshot.","consent_text":"I agree to store the information above locally to generate the free summary and test follow-up contact. This version does not send the data to external services.","button_label":"Get Compatibility Snapshot"},
+        "integrated_free_summary": {"title":"Get a Free Integrated Chart Summary","description":"See how Western Astrology, BaZi, Zi Wei, and Human Design complement one another.","form_hint":"Enter your name, email, and birth date to generate the integrated summary.","consent_text":"I agree to store the information above locally to generate the free summary and test follow-up contact. This version does not send the data to external services.","button_label":"Get Free Integrated Summary"},
+    },
+    "ja": {
+        "zodiac_free_summary": {"title":"無料の星座スナップショットを取得","description":"生年月日を入力すると、太陽星座の個別サマリーを確認できます。","form_hint":"氏名、メール、生年月日を入力してください。","consent_text":"無料サマリー作成とフォローアップ検証のため、上記情報を端末内に保存することに同意します。外部サービスには送信されません。","button_label":"無料の星座スナップショットを取得"},
+        "human_design_free_summary": {"title":"無料のヒューマンデザイン概要を取得","description":"出生日時と場所から Type と Authority の概要を確認します。","form_hint":"正確な Type の計算には出生時刻と出生地が必要です。","consent_text":"上記情報を端末内に保存することに同意します。外部サービスには送信されません。","button_label":"無料のヒューマンデザイン概要を取得"},
+        "compatibility_free_summary": {"title":"無料の相性概要を取得","description":"二人の出生情報から初期的な関係性サマリーを作成します。","form_hint":"二人の氏名、メール、生年月日を入力してください。","consent_text":"上記情報を端末内に保存することに同意します。外部サービスには送信されません。","button_label":"無料の相性概要を取得"},
+        "integrated_free_summary": {"title":"無料の統合命盤サマリーを取得","description":"西洋占星術、八字、紫微斗数、ヒューマンデザインの補完関係を確認します。","form_hint":"氏名、メール、生年月日を入力してください。","consent_text":"上記情報を端末内に保存することに同意します。外部サービスには送信されません。","button_label":"無料の統合サマリーを取得"},
+    },
+    "th": {
+        "zodiac_free_summary": {"title":"รับภาพรวมราศีฟรี","description":"กรอกวันเกิดเพื่อรับสรุปราศีอาทิตย์แบบเฉพาะบุคคล","form_hint":"กรอกชื่อ อีเมล และวันเกิดเพื่อสร้างสรุปฟรี","consent_text":"ฉันยินยอมให้จัดเก็บข้อมูลข้างต้นไว้ในเครื่องเพื่อสร้างสรุปฟรีและทดสอบการติดต่อภายหลัง โดยจะไม่ส่งข้อมูลไปยังบริการภายนอก","button_label":"รับภาพรวมราศีฟรี"},
+        "human_design_free_summary": {"title":"รับภาพรวม Human Design ฟรี","description":"กรอกวัน เวลา และสถานที่เกิดเพื่อดู Type และ Authority","form_hint":"Human Design ต้องใช้เวลาและสถานที่เกิดที่แม่นยำ","consent_text":"ฉันยินยอมให้จัดเก็บข้อมูลไว้ในเครื่อง โดยไม่ส่งไปยังบริการภายนอก","button_label":"รับภาพรวม Human Design ฟรี"},
+        "compatibility_free_summary": {"title":"รับภาพรวมความสัมพันธ์ฟรี","description":"กรอกข้อมูลเกิดของทั้งสองฝ่ายเพื่อดูภาพรวมเบื้องต้น","form_hint":"กรอกชื่อ อีเมล และวันเกิดของทั้งสองฝ่าย","consent_text":"ฉันยินยอมให้จัดเก็บข้อมูลไว้ในเครื่อง โดยไม่ส่งไปยังบริการภายนอก","button_label":"รับภาพรวมความสัมพันธ์ฟรี"},
+        "integrated_free_summary": {"title":"รับสรุปดวงแบบบูรณาการฟรี","description":"ดูว่าโหราศาสตร์ตะวันตก BaZi, Zi Wei และ Human Design เสริมกันอย่างไร","form_hint":"กรอกชื่อ อีเมล และวันเกิดเพื่อสร้างสรุป","consent_text":"ฉันยินยอมให้จัดเก็บข้อมูลไว้ในเครื่อง โดยไม่ส่งไปยังบริการภายนอก","button_label":"รับสรุปแบบบูรณาการฟรี"},
+    },
+    "es": {
+        "zodiac_free_summary": {"title":"Obtén una vista zodiacal gratuita","description":"Introduce tu fecha de nacimiento para recibir un resumen personalizado de tu signo solar.","form_hint":"Introduce nombre, correo y fecha de nacimiento.","consent_text":"Acepto que estos datos se guarden localmente para generar el resumen gratuito. No se enviarán a servicios externos.","button_label":"Obtener vista zodiacal gratuita"},
+        "human_design_free_summary": {"title":"Obtén una vista gratuita de Human Design","description":"Introduce fecha, hora y lugar de nacimiento para ver Tipo y Autoridad.","form_hint":"Human Design requiere una hora y lugar precisos.","consent_text":"Acepto que estos datos se guarden localmente. No se enviarán a servicios externos.","button_label":"Obtener vista de Human Design"},
+        "compatibility_free_summary": {"title":"Obtén una vista gratuita de compatibilidad","description":"Introduce los datos natales de ambas personas para un resumen inicial.","form_hint":"Introduce nombres, correo y fechas de nacimiento.","consent_text":"Acepto que estos datos se guarden localmente. No se enviarán a servicios externos.","button_label":"Obtener vista de compatibilidad"},
+        "integrated_free_summary": {"title":"Obtén un resumen integrado gratuito","description":"Descubre cómo se complementan Astrología Occidental, BaZi, Zi Wei y Human Design.","form_hint":"Introduce nombre, correo y fecha de nacimiento.","consent_text":"Acepto que estos datos se guarden localmente. No se enviarán a servicios externos.","button_label":"Obtener resumen integrado"},
+    },
+    "ar": {
+        "zodiac_free_summary": {"title":"احصل على ملخص مجاني للبرج","description":"أدخل تاريخ الميلاد للحصول على ملخص شخصي لبرج الشمس.","form_hint":"أدخل الاسم والبريد الإلكتروني وتاريخ الميلاد.","consent_text":"أوافق على حفظ البيانات محليًا لإنشاء الملخص المجاني، ولن تُرسل إلى خدمات خارجية.","button_label":"الحصول على ملخص البرج"},
+        "human_design_free_summary": {"title":"احصل على ملخص Human Design مجاني","description":"أدخل تاريخ ووقت ومكان الميلاد لعرض النوع والسلطة الداخلية.","form_hint":"يتطلب Human Design وقتًا ومكانًا دقيقين للميلاد.","consent_text":"أوافق على حفظ البيانات محليًا ولن تُرسل إلى خدمات خارجية.","button_label":"الحصول على ملخص Human Design"},
+        "compatibility_free_summary": {"title":"احصل على ملخص توافق مجاني","description":"أدخل بيانات ميلاد الطرفين للحصول على نظرة أولية للعلاقة.","form_hint":"أدخل الأسماء والبريد وتواريخ الميلاد.","consent_text":"أوافق على حفظ البيانات محليًا ولن تُرسل إلى خدمات خارجية.","button_label":"الحصول على ملخص التوافق"},
+        "integrated_free_summary": {"title":"احصل على ملخص متكامل مجاني","description":"تعرّف إلى تكامل التنجيم الغربي وBaZi وZi Wei وHuman Design.","form_hint":"أدخل الاسم والبريد وتاريخ الميلاد.","consent_text":"أوافق على حفظ البيانات محليًا ولن تُرسل إلى خدمات خارجية.","button_label":"الحصول على الملخص المتكامل"},
+    },
+}
+
+_UPGRADE_CTA_I18N = {
+    "en": {"input": ("Create a Complete Report", "Create a full report using your birth details.", "Create Complete Report"), "compatibility": ("Create a Compatibility Report", "Generate a full multi-system compatibility report.", "Create Compatibility Report")},
+    "ja": {"input": ("完全版レポートを作成", "出生情報から完全版レポートを作成します。", "完全版レポートを作成"), "compatibility": ("相性レポートを作成", "複数体系による完全版相性レポートを作成します。", "相性レポートを作成")},
+    "th": {"input": ("สร้างรายงานฉบับเต็ม", "สร้างรายงานฉบับเต็มจากข้อมูลเกิดของคุณ", "สร้างรายงานฉบับเต็ม"), "compatibility": ("สร้างรายงานความสัมพันธ์", "สร้างรายงานความสัมพันธ์แบบหลายระบบ", "สร้างรายงานความสัมพันธ์")},
+    "es": {"input": ("Crear informe completo", "Crea un informe completo con tus datos natales.", "Crear informe completo"), "compatibility": ("Crear informe de compatibilidad", "Genera un informe de compatibilidad multisistema.", "Crear informe de compatibilidad")},
+    "ar": {"input": ("إنشاء تقرير كامل", "أنشئ تقريرًا كاملًا باستخدام بيانات الميلاد.", "إنشاء تقرير كامل"), "compatibility": ("إنشاء تقرير توافق", "أنشئ تقرير توافق متكامل متعدد الأنظمة.", "إنشاء تقرير توافق")},
+}
+
 _UPGRADE_CTA = {
     "zodiac_free_summary": {
         "title": "建立完整命盤報告",
@@ -161,11 +202,20 @@ footer{{margin-top:3rem;padding-top:1rem;border-top:1px solid #ddd;color:#999;fo
 </html>"""
 
 
-def render_lead_capture_copy(report_type: str) -> dict:
-    """Return UI copy dict for the lead capture form."""
+def render_lead_capture_copy(report_type: str, language: str = "zh-TW") -> dict:
+    """Return localized UI copy for the lead capture form."""
+    if language != "zh-TW":
+        localized = _CAPTURE_COPY_I18N.get(language, {}).get(report_type)
+        if localized:
+            return dict(localized)
     return dict(_CAPTURE_COPY.get(report_type, _CAPTURE_COPY["integrated_free_summary"]))
 
 
-def render_upgrade_cta(report_type: str) -> dict:
-    """Return upgrade CTA dict for the given report type."""
-    return dict(_UPGRADE_CTA.get(report_type, _UPGRADE_CTA["integrated_free_summary"]))
+def render_upgrade_cta(report_type: str, language: str = "zh-TW") -> dict:
+    """Return a localized upgrade CTA while preserving canonical targets."""
+    base = dict(_UPGRADE_CTA.get(report_type, _UPGRADE_CTA["integrated_free_summary"]))
+    if language != "zh-TW":
+        localized = _UPGRADE_CTA_I18N.get(language, {}).get(base.get("target"))
+        if localized:
+            base["title"], base["description"], base["button_label"] = localized
+    return base

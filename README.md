@@ -1,8 +1,70 @@
-# Astro Destiny Analyzer — 命盤整合分析系統 v2.0.3
+# Astro Destiny Analyzer — 命盤整合分析系統 v2.0.6
 
 > **免責聲明**  
 > 本系統為「自我探索與娛樂型命盤分析工具」，不構成科學定論、醫療診斷、投資建議或絕對命運預測。  
 > 報告內容僅供使用者進行人格理解、情感觀察、職涯思考與生活規劃參考。
+
+---
+
+## V2.0.6 更新說明 — 多語系執行完整化、智慧出生地與完整匯出
+
+V2.0.6 以「不改動既有命盤核心計算」為原則，集中修正介面導航、輸入資料保存、多語系顯示、個人報告與合盤報告匯出，以及 Protected Trial 發佈流程。
+
+### 主要更新
+
+- 支援 6 種介面與報告語言：繁體中文、English、日本語、ไทย、Español、العربية（RTL）。
+- 修正首頁、免費內容、免費報告與各 CTA 按鈕的頁面導航。
+- 修正由免費內容進入「輸入資料」後，填寫途中被跳回原頁面的問題。
+- 修正切換頁面或按「返回修改資料」後，既有出生資料、分析主題、報告語言與報告長度被清空的問題。
+- 新增明確的「清空並重新輸入」操作，避免返回編輯與清空資料混用。
+- 修正非中文語言下的計算頁錯誤與顯示錯誤。
+- 西洋占星、八字、紫微、生命靈數與人類圖的計算結果改為依選定語言顯示。
+- 西洋占星特殊點支援多語顯示：北交點、南交點、凱龍星、莉莉絲、福點。
+- 紫微斗數宮位、地支、五行局、主星、輔星、煞星、四化與大限表格加入顯示層翻譯。
+- 報告預覽各主題章節改為獨立內容，不再重複同一段通用文字。
+- Standard 與 Complete 10K 依報告長度產生不同深度的內容。
+- 個人報告與合盤報告皆支援 Markdown、HTML、Word、PDF。
+- PDF 優先使用 WeasyPrint；不可用時使用 ReportLab fallback。
+- 合盤報告新增分數形成依據、維度證據、改善優先順序、資料限制與可信度說明。
+- 新增智慧出生地模組：國家選擇、城市搜尋、經緯度、IANA 時區、歷史 UTC offset / DST 與手動座標 fallback。
+- Protected Trial 更新至 V2.0.6，打包加入多語系、location 與 PDF fallback 依賴。
+
+### 重要設計原則
+
+- 不修改西洋占星、八字、紫微、人類圖等既有核心計算結果。
+- 翻譯只作用於顯示層與匯出層，不回寫核心模型。
+- 缺少精確出生時間或座標時，ASC、MC、宮位、紫微時辰、人類圖與合盤四軸精度會降低。
+- 所有報告均為自我探索、關係理解與生活規劃參考，不構成醫療、法律、投資或絕對命運判斷。
+
+### V2.0.6 建議啟動方式
+
+```bat
+setup.bat
+run.bat
+```
+
+Protected Trial：
+
+```bat
+start_protected.bat
+```
+
+手動啟動：
+
+```powershell
+.venv\Scripts\python -m streamlit run ui\streamlit_app.py
+```
+
+### V2.0.6 報告匯出
+
+| 報告類型 | Markdown | HTML | Word | PDF |
+|---|---:|---:|---:|---:|
+| 個人命盤 | ✅ | ✅ | ✅ | ✅ |
+| 合盤分析 | ✅ | ✅ | ✅ | ✅ |
+| 免費摘要 | ✅ | ✅ | — | — |
+
+> PDF 會優先使用 WeasyPrint；若環境不支援，系統可改用 ReportLab fallback。  
+> 交付穩定性仍以 HTML 最高，需人工修稿時建議 Word。
 
 ---
 
@@ -610,7 +672,7 @@ Astro Destiny Analyzer 是一套結合多種命理與人格敘事系統的整合
 | 報告系統 | 已實作 | 簡短版、標準版、萬字完整版 |
 | 資料儲存 | 已實作 | SQLite 儲存出生資料、命盤結果與報告歷史 |
 | Web UI | 已實作 | Streamlit 七頁式互動介面 |
-| 匯出 | 部分完成 | Markdown、HTML、Word 可用；PDF 介面保留 |
+| 匯出 | 已實作 | 個人與合盤皆支援 Markdown、HTML、Word、PDF；PDF 含 fallback |
 
 ---
 
@@ -753,8 +815,9 @@ http://localhost:8501
 - Markdown `.md`
 - HTML `.html`
 - Word `.docx`
+- PDF `.pdf`
 
-PDF 目前保留介面，正式排版建議於後續版本完成。
+PDF 優先使用 WeasyPrint，若不可用則使用 ReportLab fallback。
 
 ### 5.5 歷史報告
 
@@ -788,7 +851,7 @@ PDF 目前保留介面，正式排版建議於後續版本完成。
 | Markdown `.md` | 可用 | 純文字格式，適合 Git、AI 二次整理與人工編輯 |
 | HTML `.html` | 可用 | 含樣式的單一網頁，可用瀏覽器開啟與列印 |
 | Word `.docx` | 可用 | 適合交付客戶或人工排版 |
-| PDF `.pdf` | 保留介面 | 需安裝 WeasyPrint 與 CJK 字型，建議後續版本再正式啟用 |
+| PDF `.pdf` | 可用 | 優先使用 WeasyPrint；不可用時使用 ReportLab fallback |
 
 ---
 
@@ -1762,3 +1825,10 @@ set ASTRO_SHOW_DEMO_DATA=1
 
 `demo/sample_profiles.py` 包含內部測試用範例資料，客戶版預設不顯示。
 使用 `run_dev.bat` 或設定 `ASTRO_SHOW_DEMO_DATA=1` 可啟用。
+
+
+## V2.0.6 Western Astrology Special Points i18n Hotfix
+
+- Added six-language display labels for North Node, South Node, Chiron, Lilith, and Part of Fortune.
+- Preserved the Free Content → Enter Data no-snapback navigation fix.
+- No calculation logic changed.

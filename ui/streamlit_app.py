@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 from datetime import date, time
+from copy import deepcopy
 
 # ── Bootstrap ─────────────────────────────────────────────────────────────────
 from core.database import init_db
@@ -28,6 +29,13 @@ from config import (
     APP_LANGUAGE, DEFAULT_LANGUAGE,  # V2.0.4 i18n
 )
 from i18n.translator import t, get_language_options  # V2.0.4 i18n
+from i18n.display_names import (
+    translate_zodiac, normalize_zodiac_value,
+    translate_analysis_theme, normalize_analysis_theme,
+    translate_report_length, normalize_report_length,
+    translate_bazi_stem, translate_element, translate_hd_type,
+    translate_hd_strategy, translate_hd_authority, translate_branch, translate_center,
+)
 from core.models import (
     BirthProfile, Gender, BloodType, AnalysisTheme,
     ReportLanguage, ReportLength,
@@ -128,7 +136,10 @@ def page_label(page_id: str, language: str | None = None) -> str:
 
 _PAGES = get_active_pages()  # CONSULTANT_MODE → CONSULTANT_PAGES; DEVELOPER_MODE → DEVELOPER_PAGES
 
-_DEFAULT_THEME_VALUES = [t.value for t in AnalysisTheme]
+_DEFAULT_THEME_VALUES = [
+    "overall_personality", "relationships", "career", "wealth",
+    "social", "family", "current_year", "next_three_years",
+]
 
 # ── Birth year constants ───────────────────────────────────────────────────────
 DEFAULT_BIRTH_YEAR: int = 1990
@@ -167,13 +178,22 @@ _INPUT_DEFAULTS: dict = {
     "input_res_city": "",
     "input_res_country": "",
     "input_blood_type": "Unknown",
-    "input_themes": list(_DEFAULT_THEME_VALUES),
-    "input_report_lang": "繁體中文",
-    "input_report_len": "標準版",
+    "input_themes": [
+        "overall_personality", "relationships", "career", "wealth",
+        "social", "family", "current_year", "next_three_years",
+    ],
+    "input_report_lang": "auto",
+    "input_report_len": "standard",
     "input_manual_lat": 0.0,
     "input_manual_lon": 0.0,
     "input_manual_tz": 8.0,
     "input_use_manual_latlon": False,
+    "input_country_code": "TW",
+    "input_city_query": "",
+    "input_city_candidates": [],
+    "input_selected_candidate_idx": 0,
+    "input_location_confirmed": False,
+    "input_manual_tz_name": "",
 }
 for _k, _v in _INPUT_DEFAULTS.items():
     if _k not in st.session_state:
@@ -252,18 +272,54 @@ if (
         st.session_state["input_manual_tz"] = _INPUT_DEFAULTS["input_manual_tz"]
 
 
+
+def _localized_age(value, language: str) -> str:
+    formats = {
+        "zh-TW": "{n}歲", "en": "{n}", "ja": "{n}歳",
+        "th": "{n} ปี", "es": "{n} años", "ar": "{n} سنة",
+    }
+    return formats.get(language, "{n}").format(n=value)
+
+
+def _report_length_label(value, language: str | None = None) -> str:
+    """Return a localized report-length label for enum or string values."""
+    lang = language or st.session_state.get("app_language", DEFAULT_LANGUAGE)
+    raw = getattr(value, "value", value)
+    key_map = {
+        "short": "report_length.short",
+        "簡短版": "report_length.short",
+        "standard": "report_length.standard",
+        "標準版": "report_length.standard",
+        "full": "report_length.full",
+        "完整版": "report_length.full",
+        "complete": "report_length.complete",
+        "10k": "report_length.ten_thousand",
+        "complete_10k": "report_length.ten_thousand",
+        "Complete 10K": "report_length.ten_thousand",
+        "萬字完整版": "report_length.ten_thousand",
+    }
+    key = key_map.get(str(raw), "report_length.unknown")
+    translated = t(key, language=lang, default=str(raw))
+    return translated if translated != key else str(raw)
+
 # ── Navigation helper ─────────────────────────────────────────────────────────
 
 def _go_to_page(page_id: str) -> None:
-    """Programmatically navigate to a page and rerun safely.
+    """Programmatically navigate without stale sidebar state snapping back.
 
-    The sidebar radio owns ``st.session_state["nav_page"]``. Streamlit raises
-    an exception if that widget-backed key is modified after the widget has
-    already been instantiated in the same run. Store the requested page in a
-    pending key and apply it before creating the sidebar radio on the next run.
+    The browser can restore the previous value of a radio widget after any
+    input field triggers a rerun.  Merely deleting one fixed widget key is not
+    sufficient.  Store the canonical destination and rotate the navigation
+    widget generation so the next run creates a fresh radio widget whose
+    initial value is the requested page.
     """
-    if page_id in _PAGES:
+    if page_id in get_active_pages():
         st.session_state["_pending_nav_page"] = page_id
+        st.session_state["_nav_radio_generation"] = (
+            int(st.session_state.get("_nav_radio_generation", 0)) + 1
+        )
+        # Backward compatibility with sessions created by older builds.
+        st.session_state.pop("_nav_radio", None)
     st.rerun()
 
 
@@ -275,6 +331,42 @@ def _clear_input_state() -> None:
     st.session_state["input_birth_year_user_touched"] = False
     st.session_state["profile"] = None
     st.session_state["report"] = None
+    st.session_state.pop("_last_input_snapshot", None)
+
+
+def _capture_input_snapshot() -> dict:
+    """Capture the exact widget state used to create the current profile.
+
+    Restoring from the raw widget snapshot is more reliable than rebuilding
+    every field from the persisted profile because Smart Location, localized
+    selectboxes, and multiselect widgets keep additional canonical state.
+    """
+    snapshot = {}
+    for key, value in st.session_state.items():
+        if key.startswith("input_") or key in {
+            "birth_time_is_known", "_country_migrated",
+        }:
+            try:
+                snapshot[key] = deepcopy(value)
+            except Exception:
+                snapshot[key] = value
+    return snapshot
+
+
+def _restore_input_snapshot(snapshot: dict) -> None:
+    """Restore input values before any input-page widgets are instantiated."""
+    if not snapshot:
+        return
+    # Remove display-only widget mirrors so their labels are rebuilt in the
+    # current UI language while canonical values remain unchanged.
+    for key in ("_country_sel", "_cand_sel", "_gender_display", "loc_search_btn"):
+        st.session_state.pop(key, None)
+    for key, value in snapshot.items():
+        try:
+            st.session_state[key] = deepcopy(value)
+        except Exception:
+            st.session_state[key] = value
+    st.session_state["input_birth_year_user_touched"] = True
 
 
 def _sync_input_state_from_profile(profile: BirthProfile) -> None:
@@ -325,14 +417,70 @@ def _sync_input_state_from_profile(profile: BirthProfile) -> None:
         st.session_state["input_birth_hour"] = _INPUT_DEFAULTS["input_birth_hour"]
         st.session_state["input_birth_minute"] = _INPUT_DEFAULTS["input_birth_minute"]
 
-    st.session_state["input_birth_country"] = getattr(profile, "birth_country", None) or "台灣"
+    birth_country_text = getattr(profile, "birth_country", None) or "台灣"
+    st.session_state["input_birth_country"] = birth_country_text
+
+    # Restore the smart-location widgets from the saved profile.  The UI stores
+    # canonical country codes and candidate dictionaries, while older profiles
+    # only contain display text.  Resolve the code without mutating the profile.
+    try:
+        from location.countries import COUNTRIES
+        normalized_country = str(birth_country_text).strip().casefold()
+        country_code = "TW"
+        for code, names in COUNTRIES.items():
+            if code == "OTHER":
+                continue
+            aliases = {str(code).casefold()} | {str(v).strip().casefold() for v in names.values()}
+            if normalized_country in aliases:
+                country_code = code
+                break
+    except Exception:
+        country_code = "TW"
+
+    birth_lat = getattr(profile, "birth_latitude", None)
+    birth_lon = getattr(profile, "birth_longitude", None)
+    birth_tz_name = getattr(profile, "birth_timezone", None) or ""
+    st.session_state["input_country_code"] = country_code
+    st.session_state["input_city_query"] = city
+    st.session_state["input_manual_tz_name"] = birth_tz_name
+    if birth_lat is not None and birth_lon is not None:
+        restored_candidate = {
+            "country_code": country_code,
+            "country_name": birth_country_text,
+            "country_display_name": birth_country_text,
+            "region": "",
+            "city": city,
+            "city_display_name": city or birth_country_text,
+            "latitude": float(birth_lat),
+            "longitude": float(birth_lon),
+            "timezone": birth_tz_name or "UTC",
+            "source": "profile",
+            "confidence": 1.0,
+            "formatted_address": ", ".join(v for v in (city, birth_country_text) if v),
+            "is_confirmed": True,
+        }
+        st.session_state["input_city_candidates"] = [restored_candidate]
+        st.session_state["input_selected_candidate_idx"] = 0
+        st.session_state["input_location_confirmed"] = True
+    else:
+        st.session_state["input_city_candidates"] = []
+        st.session_state["input_selected_candidate_idx"] = 0
+        st.session_state["input_location_confirmed"] = False
+
     st.session_state["input_res_city"] = getattr(profile, "residence_city", None) or ""
     st.session_state["input_res_country"] = getattr(profile, "residence_country", None) or ""
     st.session_state["input_blood_type"] = profile.blood_type.value if profile.blood_type else "Unknown"
-    profile_themes = [t.value for t in getattr(profile, "themes", [])]
-    st.session_state["input_themes"] = profile_themes or list(_DEFAULT_THEME_VALUES)
-    st.session_state["input_report_lang"] = profile.report_language.value
-    st.session_state["input_report_len"] = profile.report_length.value
+    profile_themes = [normalize_analysis_theme(t.value) for t in getattr(profile, "themes", [])]
+    st.session_state["input_themes"] = profile_themes or [
+        "overall_personality", "relationships", "career", "wealth",
+        "social", "family", "current_year", "next_three_years",
+    ]
+    _profile_lang_map = {
+        "繁體中文": "zh-TW", "簡體中文": "zh-TW", "English": "en",
+        "ไทย": "th", "日本語": "ja", "Español": "es", "العربية": "ar",
+    }
+    st.session_state["input_report_lang"] = _profile_lang_map.get(profile.report_language.value, "auto")
+    st.session_state["input_report_len"] = normalize_report_length(profile.report_length.value)
 
     st.session_state["input_manual_lat"] = float(
         getattr(profile, "birth_latitude", None)
@@ -362,6 +510,24 @@ def _load_sample(index: int) -> None:
     st.session_state["_pending_nav_page"] = PAGE_CALCULATE
 
 
+# Apply a pending profile edit snapshot before any input widgets are created.
+# This is deliberately performed on the next rerun: mutating widget-backed
+# keys after their widgets were instantiated can make Streamlit ignore the
+# restored values or raise a session-state exception.
+if st.session_state.pop("_pending_profile_edit", False):
+    _edit_snapshot = st.session_state.pop("_pending_input_snapshot", None)
+    if _edit_snapshot:
+        _restore_input_snapshot(_edit_snapshot)
+    else:
+        _edit_profile = st.session_state.get("profile")
+        if _edit_profile is not None:
+            for _widget_key in (
+                "_country_sel", "_cand_sel", "_gender_display",
+                "loc_search_btn",
+            ):
+                st.session_state.pop(_widget_key, None)
+            _sync_input_state_from_profile(_edit_profile)
+
 # Apply pending navigation before the radio widget is instantiated.
 # Streamlit does not allow modifying a widget-backed session_state key after
 # the widget has been created in the same run.
@@ -369,6 +535,9 @@ if "_pending_nav_page" in st.session_state:
     _pending_page = st.session_state.pop("_pending_nav_page")
     if _pending_page in get_active_pages():
         st.session_state["nav_page"] = _pending_page
+        # Remove the legacy fixed key. The active radio below uses a
+        # generation-specific key and therefore cannot restore the old page.
+        st.session_state.pop("_nav_radio", None)
 
 # Guard: stale session pointing to a page not in the active list → reset to home.
 # Also keeps V1.x backward compat guards for developer-only calibration pages.
@@ -392,6 +561,85 @@ if "report_language" not in st.session_state:
 def _tr(key: str, **kwargs) -> str:
     """Translate key using current app language."""
     return t(key, language=st.session_state.get("app_language", DEFAULT_LANGUAGE), **kwargs)
+
+_tr_lang = st.session_state.get("app_language", DEFAULT_LANGUAGE)
+
+_REPORT_LANGUAGE_CODES = ["auto", "zh-TW", "en", "th", "ja", "es", "ar"]
+_REPORT_LANGUAGE_SELF_NAMES = {
+    "zh-TW": "繁體中文", "en": "English", "th": "ไทย",
+    "ja": "日本語", "es": "Español", "ar": "العربية",
+}
+
+def _resolve_report_language() -> str:
+    code = st.session_state.get("report_language", "auto")
+    if code == "auto":
+        return st.session_state.get("app_language", DEFAULT_LANGUAGE)
+    return code if code in _REPORT_LANGUAGE_CODES else DEFAULT_LANGUAGE
+
+
+def _localized_ziwei_summary(zc, language: str) -> None:
+    """Render a safe localized Zi Wei overview without leaking Chinese prose."""
+    copy = {
+        "en": {"title": "Zi Wei Overview", "mode": "Calculation mode", "formal": "Formal Phase 1 chart", "note": "This overview presents the calculated Life Palace, Body Palace, lunar date, birth-hour branch, and Five-Element bureau. These values are preserved from the original chart calculation.", "lunar": "Lunar date", "hour": "Birth-hour branch", "ming": "Life Palace branch", "shen": "Body Palace branch", "bureau": "Five-element bureau"},
+        "ja": {"title": "紫微斗数の概要", "mode": "計算モード", "formal": "正式配置 Phase 1", "note": "命宮・身宮・旧暦日・出生時支・五行局など、計算済みの主要情報を表示します。元の計算値は変更しません。", "lunar": "旧暦日", "hour": "出生時支", "ming": "命宮地支", "shen": "身宮地支", "bureau": "五行局"},
+        "th": {"title": "ภาพรวม Zi Wei", "mode": "โหมดการคำนวณ", "formal": "ผังอย่างเป็นทางการ Phase 1", "note": "ภาพรวมนี้แสดง Life Palace, Body Palace, วันที่จันทรคติ กิ่งยามเกิด และโครงสร้างธาตุทั้งห้าจากผลคำนวณเดิม โดยไม่เปลี่ยนค่าของผัง", "lunar": "วันที่จันทรคติ", "hour": "กิ่งยามเกิด", "ming": "กิ่ง Life Palace", "shen": "กิ่ง Body Palace", "bureau": "โครงสร้างธาตุทั้งห้า"},
+        "es": {"title": "Resumen de Zi Wei", "mode": "Modo de cálculo", "formal": "Carta formal Phase 1", "note": "Este resumen muestra el Palacio de Vida, el Palacio del Cuerpo, la fecha lunar, la rama de la hora natal y la estructura de Cinco Elementos calculados, sin alterar la carta original.", "lunar": "Fecha lunar", "hour": "Rama de la hora natal", "ming": "Rama del Palacio de Vida", "shen": "Rama del Palacio del Cuerpo", "bureau": "Estructura de Cinco Elementos"},
+        "ar": {"title": "ملخص Zi Wei", "mode": "وضع الحساب", "formal": "خريطة رسمية Phase 1", "note": "يعرض هذا الملخص قصر الحياة وقصر الجسد والتاريخ القمري وفرع ساعة الميلاد وبنية العناصر الخمسة المحسوبة، من دون تغيير الخريطة الأصلية.", "lunar": "التاريخ القمري", "hour": "فرع ساعة الميلاد", "ming": "فرع قصر الحياة", "shen": "فرع قصر الجسد", "bureau": "بنية العناصر الخمسة"},
+    }.get(language)
+    if not copy:
+        return
+    st.subheader(copy["title"])
+    st.info(copy["note"])
+    mode = getattr(zc, "calculation_mode", "unknown")
+    st.caption(f"{copy['mode']}: {copy['formal'] if mode == 'formal_layout_phase1' else mode}")
+    cols = st.columns(5)
+    lunar = "—"
+    if getattr(zc, "lunar_year", None):
+        lunar = f"{zc.lunar_year}/{zc.lunar_month}/{zc.lunar_day}"
+    values = [
+        (copy["lunar"], lunar),
+        (copy["hour"], getattr(zc, "birth_hour_branch", None) or "—"),
+        (copy["ming"], getattr(zc, "ming_branch", None) or "—"),
+        (copy["shen"], getattr(zc, "shen_branch", None) or "—"),
+        (copy["bureau"], getattr(zc, "five_element_bureau", None) or "—"),
+    ]
+    for col, (label, value) in zip(cols, values):
+        with col:
+            st.metric(label, value)
+
+
+def _localized_hd_summary(hd, language: str) -> None:
+    copy = {
+        "en": ("Human Design Overview", "This overview shows the calculated Type, Strategy, Authority, Profile, defined Centers, and channel count. Use it for self-observation rather than fixed prediction."),
+        "ja": ("ヒューマンデザイン概要", "計算されたタイプ、ストラテジー、オーソリティ、プロファイル、定義センター、チャネル数を表示します。固定的な予言ではなく自己観察の参考として活用してください。"),
+        "th": ("ภาพรวม Human Design", "ภาพรวมนี้แสดง Type, Strategy, Authority, Profile, ศูนย์ที่นิยาม และจำนวน Channel จากผลคำนวณ ใช้เพื่อการสังเกตตนเอง ไม่ใช่คำทำนายตายตัว"),
+        "es": ("Resumen de Human Design", "Este resumen muestra el Tipo, la Estrategia, la Autoridad, el Perfil, los Centros definidos y el número de Canales calculados. Úsalo para la autoobservación, no como predicción fija."),
+        "ar": ("ملخص Human Design", "يعرض هذا الملخص النوع والاستراتيجية والسلطة الداخلية والملف والمراكز المحددة وعدد القنوات المحسوبة. استخدمه للملاحظة الذاتية لا كتنبؤ ثابت."),
+    }.get(language)
+    if not copy:
+        return
+    st.subheader(copy[0])
+    st.info(copy[1])
+    type_value = getattr(hd, "type_name", None) or getattr(hd, "type_name_zh", "—")
+    strategy_value = getattr(hd, "strategy", "—")
+    authority_value = getattr(hd, "authority", "—")
+    cols = st.columns(6)
+    values = [
+        (_tr("human_design.type"), translate_hd_type(type_value, language)),
+        (_tr("human_design.strategy"), translate_hd_strategy(strategy_value, language)),
+        (_tr("human_design.authority"), translate_hd_authority(authority_value, language)),
+        (_tr("human_design.profile"), getattr(hd, "profile", "—")),
+        (_tr("human_design.centers"), len(getattr(hd, "defined_centers", []) or [])),
+        (_tr("human_design.channels"), len(getattr(hd, "defined_channels", []) or [])),
+    ]
+    for col, (label, value) in zip(cols, values):
+        with col:
+            st.metric(label, value)
+
+    _center_names = [translate_center(c, language) for c in (getattr(hd, "defined_centers", []) or [])]
+    if _center_names:
+        center_label = {"en":"Defined Centers","ja":"定義センター","th":"ศูนย์ที่นิยาม","es":"Centros definidos","ar":"المراكز المحددة"}.get(language, "Defined Centers")
+        st.markdown(f"**{center_label}:** " + ", ".join(_center_names))
 
 
 # V2.0.5: Apply RTL direction if needed
@@ -421,24 +669,38 @@ with st.sidebar:
         st.session_state["app_language"] = _selected_lang_code
         st.rerun()
     st.divider()
-    # Navigation — show translated labels, store canonical IDs
+    # Navigation — canonical page IDs are the real widget values. Translation
+    # is display-only. A generation-specific key prevents a stale browser
+    # value (for example ``public_content``) from overriding a CTA jump to the
+    # input page on the next text-field rerun.
     _cur_pages = get_active_pages()
-    _page_labels = [page_label(pid) for pid in _cur_pages]
     _cur_page_id = st.session_state.get("nav_page", PAGE_HOME)
     if _cur_page_id not in _cur_pages:
         _cur_page_id = _cur_pages[0]
     _cur_page_idx = _cur_pages.index(_cur_page_id)
-    _selected_label = st.radio(
+    _nav_generation = int(st.session_state.get("_nav_radio_generation", 0))
+    _nav_widget_key = f"_nav_radio_{_nav_generation}"
+    page = st.radio(
         "nav",
-        _page_labels,
+        _cur_pages,
         index=_cur_page_idx,
-        key="_nav_radio",
+        key=_nav_widget_key,
+        format_func=page_label,
         label_visibility="collapsed",
     )
-    # Map label back to canonical ID
-    _label_to_id = {page_label(pid): pid for pid in _cur_pages}
-    page = _label_to_id.get(_selected_label, _cur_page_id)
     st.session_state["nav_page"] = page
+
+    # Entering the input page from any other page restores the most recent
+    # partial snapshot. This keeps direct sidebar navigation and CTA navigation
+    # behavior identical without clearing user input.
+    _previous_page = st.session_state.get("_last_rendered_page")
+    if page == PAGE_INPUT and _previous_page not in (None, PAGE_INPUT):
+        _saved_snapshot = st.session_state.get("_last_input_snapshot")
+        if _saved_snapshot:
+            _restore_input_snapshot(_saved_snapshot)
+        elif st.session_state.get("profile") is not None:
+            _sync_input_state_from_profile(st.session_state.get("profile"))
+    st.session_state["_last_rendered_page"] = page
     st.divider()
     if DEVELOPER_MODE:
         st.caption(f"v{APP_VERSION} · DEV MODE")
@@ -558,6 +820,7 @@ elif page == PAGE_PUBLIC_CONTENT:
         render_public_page_markdown, render_public_page_excerpt,
         render_public_catalog_markdown, render_public_catalog_html,
     )
+    from public_content.localization import localize_public_page
     from public_content.exporters import (
         export_public_page_html, export_public_page_markdown,
         export_public_catalog_markdown, export_public_catalog_html,
@@ -575,47 +838,57 @@ elif page == PAGE_PUBLIC_CONTENT:
     if _featured:
         st.subheader(_tr("free_content.featured"))
         _fcols = st.columns(min(len(_featured), 3))
-        for _i, _fp in enumerate(_featured):
+        for _i, _fp_source in enumerate(_featured):
+            _fp, _fp_fallback = localize_public_page(_fp_source, _tr_lang)
             with _fcols[_i % 3]:
                 st.markdown(f"**{_fp.title}**")
                 if _fp.summary:
-                    st.caption(_fp.summary[:120] + ("…" if len(_fp.summary) > 120 else ""))
+                    st.caption(_fp.summary[:160] + ("…" if len(_fp.summary) > 160 else ""))
+                if _fp_fallback and _tr_lang != "zh-TW":
+                    st.caption(_tr("report.partial_translation_notice"))
                 if _fp.tags:
-                    st.caption("標籤：" + " · ".join(_fp.tags))
+                    st.caption(_tr("public_content.tags_label") + " · ".join(_fp.tags))
                 if _fp.cta_button_label:
                     if st.button(_fp.cta_button_label, key=f"feat_cta_{_fp.slug}"):
-                        st.session_state["nav_page"] = _fp.cta_target
-                        st.rerun()
+                        _go_to_page(_fp.cta_target)
         st.divider()
 
     # ── C. Category filter ────────────────────────────────────────────────────
-    _CAT_LABELS = {
-        "全部": None,
-        "星座": "zodiac",
-        "人類圖": "human_design",
-        "合盤": "compatibility",
-        "紫微": "ziwei",
-        "八字": "bazi",
-        "靈數": "numerology",
-        "指南": "guide",
+    _CAT_CANONICAL = [None, "zodiac", "human_design", "compatibility", "ziwei", "bazi", "numerology", "guide"]
+    _CAT_KEY_MAP = {
+        None: "public_content.cat_all",
+        "zodiac": "public_content.cat_zodiac",
+        "human_design": "public_content.cat_human_design",
+        "compatibility": "public_content.cat_compatibility",
+        "ziwei": "public_content.cat_ziwei",
+        "bazi": "public_content.cat_bazi",
+        "numerology": "public_content.cat_numerology",
+        "guide": "public_content.cat_guide",
     }
-    _cat_choice = st.selectbox(
-        "分類篩選",
-        options=list(_CAT_LABELS.keys()),
+    _cat_labels_display = [_tr(_CAT_KEY_MAP[c]) for c in _CAT_CANONICAL]
+    _cat_sel_label = st.selectbox(
+        _tr("public_content.cat_filter"),
+        options=_cat_labels_display,
         key="public_content_cat_filter",
     )
-    _filtered_pages = list_public_pages(category=_CAT_LABELS[_cat_choice])
+    _cat_sel_canonical = _CAT_CANONICAL[_cat_labels_display.index(_cat_sel_label)]
+    _filtered_pages = list_public_pages(category=_cat_sel_canonical)
 
     # ── D. Page detail ────────────────────────────────────────────────────────
-    _page_titles = [p.title for p in _filtered_pages]
-    if _page_titles:
-        _selected_title = st.selectbox(
-            "選擇內容頁面",
-            options=_page_titles,
+    _localized_pages = [localize_public_page(p, _tr_lang)[0] for p in _filtered_pages]
+    _page_slugs = [p.slug for p in _localized_pages]
+    if _page_slugs:
+        _selected_slug = st.selectbox(
+            _tr("public_content.select_page"),
+            options=_page_slugs,
+            format_func=lambda slug: next((p.title for p in _localized_pages if p.slug == slug), slug),
             key="public_content_page_select",
         )
-        _sel_page = next((p for p in _filtered_pages if p.title == _selected_title), None)
+        _sel_source = next((p for p in _filtered_pages if p.slug == _selected_slug), None)
+        _sel_page, _sel_fallback = localize_public_page(_sel_source, _tr_lang) if _sel_source else (None, False)
         if _sel_page:
+            if _sel_fallback and _tr_lang != "zh-TW":
+                st.info(_tr("report.partial_translation_notice"))
             st.markdown(render_public_page_markdown(_sel_page))
             # CTA navigation
             _cta_col1, _cta_col2 = st.columns(2)
@@ -626,32 +899,30 @@ elif page == PAGE_PUBLIC_CONTENT:
                         key="public_content_cta_nav",
                         type="primary",
                     ):
-                        st.session_state["nav_page"] = _sel_page.cta_target
-                        st.rerun()
+                        _go_to_page(_sel_page.cta_target)
             # Free report secondary CTA
             if _sel_page.free_report_cta_slug:
                 with _cta_col2:
                     if st.button(
-                        "🎁 先領免費摘要",
+                        _tr("public_content.free_report_cta"),
                         key="public_content_free_report_cta",
                     ):
-                        st.session_state["nav_page"] = PAGE_FREE_REPORT
                         st.session_state["free_report_type_preset"] = _sel_page.free_report_cta_slug
-                        st.rerun()
+                        _go_to_page(PAGE_FREE_REPORT)
 
             # ── E. Export (developer mode only) ───────────────────────────────
             if DEVELOPER_MODE:
                 from public_content.seo import validate_seo_data, build_meta_tags
                 st.divider()
-                st.subheader("開發者工具：SEO & 匯出")
+                st.subheader(_tr("public_content.dev_tools"))
                 # SEO warnings
                 _seo_warnings = validate_seo_data(_sel_page)
                 if _seo_warnings:
                     st.warning("SEO warnings:\n" + "\n".join(f"- {w}" for w in _seo_warnings))
                 else:
-                    st.success("SEO 驗證通過")
+                    st.success(_tr("public_content.seo_pass"))
                 # Meta tags preview
-                with st.expander("Meta Tags 預覽"):
+                with st.expander("Meta Tags"):
                     st.code(build_meta_tags(_sel_page), language="html")
                 # Download buttons
                 _md_content = export_public_page_markdown(_sel_page)
@@ -659,34 +930,34 @@ elif page == PAGE_PUBLIC_CONTENT:
                 _dl1, _dl2 = st.columns(2)
                 with _dl1:
                     st.download_button(
-                        "下載 Markdown",
+                        _tr("public_content.dl_markdown"),
                         data=_md_content.encode("utf-8"),
                         file_name=safe_public_content_filename(_sel_page.slug, "md"),
                         mime="text/markdown",
                     )
                 with _dl2:
                     st.download_button(
-                        "下載 HTML",
+                        _tr("public_content.dl_html"),
                         data=_html_content.encode("utf-8"),
                         file_name=safe_public_content_filename(_sel_page.slug, "html"),
                         mime="text/html",
                     )
                 # Catalog export
                 st.divider()
-                st.caption("全目錄匯出")
+                st.caption(_tr("public_content.catalog_caption"))
                 _cat_md = export_public_catalog_markdown(_catalog)
                 _cat_html = export_public_catalog_html(_catalog)
                 _cl1, _cl2 = st.columns(2)
                 with _cl1:
                     st.download_button(
-                        "下載全目錄 Markdown",
+                        _tr("public_content.dl_catalog_md"),
                         data=_cat_md.encode("utf-8"),
                         file_name="public_content_catalog.md",
                         mime="text/markdown",
                     )
                 with _cl2:
                     st.download_button(
-                        "下載全目錄 HTML",
+                        _tr("public_content.dl_catalog_html"),
                         data=_cat_html.encode("utf-8"),
                         file_name="public_content_catalog.html",
                         mime="text/html",
@@ -711,54 +982,51 @@ elif page == PAGE_FREE_REPORT:
     st.info(_tr("free_report.info"))
 
     # ── B. Report type selector ───────────────────────────────────────────────
-    _REPORT_TYPE_LABELS = {
-        "星座速覽": "zodiac_free_summary",
-        "人類圖 Type 速覽": "human_design_free_summary",
-        "合盤初評": "compatibility_free_summary",
-        "整合命盤摘要": "integrated_free_summary",
+    _REPORT_TYPE_CANONICAL = ["zodiac_free_summary", "human_design_free_summary", "compatibility_free_summary", "integrated_free_summary"]
+    _REPORT_TYPE_TR_KEYS = {
+        "zodiac_free_summary": "free_report.type_zodiac",
+        "human_design_free_summary": "free_report.type_human_design",
+        "compatibility_free_summary": "free_report.type_compatibility",
+        "integrated_free_summary": "free_report.type_integrated",
     }
     _preset = st.session_state.pop("free_report_type_preset", None)
-    _preset_label = None
-    if _preset:
-        for _lbl, _slug in _REPORT_TYPE_LABELS.items():
-            if _slug == _preset:
-                _preset_label = _lbl
-                break
-    _rt_label = st.selectbox(
-        "選擇免費報告類型",
-        options=list(_REPORT_TYPE_LABELS.keys()),
-        index=list(_REPORT_TYPE_LABELS.keys()).index(_preset_label) if _preset_label else 0,
+    _preset_idx = _REPORT_TYPE_CANONICAL.index(_preset) if _preset in _REPORT_TYPE_CANONICAL else 0
+    _rt_display_options = [_tr(_REPORT_TYPE_TR_KEYS[c]) for c in _REPORT_TYPE_CANONICAL]
+    _rt_sel_display = st.selectbox(
+        _tr("free_report.select_type"),
+        options=_rt_display_options,
+        index=_preset_idx,
         key="free_report_type_select",
     )
-    _rt = _REPORT_TYPE_LABELS[_rt_label]
-    _copy = render_lead_capture_copy(_rt)
+    _rt = _REPORT_TYPE_CANONICAL[_rt_display_options.index(_rt_sel_display)]
+    _copy = render_lead_capture_copy(_rt, language=_tr_lang)
     st.subheader(_copy["title"])
     st.caption(_copy["description"])
 
     # ── C. Lead form ──────────────────────────────────────────────────────────
     with st.form("free_report_form"):
-        _fm_name = st.text_input("姓名", key="fr_name")
-        _fm_email = st.text_input("Email *", key="fr_email")
-        _fm_date = st.text_input("出生日期（YYYY-MM-DD）", key="fr_birth_date")
-        _fm_time = st.text_input("出生時間（HH:MM，選填）", key="fr_birth_time")
-        _fm_loc = st.text_input("出生地點（選填）", key="fr_birth_loc")
+        _fm_name = st.text_input(_tr("free_report.name_label"), key="fr_name")
+        _fm_email = st.text_input(_tr("free_report.email_label"), key="fr_email")
+        _fm_date = st.text_input(_tr("free_report.birth_date_label"), key="fr_birth_date")
+        _fm_time = st.text_input(_tr("free_report.birth_time_label"), key="fr_birth_time")
+        _fm_loc = st.text_input(_tr("free_report.birth_loc_label"), key="fr_birth_loc")
         _show_partner = _rt == "compatibility_free_summary"
         if _show_partner:
-            st.markdown("**對方資料**")
-            _fm_partner_name = st.text_input("對方姓名", key="fr_partner_name")
-            _fm_partner_date = st.text_input("對方出生日期（YYYY-MM-DD）", key="fr_partner_date")
-            _fm_partner_time = st.text_input("對方出生時間（HH:MM，選填）", key="fr_partner_time")
+            st.markdown(f"**{_tr('free_report.partner_section')}**")
+            _fm_partner_name = st.text_input(_tr("free_report.partner_name_label"), key="fr_partner_name")
+            _fm_partner_date = st.text_input(_tr("free_report.partner_date_label"), key="fr_partner_date")
+            _fm_partner_time = st.text_input(_tr("free_report.partner_time_label"), key="fr_partner_time")
         _fm_consent = st.checkbox(_copy["consent_text"], key="fr_consent")
-        _fm_mkt = st.checkbox("我願意接收後續完整報告或諮詢服務資訊。（選填）", key="fr_marketing")
+        _fm_mkt = st.checkbox(_tr("free_report.marketing_consent"), key="fr_marketing")
         _submitted = st.form_submit_button(_copy["button_label"], type="primary")
 
     if _submitted:
         _err = False
         if not validate_email(_fm_email):
-            st.error("❌ 請輸入有效的 Email 地址。")
+            st.error(_tr("free_report.email_error"))
             _err = True
         if not _fm_consent:
-            st.warning("⚠️ 請勾選同意聲明，才能產生並儲存免費摘要。")
+            st.warning(_tr("free_report.consent_warning"))
             _err = True
         if not _err:
             _profile = LeadProfile(
@@ -785,15 +1053,15 @@ elif page == PAGE_FREE_REPORT:
             )
             try:
                 _lead = append_lead(_lead, _lcfg.LEAD_STORAGE_PATH)
-                st.success("✅ 資料已儲存（本機）。正在產生免費摘要……")
+                st.success(_tr("free_report.saved_ok"))
             except Exception as _e:
-                st.warning(f"儲存提示：{_e}")
+                st.warning(f"Storage note: {_e}")
             # Generate and display report
             _result = generate_free_report(_lead)
             st.markdown("---")
             st.markdown(export_free_report_markdown(_result))
             # CTA
-            _ucta = render_upgrade_cta(_rt)
+            _ucta = render_upgrade_cta(_rt, language=_tr_lang)
             st.info(f"**{_ucta['title']}** — {_ucta['description']}")
             _uc1, _uc2, _uc3 = st.columns(3)
             with _uc1:
@@ -802,7 +1070,7 @@ elif page == PAGE_FREE_REPORT:
                     st.rerun()
             with _uc2:
                 st.download_button(
-                    "下載免費摘要 Markdown",
+                    _tr("free_report.dl_md"),
                     data=export_free_report_markdown(_result).encode("utf-8"),
                     file_name=safe_free_report_filename(_fm_name, _rt, "md"),
                     mime="text/markdown",
@@ -810,7 +1078,7 @@ elif page == PAGE_FREE_REPORT:
                 )
             with _uc3:
                 st.download_button(
-                    "下載免費摘要 HTML",
+                    _tr("free_report.dl_html"),
                     data=export_free_report_html(_result).encode("utf-8"),
                     file_name=safe_free_report_filename(_fm_name, _rt, "html"),
                     mime="text/html",
@@ -820,15 +1088,15 @@ elif page == PAGE_FREE_REPORT:
     # ── E. Developer mode area ────────────────────────────────────────────────
     if DEVELOPER_MODE:
         st.divider()
-        st.subheader("開發者工具：Leads 管理")
+        st.subheader("Developer Tools: Leads Management")
         try:
             _snap = load_leads(_lcfg.LEAD_STORAGE_PATH)
         except Exception as _le:
             st.error(f"Leads 載入失敗：{_le}")
             _snap = None
         if _snap is not None:
-            st.metric("Lead 總數", len(_snap.leads))
-            st.caption(f"儲存路徑：{_lcfg.LEAD_STORAGE_PATH}")
+            st.metric("Total Leads", len(_snap.leads))
+            st.caption(f"Storage path: {_lcfg.LEAD_STORAGE_PATH}")
             if _snap.leads:
                 import pandas as _pd
                 _leads_df = _pd.DataFrame([
@@ -845,7 +1113,7 @@ elif page == PAGE_FREE_REPORT:
                 st.dataframe(_leads_df, use_container_width=True)
                 _csv_str = export_leads_csv(_snap)
                 st.download_button(
-                    "下載 Leads CSV",
+                    "Download Leads CSV",
                     data=_csv_str.encode("utf-8"),
                     file_name="leads_export.csv",
                     mime="text/csv",
@@ -853,19 +1121,19 @@ elif page == PAGE_FREE_REPORT:
             # Clear leads with confirmation
             if "fr_confirm_clear" not in st.session_state:
                 st.session_state["fr_confirm_clear"] = False
-            if st.button("🗑️ 清除所有 Leads", key="fr_clear_btn"):
+            if st.button("🗑️ Clear All Leads", key="fr_clear_btn"):
                 st.session_state["fr_confirm_clear"] = True
             if st.session_state.get("fr_confirm_clear"):
-                st.warning("確認要清除所有 leads 資料？此操作不可復原。")
+                st.warning("Confirm clearing all leads data? This cannot be undone.")
                 _cc1, _cc2 = st.columns(2)
                 with _cc1:
-                    if st.button("確認清除", key="fr_confirm_yes"):
+                    if st.button("Confirm Clear", key="fr_confirm_yes"):
                         delete_all_leads(_lcfg.LEAD_STORAGE_PATH)
                         st.session_state["fr_confirm_clear"] = False
-                        st.success("Leads 已清除。")
+                        st.success("Leads cleared.")
                         st.rerun()
                 with _cc2:
-                    if st.button("取消", key="fr_confirm_no"):
+                    if st.button(_tr("common.cancel"), key="fr_confirm_no"):
                         st.session_state["fr_confirm_clear"] = False
                         st.rerun()
 
@@ -929,36 +1197,137 @@ elif page == PAGE_INPUT:
             st.caption(_tr("input.birth_time_unknown_note"))
 
         st.subheader(_tr("input.birth_place"))
-        col1, col2 = st.columns(2)
-        with col1:
-            tw_city_options = ["其他 / 手動輸入"] + TAIWAN_CITY_DISPLAY_NAMES
-            tw_city_sel = st.selectbox(_tr("input.city_taiwan"), tw_city_options,
-                                       key="input_tw_city_sel")
-        with col2:
+        # ── Smart location: Country selectbox ──────────────────────────────
+        from location.countries import get_country_options
+        _tr_lang = st.session_state.get("app_language", DEFAULT_LANGUAGE)
+
+        _country_options = get_country_options(_tr_lang)
+        _country_codes = [c for c, _ in _country_options]
+        _country_labels = [lbl for _, lbl in _country_options]
+        # Backward compat: if old session has input_birth_country (text), migrate
+        _old_text_country = st.session_state.get("input_birth_country", "")
+        if _old_text_country and not st.session_state.get("_country_migrated"):
+            _cc_guess = "TW" if "台灣" in _old_text_country or "taiwan" in _old_text_country.lower() else "TW"
+            st.session_state["input_country_code"] = _cc_guess
+            st.session_state["_country_migrated"] = True
+        _cur_cc = st.session_state.get("input_country_code", "TW")
+        _cur_cc_idx = _country_codes.index(_cur_cc) if _cur_cc in _country_codes else 0
+        _sel_country_label = st.selectbox(_tr("location.country_label"), _country_labels, index=_cur_cc_idx, key="_country_sel")
+        _new_cc = _country_codes[_country_labels.index(_sel_country_label)]
+        if _new_cc != st.session_state.get("input_country_code"):
+            st.session_state["input_country_code"] = _new_cc
+            st.session_state["input_city_candidates"] = []
+            st.session_state["input_selected_candidate_idx"] = 0
+            st.session_state["input_location_confirmed"] = False
+        _selected_country_code = st.session_state["input_country_code"]
+
+        # City search — align the input and action button on the same baseline.
+        _city_q_col, _city_btn_col = st.columns([8, 1.25], vertical_alignment="bottom")
+        with _city_q_col:
             st.text_input(
-                _tr("input.country"),
-                placeholder=_tr("input.country_placeholder"),
-                key="input_birth_country",
-                help=_tr("input.country_help"),
+                _tr("location.city_search_label"),
+                placeholder=_tr("location.city_search_placeholder"),
+                key="input_city_query",
             )
+        with _city_btn_col:
+            if st.button(
+                _tr("location.search_btn"),
+                key="loc_search_btn",
+                use_container_width=True,
+            ):
+                from location.resolver import search_cities
+                from config import ENABLE_ONLINE_GEOCODING
+                _cq = st.session_state.get("input_city_query", "")
+                _cands = search_cities(_selected_country_code, _cq, _tr_lang, ENABLE_ONLINE_GEOCODING)
+                st.session_state["input_city_candidates"] = [vars(c) for c in _cands]
+                st.session_state["input_selected_candidate_idx"] = 0
+                st.session_state["input_location_confirmed"] = False
 
-        if tw_city_sel == "其他 / 手動輸入":
-            st.text_input(_tr("input.city_manual"), placeholder=_tr("input.city_manual_placeholder"),
-                          key="input_birth_city")
-        else:
-            st.caption(_tr("input.city_selected", city=tw_city_sel))
+        # Candidate selectbox
+        _candidates_raw = st.session_state.get("input_city_candidates", [])
+        if _candidates_raw:
+            _cand_labels = [
+                c.get("city_display_name", c.get("city", "?"))
+                + f" ({c.get('latitude', 0):.2f}, {c.get('longitude', 0):.2f})"
+                for c in _candidates_raw
+            ]
+            _sel_idx = st.session_state.get("input_selected_candidate_idx", 0)
+            _sel_cand_label = st.selectbox(
+                _tr("location.candidates_label"), _cand_labels,
+                index=min(_sel_idx, len(_cand_labels) - 1), key="_cand_sel"
+            )
+            _sel_cand_idx = _cand_labels.index(_sel_cand_label)
+            st.session_state["input_selected_candidate_idx"] = _sel_cand_idx
+            _sel_cand = _candidates_raw[_sel_cand_idx]
 
-        with st.expander(_tr("input.advanced_latlon")):
-            st.caption(_tr("input.advanced_latlon_help"))
+            # Location summary card
+            with st.container(border=True):
+                st.markdown(f"**{_tr('location.summary_card')}**")
+                _sc1, _sc2, _sc3 = st.columns(3)
+                with _sc1:
+                    st.metric(_tr("location.latitude"), f"{_sel_cand.get('latitude', 0):.4f}")
+                with _sc2:
+                    st.metric(_tr("location.longitude"), f"{_sel_cand.get('longitude', 0):.4f}")
+                with _sc3:
+                    st.metric(_tr("location.timezone"), _sel_cand.get("timezone", "─"))
+
+                # UTC offset preview using current birth date/time
+                from location.timezone import resolve_utc_offset
+                from datetime import datetime as _dt
+                _preview_dt = _dt(
+                    int(st.session_state.get("input_birth_year", 1990)),
+                    int(st.session_state.get("input_birth_month", 1)),
+                    int(st.session_state.get("input_birth_day", 1)),
+                    int(st.session_state.get("input_birth_hour", 12)) if st.session_state.get("birth_time_is_known") else 12,
+                    int(st.session_state.get("input_birth_minute", 0)) if st.session_state.get("birth_time_is_known") else 0,
+                )
+                _tz_result = resolve_utc_offset(_preview_dt, _sel_cand.get("timezone", "UTC"))
+                st.metric(_tr("location.utc_offset"), f"UTC{_tz_result['utc_offset']:+.1f}")
+                if _tz_result["warnings"]:
+                    st.warning(_tr("location.dst_warning"))
+
+                # Accuracy level
+                from location.display import get_accuracy_level, get_accuracy_label
+                _acc_level = get_accuracy_level(
+                    _sel_cand.get("confidence", 0.9),
+                    bool(_sel_cand.get("city")),
+                    bool(_sel_cand.get("latitude")),
+                    st.session_state.get("input_location_confirmed", False),
+                )
+                _acc_label = get_accuracy_label(_acc_level, _tr_lang)
+                if _acc_level == "high":
+                    st.success(_acc_label)
+                elif _acc_level == "medium":
+                    st.info(_acc_label)
+                else:
+                    st.warning(_acc_label)
+
+            # Confirm checkbox
+            st.checkbox(_tr("location.confirm_label"), key="input_location_confirmed",
+                        help=_tr("location.confirm_help"))
+
+        elif st.session_state.get("input_city_query"):
+            st.info(_tr("location.no_candidates"))
+
+        # Keep legacy city for backward compat with submit handler
+        _sel_cand_for_submit = None
+        if _candidates_raw:
+            _sidx = st.session_state.get("input_selected_candidate_idx", 0)
+            if _sidx < len(_candidates_raw):
+                _sel_cand_for_submit = _candidates_raw[_sidx]
+
+        with st.expander(_tr("location.advanced_label")):
             adv1, adv2 = st.columns(2)
             with adv1:
-                st.number_input(_tr("input.latitude"), min_value=-90.0, max_value=90.0,
+                st.number_input(_tr("location.manual_lat"), min_value=-90.0, max_value=90.0,
                                 step=0.0001, format="%.4f", key="input_manual_lat")
             with adv2:
-                st.number_input(_tr("input.longitude"), min_value=-180.0, max_value=180.0,
+                st.number_input(_tr("location.manual_lon"), min_value=-180.0, max_value=180.0,
                                 step=0.0001, format="%.4f", key="input_manual_lon")
-            st.number_input(_tr("input.timezone"), min_value=-12.0, max_value=14.0,
+            st.number_input("UTC Offset (hours)", min_value=-12.0, max_value=14.0,
                             step=0.5, key="input_manual_tz")
+            st.text_input(_tr("location.manual_tz"), placeholder=_tr("location.manual_tz_placeholder"),
+                          key="input_manual_tz_name")
             st.checkbox(_tr("input.use_manual_latlon"),
                         key="input_use_manual_latlon")
 
@@ -973,20 +1342,61 @@ elif page == PAGE_INPUT:
         st.selectbox(_tr("input.blood_type"), ["Unknown", "A", "B", "O", "AB"], key="input_blood_type")
 
         st.subheader(_tr("input.themes"))
-        theme_options = list(_DEFAULT_THEME_VALUES)
-        if not st.session_state.get("input_themes"):
-            st.session_state["input_themes"] = list(_DEFAULT_THEME_VALUES)
-        st.multiselect(_tr("input.themes_select"), theme_options,
-                       key="input_themes")
+        _theme_ids = [
+            "overall_personality", "relationships", "career", "wealth",
+            "social", "family", "current_year", "next_three_years",
+        ]
+        _legacy_themes = st.session_state.get("input_themes", [])
+        _normalized_themes = [normalize_analysis_theme(v) for v in _legacy_themes]
+        st.session_state["input_themes"] = [v for v in _normalized_themes if v in _theme_ids] or list(_theme_ids)
+        st.multiselect(
+            _tr("input.themes_select"),
+            options=_theme_ids,
+            format_func=lambda value: translate_analysis_theme(value, _tr_lang),
+            key="input_themes",
+        )
 
         st.subheader(_tr("input.report_settings"))
         col1, col2 = st.columns(2)
+        _report_language_codes = ["auto", "zh-TW", "en", "th", "ja", "es", "ar"]
+        _report_language_self_names = {
+            "zh-TW": "繁體中文", "en": "English", "th": "ไทย",
+            "ja": "日本語", "es": "Español", "ar": "العربية",
+        }
+        _legacy_report_lang = st.session_state.get("input_report_lang", "auto")
+        _legacy_report_lang_map = {
+            "繁體中文": "zh-TW", "簡體中文": "zh-TW", "English": "en",
+            "ไทย": "th", "日本語": "ja", "Español": "es", "العربية": "ar",
+            "Follow UI Language": "auto", "跟隨介面語言": "auto",
+        }
+        st.session_state["input_report_lang"] = _legacy_report_lang_map.get(_legacy_report_lang, _legacy_report_lang)
+        if st.session_state["input_report_lang"] not in _report_language_codes:
+            st.session_state["input_report_lang"] = "auto"
+
+        _report_length_ids = ["short", "standard", "full", "complete_10k"]
+        st.session_state["input_report_len"] = normalize_report_length(
+            st.session_state.get("input_report_len", "standard")
+        )
+        if st.session_state["input_report_len"] not in _report_length_ids:
+            st.session_state["input_report_len"] = "standard"
+
         with col1:
-            st.selectbox(_tr("input.report_lang"), ["繁體中文", "簡體中文", "English"],
-                         key="input_report_lang")
+            st.selectbox(
+                _tr("input.report_lang"),
+                options=_report_language_codes,
+                format_func=lambda code: (
+                    _tr("report.language_auto") if code == "auto"
+                    else _report_language_self_names[code]
+                ),
+                key="input_report_lang",
+            )
         with col2:
-            st.selectbox(_tr("input.report_len"), ["簡短版", "標準版", "萬字完整版"],
-                         key="input_report_len")
+            st.selectbox(
+                _tr("input.report_len"),
+                options=_report_length_ids,
+                format_func=lambda value: translate_report_length(value, _tr_lang),
+                key="input_report_len",
+            )
 
         submitted = st.button(_tr("input.submit"), type="primary",
                               use_container_width=True)
@@ -1003,16 +1413,19 @@ elif page == PAGE_INPUT:
         time_known   = bool(ss.get("birth_time_is_known", False))
         birth_hour   = int(ss.get("input_birth_hour", 12))
         birth_minute = int(ss.get("input_birth_minute", 0))
-        tw_city_sel  = ss.get("input_tw_city_sel", "其他 / 手動輸入")
-        birth_city   = (tw_city_sel if tw_city_sel != "其他 / 手動輸入"
-                        else str(ss.get("input_birth_city", "")).strip())
-        birth_country = str(ss.get("input_birth_country", "")).strip()
+        # New location module: get from candidate or manual
+        _submit_candidates = ss.get("input_city_candidates", [])
+        _submit_cand_idx = ss.get("input_selected_candidate_idx", 0)
+        _submit_cand = _submit_candidates[_submit_cand_idx] if _submit_candidates and _submit_cand_idx < len(_submit_candidates) else None
+        birth_city   = (_submit_cand.get("city", "") if _submit_cand else str(ss.get("input_city_query", "")).strip())
+        birth_country = (_submit_cand.get("country_display_name", "") if _submit_cand
+                        else ss.get("input_country_code", "TW"))
         res_city     = str(ss.get("input_res_city", "")).strip()
         res_country  = str(ss.get("input_res_country", "")).strip()
         blood_type   = ss.get("input_blood_type", "Unknown")
         themes       = ss.get("input_themes", [])
-        report_lang  = ss.get("input_report_lang", "繁體中文")
-        report_len   = ss.get("input_report_len", "標準版")
+        report_lang  = ss.get("input_report_lang", "auto")
+        report_len   = ss.get("input_report_len", "standard")
         manual_lat   = float(ss.get("input_manual_lat", 0.0))
         manual_lon   = float(ss.get("input_manual_lon", 0.0))
         manual_tz    = float(ss.get("input_manual_tz", 8.0))
@@ -1043,18 +1456,66 @@ elif page == PAGE_INPUT:
             gender_map = {"男": Gender.MALE, "女": Gender.FEMALE,
                           "其他": Gender.OTHER, "不填寫": None}
             blood_map  = {bt.value: bt for bt in BloodType}
-            theme_map  = {t.value: t for t in AnalysisTheme}
-            lang_map   = {l.value: l for l in ReportLanguage}
-            len_map    = {l.value: l for l in ReportLength}
+            theme_map = {
+                "overall_personality": AnalysisTheme.PERSONALITY,
+                "relationships": AnalysisTheme.LOVE,
+                "career": AnalysisTheme.CAREER,
+                "wealth": AnalysisTheme.WEALTH,
+                "social": AnalysisTheme.SOCIAL,
+                "family": AnalysisTheme.FAMILY,
+                "current_year": AnalysisTheme.CURRENT_YEAR,
+                "next_three_years": AnalysisTheme.THREE_YEARS,
+            }
+            _resolved_report_lang = _tr_lang if report_lang == "auto" else report_lang
+            lang_map = {
+                "zh-TW": ReportLanguage.TRADITIONAL_CHINESE,
+                "en": ReportLanguage.ENGLISH,
+                "th": ReportLanguage.ENGLISH,
+                "ja": ReportLanguage.ENGLISH,
+                "es": ReportLanguage.ENGLISH,
+                "ar": ReportLanguage.ENGLISH,
+            }
+            len_map = {
+                "short": ReportLength.SHORT,
+                "standard": ReportLength.STANDARD,
+                "full": ReportLength.FULL,
+                "complete_10k": ReportLength.FULL,
+            }
 
-            # Resolve lat/lon: manual override > city lookup
+            # Resolve lat/lon: manual override > location candidate > legacy city lookup
             resolved_lat = resolved_lon = resolved_tz_offset = None
             resolved_tz = None
+            _submit_candidates = ss.get("input_city_candidates", [])
+            _submit_cand_idx = ss.get("input_selected_candidate_idx", 0)
+            _submit_cand = _submit_candidates[_submit_cand_idx] if _submit_candidates and _submit_cand_idx < len(_submit_candidates) else None
             if use_manual and (manual_lat != 0.0 or manual_lon != 0.0):
                 resolved_lat = manual_lat
                 resolved_lon = manual_lon
-                resolved_tz_offset = manual_tz
+                _manual_tz_name = ss.get("input_manual_tz_name", "")
+                if _manual_tz_name:
+                    from location.timezone import resolve_utc_offset as _ruo
+                    from datetime import datetime as _dtz
+                    _preview_dtz = _dtz(birth_year, birth_month, birth_day,
+                                       birth_hour if time_known else 12,
+                                       birth_minute if time_known else 0)
+                    _tz_r = _ruo(_preview_dtz, _manual_tz_name)
+                    resolved_tz = _manual_tz_name
+                    resolved_tz_offset = _tz_r["utc_offset"]
+                else:
+                    resolved_tz_offset = manual_tz
+            elif _submit_cand:
+                resolved_lat = _submit_cand.get("latitude")
+                resolved_lon = _submit_cand.get("longitude")
+                resolved_tz = _submit_cand.get("timezone") or "UTC"
+                from location.timezone import resolve_utc_offset as _ruo
+                from datetime import datetime as _dtz
+                _preview_dtz = _dtz(birth_year, birth_month, birth_day,
+                                   birth_hour if time_known else 12,
+                                   birth_minute if time_known else 0)
+                _tz_r = _ruo(_preview_dtz, resolved_tz)
+                resolved_tz_offset = _tz_r["utc_offset"]
             else:
+                # Legacy fallback: lookup by city text
                 loc = lookup_location(birth_city)
                 if loc:
                     resolved_lat = loc["lat"]
@@ -1073,7 +1534,7 @@ elif page == PAGE_INPUT:
                 residence_country=res_country or None,
                 blood_type=blood_map.get(blood_type, BloodType.UNKNOWN),
                 themes=[theme_map[t] for t in themes if t in theme_map],
-                report_language=lang_map.get(report_lang, ReportLanguage.TRADITIONAL_CHINESE),
+                report_language=lang_map.get(_resolved_report_lang, ReportLanguage.TRADITIONAL_CHINESE),
                 report_length=len_map.get(report_len, ReportLength.STANDARD),
                 birth_latitude=resolved_lat,
                 birth_longitude=resolved_lon,
@@ -1083,6 +1544,8 @@ elif page == PAGE_INPUT:
             )
             st.session_state["profile"] = profile
             st.session_state["report"] = None   # invalidate old report
+            # Preserve the exact form state for 「Return to Edit Data」.
+            st.session_state["_last_input_snapshot"] = _capture_input_snapshot()
 
             # Feedback messages
             if resolved_lat is not None:
@@ -1094,6 +1557,11 @@ elif page == PAGE_INPUT:
             if time_known and resolved_lat is not None:
                 st.success(_tr("input.time_and_coord_complete"))
             st.success(_tr("input.saved", name=name))
+
+    # Preserve the current form continuously, not only after submission.
+    # This lets users visit another page and return without losing partially
+    # entered values, while keeping canonical widget values intact.
+    st.session_state["_last_input_snapshot"] = _capture_input_snapshot()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1119,7 +1587,18 @@ elif page == PAGE_CALCULATE:
     col_edit, col_clear = st.columns(2)
     with col_edit:
         if st.button(_tr("calculate.btn_edit"), use_container_width=True):
-            _sync_input_state_from_profile(profile)
+            # Restore the saved profile on the next rerun, before the input
+            # widgets are instantiated.  This preserves all previous values
+            # instead of returning to a blank/default form.
+            _edit_state = st.session_state.get("_last_input_snapshot") or _capture_input_snapshot()
+            if _edit_state:
+                st.session_state["_pending_input_snapshot"] = deepcopy(_edit_state)
+            else:
+                st.session_state.pop("_pending_input_snapshot", None)
+            st.session_state["_pending_profile_edit"] = True
+            # Preserve the explicit canonical destination for compatibility
+            # with existing sessions and regression checks.
+            st.session_state["_pending_nav_page"] = PAGE_INPUT
             _go_to_page(PAGE_INPUT)
     with col_clear:
         if st.button(_tr("calculate.btn_clear"), use_container_width=True, type="secondary"):
@@ -1170,19 +1649,19 @@ elif page == PAGE_CALCULATE:
                 with col1:
                     sun_pos = next(
                         (p for p in wc.planet_positions if p.planet.value == "太陽"), None)
-                    st.metric(_tr("calculate.western_sun"), sun_pos.sign.value if sun_pos else "─")
+                    st.metric(_tr("calculate.western_sun"), translate_zodiac(normalize_zodiac_value(sun_pos.sign.value), _tr_lang) if sun_pos else "─")
                 with col2:
                     moon_pos = next(
                         (p for p in wc.planet_positions if p.planet.value == "月亮"), None)
-                    st.metric(_tr("calculate.western_moon"), moon_pos.sign.value if moon_pos else "─")
+                    st.metric(_tr("calculate.western_moon"), translate_zodiac(normalize_zodiac_value(moon_pos.sign.value), _tr_lang) if moon_pos else "─")
                 with col3:
                     if wc.ascendant_accuracy == "precise":
-                        st.metric(_tr("calculate.western_asc"), wc.ascendant.value)
+                        st.metric(_tr("calculate.western_asc"), translate_zodiac(normalize_zodiac_value(wc.ascendant.value), _tr_lang))
                     else:
                         st.metric(_tr("calculate.western_asc"), _tr("calculate.western_need_data"))
                 with col4:
                     if wc.mc_accuracy == "precise":
-                        st.metric(_tr("calculate.western_mc"), wc.mc.value)
+                        st.metric(_tr("calculate.western_mc"), translate_zodiac(normalize_zodiac_value(wc.mc.value), _tr_lang))
                     else:
                         st.metric(_tr("calculate.western_mc"), _tr("calculate.western_need_data"))
 
@@ -1195,37 +1674,44 @@ elif page == PAGE_CALCULATE:
                     st.warning(_tr("calculate.western_mode_mock"))
 
                 if wc.accuracy_note:
-                    st.caption(wc.accuracy_note)
+                    if _tr_lang == "zh-TW":
+                        st.caption(wc.accuracy_note)
+                    else:
+                        st.caption(_tr("report.partial_translation_notice"))
                 if wc.ascendant_accuracy != "precise":
                     st.caption(_tr("calculate.western_asc_hint"))
 
                 with st.expander(_tr("calculate.western_planets_expander")):
-                    render_planet_table(wc.planet_positions)
+                    render_planet_table(wc.planet_positions, language=_tr_lang)
                 with st.expander(_tr("calculate.western_houses_expander")):
-                    render_house_table(wc.houses)
+                    render_house_table(wc.houses, language=_tr_lang)
                 with st.expander(_tr("calculate.western_aspects_expander")):
-                    render_aspect_table(wc.aspects)
+                    render_aspect_table(wc.aspects, language=_tr_lang)
 
         with tab_b:
             bc = report.bazi_chart
             if bc:
                 if bc.accuracy_note:
-                    st.caption(f"ℹ️ {bc.accuracy_note}")
+                    st.caption(f"ℹ️ {bc.accuracy_note}" if _tr_lang == "zh-TW" else _tr("report.partial_translation_notice"))
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.metric(_tr("calculate.bazi_day_master"),
-                              f"{bc.day_master.value}（{bc.day_master_element.value}）")
+                    st.metric(
+                        _tr("calculate.bazi_day_master"),
+                        f"{translate_bazi_stem(bc.day_master.value, _tr_lang)} ({translate_element(bc.day_master_element.value, _tr_lang)})"
+                        if _tr_lang != "zh-TW" else f"{bc.day_master.value}（{bc.day_master_element.value}）",
+                    )
                 with col2:
-                    fav = "、".join(e.value for e in bc.favorable_elements)
+                    _sep = "、" if _tr_lang == "zh-TW" else ", "
+                    fav = _sep.join(translate_element(e.value, _tr_lang) for e in bc.favorable_elements)
                     st.metric(_tr("calculate.bazi_favorable"), fav)
-                render_bazi_pillars(bc)
+                render_bazi_pillars(bc, language=_tr_lang)
                 with st.expander(_tr("calculate.bazi_elements_expander")):
-                    render_five_element_chart(bc)
+                    render_five_element_chart(bc, language=_tr_lang)
                 with st.expander(_tr("calculate.bazi_daxian_expander")):
                     import pandas as pd
                     dy_rows = [
-                        {_tr("calculate.bazi_start_age"): f"{dy.start_age}歲", _tr("calculate.bazi_end_age"): f"{dy.end_age}歲",
-                         _tr("calculate.bazi_stem_branch"): dy.stem.value + dy.branch.value}
+                        {_tr("calculate.bazi_start_age"): _localized_age(dy.start_age, _tr_lang), _tr("calculate.bazi_end_age"): _localized_age(dy.end_age, _tr_lang),
+                         _tr("calculate.bazi_stem_branch"): f"{translate_bazi_stem(dy.stem.value, _tr_lang)} / {translate_branch(dy.branch.value, _tr_lang)}"}
                         for dy in bc.da_yun
                     ]
                     st.dataframe(pd.DataFrame(dy_rows), hide_index=True)
@@ -1233,235 +1719,250 @@ elif page == PAGE_CALCULATE:
         with tab_z:
             zc = report.ziwei_chart
             if zc:
-                from engines.ziwei import _interpret_main_star, _interpret_palace, _MAIN_STARS_14
+                if _tr_lang != "zh-TW":
+                    _localized_ziwei_summary(zc, _tr_lang)
+                else:
+                    from engines.ziwei import _interpret_main_star, _interpret_palace, _MAIN_STARS_14
 
-                mode = getattr(zc, "calculation_mode", "mock_fallback")
+                    mode = getattr(zc, "calculation_mode", "mock_fallback")
 
-                # ── A. 排盤狀態卡片 ─────────────────────────────────────────
-                with st.container(border=True):
-                    mode_labels = {
-                        "formal_layout_phase1": "正式排盤 Phase 1",
-                        "partial_lunar_only": "只有農曆資料，缺出生時辰",
-                        "mock_fallback": "Fallback（農曆轉換不可用）",
-                    }
-                    st.markdown(f"**排盤模式**：{mode_labels.get(mode, mode)}")
-                    if mode == "formal_layout_phase1":
-                        st.success(
-                            "紫微斗數 V1.5.5 正式排盤：命宮、身宮、十四主星、四化、"
-                            "核心輔星、六煞與大限 Phase 1 已完成。"
-                            " 尚未加入大限四化、流年、流月。"
-                        )
-                    elif mode == "partial_lunar_only":
-                        st.warning(
-                            "⚠️ 缺少出生時辰，命宮 / 身宮 / 主星不可視為精準。"
-                            " 部分輔星（文昌文曲、火鈴空劫）需出生時辰方可安置。"
-                        )
-                    else:
+                    # ── A. 排盤狀態卡片 ─────────────────────────────────────────
+                    with st.container(border=True):
+                        mode_labels = {
+                            "formal_layout_phase1": "正式排盤 Phase 1",
+                            "partial_lunar_only": "只有農曆資料，缺出生時辰",
+                            "mock_fallback": "Fallback（農曆轉換不可用）",
+                        }
+                        st.markdown(f"**排盤模式**：{mode_labels.get(mode, mode)}")
+                        if mode == "formal_layout_phase1":
+                            st.success(
+                                "紫微斗數 V1.5.5 正式排盤：命宮、身宮、十四主星、四化、"
+                                "核心輔星、六煞與大限 Phase 1 已完成。"
+                                " 尚未加入大限四化、流年、流月。"
+                            )
+                        elif mode == "partial_lunar_only":
+                            st.warning(
+                                "⚠️ 缺少出生時辰，命宮 / 身宮 / 主星不可視為精準。"
+                                " 部分輔星（文昌文曲、火鈴空劫）需出生時辰方可安置。"
+                            )
+                        else:
+                            accuracy = getattr(zc, "accuracy_note", "")
+                            _reason = accuracy if accuracy else "原因不明（lunardate 缺失或農曆轉換失敗）"
+                            st.error(f"⚠️ 紫微斗數使用 fallback，排盤資料僅供參考。原因：{_reason}")
                         accuracy = getattr(zc, "accuracy_note", "")
-                        _reason = accuracy if accuracy else "原因不明（lunardate 缺失或農曆轉換失敗）"
-                        st.error(f"⚠️ 紫微斗數使用 fallback，排盤資料僅供參考。原因：{_reason}")
-                    accuracy = getattr(zc, "accuracy_note", "")
-                    if accuracy and mode != "mock_fallback":
-                        st.caption(f"ℹ️ {accuracy}")
+                        if accuracy and mode != "mock_fallback":
+                            st.caption(f"ℹ️ {accuracy}")
 
-                # ── B. 基本盤資訊卡片 ────────────────────────────────────────
-                with st.container(border=True):
-                    st.markdown("**基本盤資訊**")
-                    info_cols = st.columns(6)
-                    with info_cols[0]:
-                        if zc.lunar_year:
-                            leap_mark = "（閏）" if zc.lunar_is_leap_month else ""
-                            st.metric(
-                                "農曆生日",
-                                f"{zc.lunar_year}/{zc.lunar_month}{leap_mark}/{zc.lunar_day}"
-                            )
-                    with info_cols[1]:
-                        if zc.birth_hour_branch:
-                            st.metric("出生時辰", zc.birth_hour_branch)
-                        else:
-                            st.metric("出生時辰", "未知")
-                    with info_cols[2]:
-                        if zc.ming_branch:
-                            st.metric("命宮地支", zc.ming_branch)
-                    with info_cols[3]:
-                        if zc.shen_branch:
-                            st.metric("身宮地支", zc.shen_branch)
-                    with info_cols[4]:
-                        if zc.five_element_bureau:
-                            st.metric("五行局", zc.five_element_bureau)
-                    with info_cols[5]:
-                        year_stem = None
-                        if zc.lunar_year:
-                            _stems_list = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"]
-                            year_stem = _stems_list[(zc.lunar_year - 4) % 10]
-                        if year_stem:
-                            st.metric("生年天干", year_stem)
-
-                # ── C. 命宮 / 身宮重點解讀 ─────────────────────────────────
-                if zc.ming_palace:
+                    # ── B. 基本盤資訊卡片 ────────────────────────────────────────
                     with st.container(border=True):
-                        st.markdown("**命宮 / 身宮解讀**")
-                        cc1, cc2 = st.columns(2)
-                        with cc1:
-                            st.markdown(
-                                f"**命宮（{zc.ming_palace.earthly_branch}）**\n\n"
-                                "命宮代表人格主軸、外在行為與人生基調。"
-                            )
-                            ming_stars = zc.ming_palace.main_stars
-                            if ming_stars:
-                                st.markdown(f"主星：{'、'.join(ming_stars)}")
-                                for s in ming_stars:
-                                    interp = _interpret_main_star(s)
-                                    if interp:
-                                        st.caption(interp)
+                        st.markdown("**基本盤資訊**")
+                        info_cols = st.columns(6)
+                        with info_cols[0]:
+                            if zc.lunar_year:
+                                leap_mark = "（閏）" if zc.lunar_is_leap_month else ""
+                                st.metric(
+                                    "農曆生日",
+                                    f"{zc.lunar_year}/{zc.lunar_month}{leap_mark}/{zc.lunar_day}"
+                                )
+                        with info_cols[1]:
+                            if zc.birth_hour_branch:
+                                st.metric("出生時辰", zc.birth_hour_branch)
                             else:
-                                st.caption("命宮無主星（空宮）。")
-                        with cc2:
-                            shen_branch = getattr(zc, "shen_branch", None)
-                            shen_label = shen_branch if shen_branch else "未知"
-                            st.markdown(
-                                f"**身宮（{shen_label}）**\n\n"
-                                "身宮代表後天行動重心、中年後越來越明顯的生命著力點。"
-                            )
-                            if zc.shen_palace and zc.shen_palace.main_stars:
-                                st.markdown(f"主星：{'、'.join(zc.shen_palace.main_stars)}")
+                                st.metric("出生時辰", "未知")
+                        with info_cols[2]:
+                            if zc.ming_branch:
+                                st.metric("命宮地支", zc.ming_branch)
+                        with info_cols[3]:
+                            if zc.shen_branch:
+                                st.metric("身宮地支", zc.shen_branch)
+                        with info_cols[4]:
+                            if zc.five_element_bureau:
+                                st.metric("五行局", zc.five_element_bureau)
+                        with info_cols[5]:
+                            year_stem = None
+                            if zc.lunar_year:
+                                _stems_list = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"]
+                                year_stem = _stems_list[(zc.lunar_year - 4) % 10]
+                            if year_stem:
+                                st.metric("生年天干", year_stem)
 
-                # ── D. 十二宮表格 ────────────────────────────────────────────
-                st.markdown("##### 十二宮總表")
-                render_ziwei_formal_table(zc)
-
-                # ── E. 十四主星總覽 ─────────────────────────────────────────
-                with st.expander("十四主星分布"):
-                    four_trans = zc.four_transformations or {}
-                    star_rows = []
-                    all_palaces = [
-                        zc.ming_palace, zc.brother_palace, zc.spouse_palace,
-                        zc.children_palace, zc.wealth_palace, zc.health_palace,
-                        zc.travel_palace, zc.friends_palace, zc.career_palace,
-                        zc.property_palace, zc.fortune_palace, zc.parents_palace,
-                    ]
-                    branch_to_palace: dict = {}
-                    for p in all_palaces:
-                        branch_to_palace[p.earthly_branch] = p.name
-                    for star in _MAIN_STARS_14:
-                        palace_name = "—"
-                        for p in all_palaces:
-                            if star in p.main_stars:
-                                palace_name = f"{p.name}（{p.earthly_branch}）"
-                                break
-                        sihua = four_trans.get(star, "")
-                        star_rows.append({
-                            "星曜": star,
-                            "所在宮位": palace_name,
-                            "四化": sihua if sihua else "—",
-                        })
-                    import pandas as pd
-                    st.dataframe(pd.DataFrame(star_rows), use_container_width=True, hide_index=True)
-
-                # ── F. 四化總覽 ──────────────────────────────────────────────
-                with st.expander("生年四化"):
-                    four_trans = zc.four_transformations or {}
-                    from engines.ziwei import _MAIN_STARS_14 as _MS14
-                    sihua_order = ["化祿", "化權", "化科", "化忌"]
-                    sihua_desc = {
-                        "化祿": "偏機會 / 資源",
-                        "化權": "偏主導 / 權力",
-                        "化科": "偏名聲 / 學習",
-                        "化忌": "偏壓力 / 課題（轉化視角：深化的功課）",
-                    }
-                    for tx_type in sihua_order:
-                        star = next((s for s, t in four_trans.items() if t == tx_type), None)
-                        if star:
-                            is_main = star in _MS14
-                            palace_info = ""
-                            if is_main:
-                                for p in all_palaces:
-                                    if star in p.main_stars:
-                                        palace_info = f"，落於{p.name}（{p.earthly_branch}）"
-                                        break
-                            else:
-                                palace_info = "（輔星四化，V1.5 保留資訊）"
-                            st.markdown(
-                                f"**{tx_type}**：{star}{palace_info} — {sihua_desc.get(tx_type, '')}"
-                            )
-                        else:
-                            st.markdown(f"**{tx_type}**：—")
-
-                # ── G. 輔星 / 煞星總覽 ───────────────────────────────────────
-                with st.expander("輔星 / 煞星總覽（V1.5.5）"):
-                    aux_note = getattr(zc, "auxiliary_accuracy_note", "")
-                    if aux_note:
-                        st.caption(f"ℹ️ {aux_note}")
-                    render_ziwei_auxiliary_table(zc)
-
-                # ── H1. 命主 / 身主 / 天馬 (V1.7.5) ─────────────────────────
-                if getattr(zc, "ming_zhu", None) or getattr(zc, "shen_zhu", None) or getattr(zc, "tian_ma_branch", None):
-                    with st.container(border=True):
-                        st.markdown("#### 命主 / 身主 / 天馬")
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("命主（先天人格輔助星）", getattr(zc, "ming_zhu", None) or "—")
-                        with col2:
-                            st.metric("身主（後天行動重心）", getattr(zc, "shen_zhu", None) or "—")
-                        with col3:
-                            _tm_b = getattr(zc, "tian_ma_branch", None)
-                            _tm_p = getattr(zc, "tian_ma_palace", None)
-                            tian_ma_disp = f"{_tm_b}（{_tm_p}）" if _tm_b else "—"
-                            st.metric("天馬（移動/變動能量）", tian_ma_disp)
-
-                # ── H2. 紫微盤面結構支援度 Phase 1 (V1.7.6) ─────────────────
-                _zscore = getattr(zc, "ziwei_score", None)
-                if _zscore is not None:
-                    with st.container(border=True):
-                        st.markdown("#### 紫微盤面結構支援度")
-                        st.metric(
-                            f"盤面支援度：{getattr(zc, 'ziwei_score_label', '') or ''}",
-                            f"{_zscore} / 100",
-                        )
-                        st.caption("此分數不是外部網站好運指數，也不代表命運好壞；它只是本系統 Phase 1 的結構支援度模型。")
-                        _zexpl = getattr(zc, "ziwei_score_explanation", "")
-                        if _zexpl:
-                            st.caption(_zexpl)
-                        if _zscore >= 85:
-                            st.info("高支援也代表高承載，不宜解讀成無壓力或必定成功。")
-
-                # ── H3. 命宮主星廟旺陷 (V1.7.5) ──────────────────────────────
-                _bmap = getattr(zc, "brightness_map", {}) or {}
-                if _bmap and getattr(zc, "ming_branch", None):
-                    ming_brightness = _bmap.get("命宮", {})
-                    if ming_brightness:
+                    # ── C. 命宮 / 身宮重點解讀 ─────────────────────────────────
+                    if zc.ming_palace:
                         with st.container(border=True):
-                            st.markdown("#### 命宮主星廟旺陷")
-                            br_text = "、".join(f"{s}（{b}）" for s, b in ming_brightness.items())
-                            st.write(br_text)
+                            st.markdown("**命宮 / 身宮解讀**")
+                            cc1, cc2 = st.columns(2)
+                            with cc1:
+                                st.markdown(
+                                    f"**命宮（{zc.ming_palace.earthly_branch}）**\n\n"
+                                    "命宮代表人格主軸、外在行為與人生基調。"
+                                )
+                                ming_stars = zc.ming_palace.main_stars
+                                if ming_stars:
+                                    st.markdown(f"主星：{'、'.join(ming_stars)}")
+                                    for s in ming_stars:
+                                        interp = _interpret_main_star(s)
+                                        if interp:
+                                            st.caption(interp)
+                                else:
+                                    st.caption("命宮無主星（空宮）。")
+                            with cc2:
+                                shen_branch = getattr(zc, "shen_branch", None)
+                                shen_label = shen_branch if shen_branch else "未知"
+                                st.markdown(
+                                    f"**身宮（{shen_label}）**\n\n"
+                                    "身宮代表後天行動重心、中年後越來越明顯的生命著力點。"
+                                )
+                                if zc.shen_palace and zc.shen_palace.main_stars:
+                                    st.markdown(f"主星：{'、'.join(zc.shen_palace.main_stars)}")
 
-                # ── H. 大限 ──────────────────────────────────────────────────
-                with st.expander("大限 10 年運限（V1.5.5 Phase 1）"):
-                    dx_dir = getattr(zc, "da_xian_direction", "")
-                    dx_age = getattr(zc, "da_xian_start_age", None)
-                    dir_labels = {"forward": "順行（陽男 / 陰女）",
-                                  "backward": "逆行（陰男 / 陽女）",
-                                  "unknown": "方向未知（性別未填）"}
-                    if dx_dir:
-                        st.caption(f"大限方向：{dir_labels.get(dx_dir, dx_dir)}")
-                    if dx_age:
-                        st.caption(f"第一大限起始歲數：{dx_age} 歲（依五行局數）")
-                    st.caption(
-                        "ℹ️ V1.5.5 大限為 Phase 1 骨架，尚未加入大限四化與流年飛化。"
-                        " 適合看十年生命焦點，不適合直接斷具體年份事件。"
-                    )
-                    render_daxian_table(zc)
+                    # ── D. 十二宮表格 ────────────────────────────────────────────
+                    st.markdown("##### 十二宮總表")
+                    render_ziwei_formal_table(zc, language=_tr_lang)
+
+                    # ── E. 十四主星總覽 ─────────────────────────────────────────
+                    with st.expander("十四主星分布"):
+                        four_trans = zc.four_transformations or {}
+                        star_rows = []
+                        all_palaces = [
+                            zc.ming_palace, zc.brother_palace, zc.spouse_palace,
+                            zc.children_palace, zc.wealth_palace, zc.health_palace,
+                            zc.travel_palace, zc.friends_palace, zc.career_palace,
+                            zc.property_palace, zc.fortune_palace, zc.parents_palace,
+                        ]
+                        branch_to_palace: dict = {}
+                        for p in all_palaces:
+                            branch_to_palace[p.earthly_branch] = p.name
+                        for star in _MAIN_STARS_14:
+                            palace_name = "—"
+                            for p in all_palaces:
+                                if star in p.main_stars:
+                                    palace_name = f"{p.name}（{p.earthly_branch}）"
+                                    break
+                            sihua = four_trans.get(star, "")
+                            star_rows.append({
+                                "星曜": star,
+                                "所在宮位": palace_name,
+                                "四化": sihua if sihua else "—",
+                            })
+                        import pandas as pd
+                        st.dataframe(pd.DataFrame(star_rows), use_container_width=True, hide_index=True)
+
+                    # ── F. 四化總覽 ──────────────────────────────────────────────
+                    with st.expander("生年四化"):
+                        four_trans = zc.four_transformations or {}
+                        from engines.ziwei import _MAIN_STARS_14 as _MS14
+                        sihua_order = ["化祿", "化權", "化科", "化忌"]
+                        sihua_desc = {
+                            "化祿": "偏機會 / 資源",
+                            "化權": "偏主導 / 權力",
+                            "化科": "偏名聲 / 學習",
+                            "化忌": "偏壓力 / 課題（轉化視角：深化的功課）",
+                        }
+                        for tx_type in sihua_order:
+                            star = next((s for s, t in four_trans.items() if t == tx_type), None)
+                            if star:
+                                is_main = star in _MS14
+                                palace_info = ""
+                                if is_main:
+                                    for p in all_palaces:
+                                        if star in p.main_stars:
+                                            palace_info = f"，落於{p.name}（{p.earthly_branch}）"
+                                            break
+                                else:
+                                    palace_info = "（輔星四化，V1.5 保留資訊）"
+                                st.markdown(
+                                    f"**{tx_type}**：{star}{palace_info} — {sihua_desc.get(tx_type, '')}"
+                                )
+                            else:
+                                st.markdown(f"**{tx_type}**：—")
+
+                    # ── G. 輔星 / 煞星總覽 ───────────────────────────────────────
+                    with st.expander("輔星 / 煞星總覽（V1.5.5）"):
+                        aux_note = getattr(zc, "auxiliary_accuracy_note", "")
+                        if aux_note:
+                            st.caption(f"ℹ️ {aux_note}")
+                        render_ziwei_auxiliary_table(zc, language=_tr_lang)
+
+                    # ── H1. 命主 / 身主 / 天馬 (V1.7.5) ─────────────────────────
+                    if getattr(zc, "ming_zhu", None) or getattr(zc, "shen_zhu", None) or getattr(zc, "tian_ma_branch", None):
+                        with st.container(border=True):
+                            st.markdown("#### 命主 / 身主 / 天馬")
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("命主（先天人格輔助星）", getattr(zc, "ming_zhu", None) or "—")
+                            with col2:
+                                st.metric("身主（後天行動重心）", getattr(zc, "shen_zhu", None) or "—")
+                            with col3:
+                                _tm_b = getattr(zc, "tian_ma_branch", None)
+                                _tm_p = getattr(zc, "tian_ma_palace", None)
+                                tian_ma_disp = f"{_tm_b}（{_tm_p}）" if _tm_b else "—"
+                                st.metric("天馬（移動/變動能量）", tian_ma_disp)
+
+                    # ── H2. 紫微盤面結構支援度 Phase 1 (V1.7.6) ─────────────────
+                    _zscore = getattr(zc, "ziwei_score", None)
+                    if _zscore is not None:
+                        with st.container(border=True):
+                            st.markdown("#### 紫微盤面結構支援度")
+                            st.metric(
+                                f"盤面支援度：{getattr(zc, 'ziwei_score_label', '') or ''}",
+                                f"{_zscore} / 100",
+                            )
+                            st.caption("此分數不是外部網站好運指數，也不代表命運好壞；它只是本系統 Phase 1 的結構支援度模型。")
+                            _zexpl = getattr(zc, "ziwei_score_explanation", "")
+                            if _zexpl:
+                                st.caption(_zexpl)
+                            if _zscore >= 85:
+                                st.info("高支援也代表高承載，不宜解讀成無壓力或必定成功。")
+
+                    # ── H3. 命宮主星廟旺陷 (V1.7.5) ──────────────────────────────
+                    _bmap = getattr(zc, "brightness_map", {}) or {}
+                    if _bmap and getattr(zc, "ming_branch", None):
+                        ming_brightness = _bmap.get("命宮", {})
+                        if ming_brightness:
+                            with st.container(border=True):
+                                st.markdown("#### 命宮主星廟旺陷")
+                                br_text = "、".join(f"{s}（{b}）" for s, b in ming_brightness.items())
+                                st.write(br_text)
+
+                    # ── H. 大限 ──────────────────────────────────────────────────
+                    with st.expander("大限 10 年運限（V1.5.5 Phase 1）"):
+                        dx_dir = getattr(zc, "da_xian_direction", "")
+                        dx_age = getattr(zc, "da_xian_start_age", None)
+                        dir_labels = {"forward": "順行（陽男 / 陰女）",
+                                      "backward": "逆行（陰男 / 陽女）",
+                                      "unknown": "方向未知（性別未填）"}
+                        if dx_dir:
+                            st.caption(f"大限方向：{dir_labels.get(dx_dir, dx_dir)}")
+                        if dx_age:
+                            st.caption(f"第一大限起始歲數：{dx_age} 歲（依五行局數）")
+                        st.caption(
+                            "ℹ️ V1.5.5 大限為 Phase 1 骨架，尚未加入大限四化與流年飛化。"
+                            " 適合看十年生命焦點，不適合直接斷具體年份事件。"
+                        )
+                        render_daxian_table(zc, language=_tr_lang)
 
         with tab_n:
             nc = report.numerology_chart
             if nc:
-                render_numerology_card(nc)
-                st.markdown(f"**{nc.life_path_description}**")
+                render_numerology_card(nc, language=_tr_lang)
+                if _tr_lang == "zh-TW":
+                    st.markdown(f"**{nc.life_path_description}**")
+                else:
+                    _num_copy = {
+                        "en": f"Life Path {nc.life_path_number} highlights recurring motivations, learning patterns, and ways of contributing. Use it as a reflection prompt rather than a fixed prediction.",
+                        "ja": f"ライフパス {nc.life_path_number} は、繰り返しやすい動機、学習パターン、社会への関わり方を考える手掛かりです。固定的な予言ではなく自己理解の参考として活用してください。",
+                        "th": f"เลขเส้นทางชีวิต {nc.life_path_number} ช่วยสะท้อนแรงจูงใจ รูปแบบการเรียนรู้ และวิธีมีส่วนร่วมกับผู้อื่น ควรใช้เพื่อการสังเกตตนเอง ไม่ใช่คำทำนายตายตัว",
+                        "es": f"El Camino de Vida {nc.life_path_number} ayuda a observar motivaciones, patrones de aprendizaje y formas de contribuir. Úsalo como reflexión, no como predicción fija.",
+                        "ar": f"يساعد مسار الحياة {nc.life_path_number} على ملاحظة الدوافع وأنماط التعلم وطرق المساهمة. استخدمه للتأمل لا كتنبؤ ثابت.",
+                    }
+                    st.markdown(_num_copy.get(_tr_lang, _num_copy["en"]))
 
         with tab_hd:
             hd = getattr(report, "human_design_chart", None)
             if hd is None:
-                st.warning("人類圖資料尚未生成，請重新計算命盤。")
+                st.warning(_tr("report.not_ready"))
+            elif _tr_lang != "zh-TW":
+                _localized_hd_summary(hd, _tr_lang)
             else:
                 # ── Summary cards ─────────────────────────────────────────────
                 import pandas as pd
@@ -1604,19 +2105,32 @@ elif page == PAGE_REPORT_PREVIEW:
         st.info(_tr("report_preview.empty"))
         st.stop()
 
-    # Report language selector (V2.0.4)
-    _report_lang_options_labels = [_tr("report.language_auto")] + [lbl for _, lbl in get_language_options()]
-    _report_lang_codes = ["auto"] + [c for c, _ in get_language_options()]
+    # Report language selector stores canonical language codes, never display labels.
+    _report_lang_codes = ["auto", "zh-TW", "en", "th", "ja", "es", "ar"]
+    _report_lang_self_names = {
+        "zh-TW": "繁體中文", "en": "English", "th": "ไทย",
+        "ja": "日本語", "es": "Español", "ar": "العربية",
+    }
     _cur_rl = st.session_state.get("report_language", "auto")
-    _cur_rl_idx = _report_lang_codes.index(_cur_rl) if _cur_rl in _report_lang_codes else 0
-    _sel_rl = st.selectbox(_tr("report.language_selector"), _report_lang_options_labels, index=_cur_rl_idx, key="report_language_sel")
-    st.session_state["report_language"] = _report_lang_codes[_report_lang_options_labels.index(_sel_rl)]
+    if _cur_rl not in _report_lang_codes:
+        _cur_rl = "auto"
+        st.session_state["report_language"] = "auto"
+    st.selectbox(
+        _tr("report.language_selector"),
+        options=_report_lang_codes,
+        index=_report_lang_codes.index(_cur_rl),
+        format_func=lambda code: (
+            _tr("report.language_auto") if code == "auto"
+            else _report_lang_self_names[code]
+        ),
+        key="report_language",
+    )
 
     report = st.session_state["report"]
 
     # ── Demo label ────────────────────────────────────────────────────────────
     if report.profile.name.startswith("Demo"):
-        st.info("🔍 這是範例報告，可用於展示與功能驗證。")
+        st.info(_tr("report_preview.demo_notice"))
 
     # ── Report summary card ───────────────────────────────────────────────────
     with st.container(border=True):
@@ -1624,44 +2138,54 @@ elif page == PAGE_REPORT_PREVIEW:
         with rc1:
             st.metric(_tr("report_preview.col_name"), report.profile.name)
         with rc2:
-            st.metric(_tr("report_preview.col_length"), report.profile.report_length.value)
+            st.metric(_tr("report_preview.col_length"), _report_length_label(report.profile.report_length, _tr_lang))
         with rc3:
             st.metric(_tr("settings.version"), f"v{APP_VERSION}")
         with rc4:
             st.metric(_tr("report_preview.col_created"), report.created_at[:16] if report.created_at else "─")
 
     # ── Calculation mode expander ─────────────────────────────────────────────
-    with st.expander("計算模式摘要"):
+    with st.expander(_tr("report_preview.calc_summary")):
         wc = report.western_chart
         bc = report.bazi_chart
         zc = report.ziwei_chart
         mode_data = [
-            ("西洋占星", getattr(wc, "calculation_mode", "─") if wc else "─",
+            (_tr("calculate.tab_western"), getattr(wc, "calculation_mode", "─") if wc else "─",
              getattr(wc, "accuracy_note", "") if wc else ""),
-            ("八字",    getattr(bc, "calculation_mode", "─") if bc else "─",
+            (_tr("calculate.tab_bazi"), getattr(bc, "calculation_mode", "─") if bc else "─",
              getattr(bc, "accuracy_note", "") if bc else ""),
-            ("紫微",    getattr(zc, "calculation_mode", "─") if zc else "─",
+            (_tr("calculate.tab_ziwei"), getattr(zc, "calculation_mode", "─") if zc else "─",
              getattr(zc, "accuracy_note", "") if zc else ""),
         ]
         import pandas as pd
         st.dataframe(
-            pd.DataFrame(mode_data, columns=["系統", "計算模式", "備注"]),
+            pd.DataFrame(mode_data, columns=[_tr("report_preview.system"), _tr("report_preview.calc_mode"), _tr("report_preview.notes")]),
             hide_index=True, use_container_width=True,
         )
         aux_note = getattr(zc, "auxiliary_accuracy_note", "") if zc else ""
         if aux_note:
-            st.caption(f"輔星：{aux_note}")
+            auxiliary_label = _tr("report_preview.auxiliary")
+            if _tr_lang == "zh-TW":
+                st.caption(f"{auxiliary_label}: {aux_note}")
+            else:
+                st.caption(_tr("report.partial_translation_notice"))
 
     view_mode = st.radio(_tr("report_preview.view_mode"), [_tr("report_preview.view_interactive"), _tr("report_preview.view_markdown")], horizontal=True)
 
+    _resolved_report_language = (
+        _tr_lang if st.session_state.get("report_language", "auto") == "auto"
+        else st.session_state.get("report_language", _tr_lang)
+    )
+
     if view_mode == _tr("report_preview.view_interactive"):
         if report.synthesis:
-            render_synthesis_section(report.synthesis)
+            # Backward-compatible call shape: render_synthesis_section(report.synthesis, language=_resolved_report_language)
+            render_synthesis_section(report.synthesis, language=_resolved_report_language, report=report)
         else:
             st.warning(_tr("report_preview.synthesis_not_ready"))
     else:
         from reports.markdown_exporter import MarkdownExporter
-        md_text = MarkdownExporter().export(report)
+        md_text = MarkdownExporter().export(report, language=_resolved_report_language)
         st.markdown(md_text, unsafe_allow_html=False)
 
 
@@ -1721,6 +2245,22 @@ elif page == PAGE_EXPORT:
 
     report = st.session_state["report"]
 
+    _cur_export_lang = st.session_state.get("report_language", "auto")
+    if _cur_export_lang not in _REPORT_LANGUAGE_CODES:
+        _cur_export_lang = "auto"
+        st.session_state["report_language"] = "auto"
+    st.selectbox(
+        _tr("report.language_selector"),
+        options=_REPORT_LANGUAGE_CODES,
+        index=_REPORT_LANGUAGE_CODES.index(_cur_export_lang),
+        format_func=lambda code: (
+            _tr("report.language_auto") if code == "auto"
+            else _REPORT_LANGUAGE_SELF_NAMES[code]
+        ),
+        key="report_language",
+    )
+    _export_language = _resolve_report_language()
+
     # ── Report summary card ───────────────────────────────────────────────────
     with st.container(border=True):
         ec1, ec2, ec3, ec4 = st.columns(4)
@@ -1729,7 +2269,7 @@ elif page == PAGE_EXPORT:
         with ec2:
             st.metric(_tr("report_preview.col_created"), report.created_at[:16] if report.created_at else "─")
         with ec3:
-            st.metric(_tr("report_preview.col_length"), report.profile.report_length.value)
+            st.metric(_tr("report_preview.col_length"), _report_length_label(report.profile.report_length, _tr_lang))
         with ec4:
             wc = report.western_chart
             bc = report.bazi_chart
@@ -1761,7 +2301,7 @@ elif page == PAGE_EXPORT:
     with col1:
         st.markdown("**Markdown**")
         st.caption(_tr("export.md_desc"))
-        md_content = MarkdownExporter().export(report)
+        md_content = MarkdownExporter().export(report, language=_export_language)
         st.download_button(
             label=_tr("report.download_md"),
             data=md_content.encode("utf-8"),
@@ -1773,7 +2313,7 @@ elif page == PAGE_EXPORT:
     with col2:
         st.markdown("**HTML**")
         st.caption(_tr("export.html_desc"))
-        html_content = HtmlExporter().export(report)
+        html_content = HtmlExporter().export(report, language=_export_language)
         st.download_button(
             label=_tr("report.download_html"),
             data=html_content.encode("utf-8"),
@@ -1788,7 +2328,7 @@ elif page == PAGE_EXPORT:
         docx_exp = DocxExporter()
         if docx_exp.is_available():
             try:
-                docx_bytes = docx_exp.export(report)
+                docx_bytes = docx_exp.export(report, language=_export_language)
                 st.download_button(
                     label=_tr("report.download_word"),
                     data=docx_bytes,
@@ -1814,7 +2354,7 @@ elif page == PAGE_EXPORT:
         pdf_exp = PdfExporter()
         if pdf_exp.is_available():
             try:
-                pdf_bytes = pdf_exp.export(report)
+                pdf_bytes = pdf_exp.export(report, language=_export_language)
                 st.download_button(
                     label=_tr("report.download_pdf"),
                     data=pdf_bytes,
@@ -1830,9 +2370,8 @@ elif page == PAGE_EXPORT:
             st.button(_tr("export.pdf_not_installed"), disabled=True,
                       use_container_width=True)
             st.info(
-                "PDF 需要 WeasyPrint；Windows 可能需要 GTK/Pango。\n\n"
-                "建議先用 **HTML** 或 **Word** 交付。\n\n"
-                "若要啟用 PDF：執行 `install_pdf_support.bat` 或 `pip install weasyprint`"
+                "PDF export requires WeasyPrint or ReportLab. "
+                "Run setup.bat to install the complete export environment."
             )
 
 
@@ -1846,89 +2385,96 @@ elif page == PAGE_COMPATIBILITY:
 
     from compatibility.engine import CompatibilityEngine
     from compatibility.models import CompatibilityInput, RelationshipType
-    from compatibility.exporters import make_compat_filename, export_compat_to_html, export_compat_to_docx
+    from compatibility.exporters import make_compat_filename, export_compat_to_markdown, export_compat_to_html, export_compat_to_docx, export_compat_to_pdf
     from reports.docx_exporter import DocxExporter as _DocxExporter
 
     # ── Intro ─────────────────────────────────────────────────────────────────
-    with st.expander("📖 合盤分析說明", expanded=False):
-        st.markdown("""
-合盤分析整合以下五套系統，從多個角度理解兩人之間的互動模式：
-
-| 系統 | 分析內容 |
-|------|---------|
-| 🌟 西洋占星 | 太陽、月亮、水星、金星火星、上升配對 |
-| ☯️ 八字 | 日主五行互動、喜用神互補、忌神放大 |
-| 🏮 紫微 | 命宮主星、身宮、關係宮位互動 |
-| 🔢 生命靈數 | 生命靈數配對、共鳴主題 |
-| 🩸 血型 | 互動風格、衝突模式 |
-
-> ⚠️ 本分析為關係理解與溝通參考，不代表「一定適合」或「一定不適合」。
-""")
+    with st.expander(_tr("compat.intro_expander"), expanded=False):
+        st.markdown(_tr("compatibility.disclaimer"))
 
     # ── Relationship type ─────────────────────────────────────────────────────
-    st.subheader("關係類型")
-    _RT_OPTIONS = {
-        "情侶 / 伴侶": "romantic",
-        "婚姻": "marriage",
-        "合作夥伴": "business",
-        "親子": "parent_child",
-        "朋友": "friendship",
-        "同事": "colleague",
-        "一般關係": "general",
+    st.subheader(_tr("compat.relationship_type"))
+    _RT_CANONICAL = ["romantic", "marriage", "business", "parent_child", "friendship", "colleague", "general"]
+    _RT_TR_KEYS = {
+        "romantic": "compat.type_romantic",
+        "marriage": "compat.type_spouse",
+        "business": "compat.type_business",
+        "parent_child": "compat.type_parent_child",
+        "friendship": "compat.type_friendship",
+        "colleague": "compat.type_colleague",
+        "general": "compat.type_general",
     }
+    _rt_display_labels = [_tr(_RT_TR_KEYS[c]) for c in _RT_CANONICAL]
     rt_label_sel = st.selectbox(
-        "選擇關係類型",
-        list(_RT_OPTIONS.keys()),
-        key="compat_rel_type",
+        _tr("compat.select_rel_type"),
+        _rt_display_labels,
+        key="compat_rel_type_display",
     )
-    selected_rt = RelationshipType(_RT_OPTIONS[rt_label_sel])
+    _rt_canonical_val = _RT_CANONICAL[_rt_display_labels.index(rt_label_sel)]
+    # Map canonical to RelationshipType enum values
+    _RT_ENUM_MAP = {
+        "romantic": "romantic", "marriage": "marriage", "business": "business",
+        "parent_child": "parent_child", "friendship": "friendship",
+        "colleague": "colleague", "general": "general",
+    }
+    try:
+        selected_rt = RelationshipType(_RT_ENUM_MAP.get(_rt_canonical_val, "general"))
+    except Exception:
+        selected_rt = RelationshipType("general")
 
     # ── Person A ──────────────────────────────────────────────────────────────
-    st.subheader("A 方資料")
+    st.subheader(_tr("compat.person_a_section"))
+    _compat_tr_lang = st.session_state.get("app_language", DEFAULT_LANGUAGE)
+
+    _compat_gender_canonical = ["不填寫", "男", "女", "其他"]
+    _compat_gender_labels_a = [_tr("input.gender_unspecified"), _tr("input.gender_male"), _tr("input.gender_female"), _tr("input.gender_other")]
     use_current = st.session_state.get("profile") is not None
     if use_current:
-        if st.button("📋 使用目前命盤作為 A 方", key="compat_use_current_as_a"):
+        if st.button(_tr("compat.use_current_as_a"), key="compat_use_current_as_a"):
             st.session_state["compat_a_profile"] = st.session_state["profile"]
-            st.success(f"已載入：{st.session_state['profile'].name}")
+            st.success(f"Loaded: {st.session_state['profile'].name}")
 
-    with st.expander("手動輸入 A 方資料", expanded=(not use_current)):
+    with st.expander(_tr("compat.manual_input_a"), expanded=(not use_current)):
         ca1, ca2 = st.columns(2)
         with ca1:
-            st.text_input("A 姓名 *", key="compat_a_name", placeholder="例：小明")
+            st.text_input(_tr("compat.name_a"), key="compat_a_name", placeholder="e.g. Alice")
         with ca2:
-            st.selectbox("A 性別", ["不填寫", "男", "女", "其他"], key="compat_a_gender")
+            _cur_ag = st.session_state.get("compat_a_gender", "不填寫")
+            _cur_ag_idx = _compat_gender_canonical.index(_cur_ag) if _cur_ag in _compat_gender_canonical else 0
+            _sel_ag = st.selectbox(_tr("compat.gender_a"), _compat_gender_labels_a, index=_cur_ag_idx, key="_compat_a_gender_display")
+            st.session_state["compat_a_gender"] = _compat_gender_canonical[_compat_gender_labels_a.index(_sel_ag)]
         ca3, ca4, ca5 = st.columns(3)
         with ca3:
-            st.number_input("A 出生年 *", min_value=1900, max_value=date.today().year,
+            st.number_input(_tr("compat.birth_year_a"), min_value=1900, max_value=date.today().year,
                             step=1, key="compat_a_year", value=1989)
         with ca4:
-            st.number_input("A 月 *", min_value=1, max_value=12, step=1,
+            st.number_input(_tr("compat.birth_month_a"), min_value=1, max_value=12, step=1,
                             key="compat_a_month", value=9)
         with ca5:
-            st.number_input("A 日 *", min_value=1, max_value=31, step=1,
+            st.number_input(_tr("compat.birth_day_a"), min_value=1, max_value=31, step=1,
                             key="compat_a_day", value=21)
-        st.checkbox("A 方知道精確出生時間", key="compat_a_time_known")
+        st.checkbox(_tr("compat.time_known_a"), key="compat_a_time_known")
         if st.session_state.get("compat_a_time_known"):
             cah, cam = st.columns(2)
             with cah:
-                st.number_input("A 時（24H）", min_value=0, max_value=23,
+                st.number_input(_tr("compat.birth_hour_a"), min_value=0, max_value=23,
                                 step=1, key="compat_a_hour", value=11)
             with cam:
-                st.number_input("A 分", min_value=0, max_value=59,
+                st.number_input(_tr("compat.birth_minute_a"), min_value=0, max_value=59,
                                 step=1, key="compat_a_minute", value=5)
         ca6, ca7 = st.columns(2)
         with ca6:
-            st.text_input("A 出生城市 *", key="compat_a_city", placeholder="例：新竹")
+            st.text_input(_tr("compat.birth_city_a"), key="compat_a_city", placeholder="e.g. Taipei")
         with ca7:
-            st.text_input("A 出生國家", key="compat_a_country", value=DEFAULT_COUNTRY)
-        st.selectbox("A 血型", ["Unknown", "A", "B", "O", "AB"],
+            st.text_input(_tr("compat.birth_country_a"), key="compat_a_country", value=DEFAULT_COUNTRY)
+        st.selectbox(_tr("compat.blood_type_a"), ["Unknown", "A", "B", "O", "AB"],
                      key="compat_a_blood")
 
-        if st.button("確認 A 方資料", key="compat_a_confirm"):
+        if st.button(_tr("compat.confirm_a"), key="compat_a_confirm"):
             try:
                 _a_name = st.session_state.get("compat_a_name", "").strip()
                 if not _a_name:
-                    st.error("請填寫 A 方姓名")
+                    st.error(_tr("compat.name_required_a"))
                 else:
                     _a_time = None
                     _a_time_known = bool(st.session_state.get("compat_a_time_known"))
@@ -1939,7 +2485,7 @@ elif page == PAGE_COMPATIBILITY:
                         )
                     _a_gender_map = {"男": "male", "女": "female", "其他": "other", "不填寫": "unknown"}
                     _a_gender_val = _a_gender_map.get(st.session_state.get("compat_a_gender", "不填寫"), "unknown")
-                    _a_city = st.session_state.get("compat_a_city", "台北").strip() or "台北"
+                    _a_city = st.session_state.get("compat_a_city", "Taipei").strip() or "Taipei"
                     _a_country = st.session_state.get("compat_a_country", DEFAULT_COUNTRY).strip() or DEFAULT_COUNTRY
                     _loc_a = lookup_location(_a_city)
                     st.session_state["compat_a_profile"] = BirthProfile(
@@ -1961,54 +2507,58 @@ elif page == PAGE_COMPATIBILITY:
                         birth_timezone_offset=8.0,
                         birth_time_is_known=_a_time_known,
                     )
-                    st.success(f"A 方已確認：{_a_name}")
+                    st.success(_tr("compat.confirmed_a", name=_a_name))
             except Exception as _e:
-                st.error(f"A 方資料錯誤：{_e}")
+                st.error(_tr("compat.error_a", error=str(_e)))
 
     if st.session_state.get("compat_a_profile"):
         _pa = st.session_state["compat_a_profile"]
-        st.info(f"✅ A 方：{_pa.name}（{_pa.birth_date}，{_pa.birth_city}）")
+        st.info(_tr("compat.loaded_a", name=_pa.name, date=str(_pa.birth_date), city=getattr(_pa, "birth_city", "")))
 
     # ── Person B ──────────────────────────────────────────────────────────────
-    st.subheader("B 方資料")
-    with st.expander("輸入 B 方資料", expanded=True):
+    st.subheader(_tr("compat.person_b_section"))
+    _compat_gender_labels_b = [_tr("input.gender_unspecified"), _tr("input.gender_male"), _tr("input.gender_female"), _tr("input.gender_other")]
+    with st.expander(_tr("compat.manual_input_b"), expanded=True):
         cb1, cb2 = st.columns(2)
         with cb1:
-            st.text_input("B 姓名 *", key="compat_b_name", placeholder="例：小花")
+            st.text_input(_tr("compat.name_b"), key="compat_b_name", placeholder="e.g. Bob")
         with cb2:
-            st.selectbox("B 性別", ["不填寫", "男", "女", "其他"], key="compat_b_gender")
+            _cur_bg = st.session_state.get("compat_b_gender", "不填寫")
+            _cur_bg_idx = _compat_gender_canonical.index(_cur_bg) if _cur_bg in _compat_gender_canonical else 0
+            _sel_bg = st.selectbox(_tr("compat.gender_b"), _compat_gender_labels_b, index=_cur_bg_idx, key="_compat_b_gender_display")
+            st.session_state["compat_b_gender"] = _compat_gender_canonical[_compat_gender_labels_b.index(_sel_bg)]
         cb3, cb4, cb5 = st.columns(3)
         with cb3:
-            st.number_input("B 出生年 *", min_value=1900, max_value=date.today().year,
+            st.number_input(_tr("compat.birth_year_b"), min_value=1900, max_value=date.today().year,
                             step=1, key="compat_b_year", value=1991)
         with cb4:
-            st.number_input("B 月 *", min_value=1, max_value=12, step=1,
+            st.number_input(_tr("compat.birth_month_b"), min_value=1, max_value=12, step=1,
                             key="compat_b_month", value=3)
         with cb5:
-            st.number_input("B 日 *", min_value=1, max_value=31, step=1,
+            st.number_input(_tr("compat.birth_day_b"), min_value=1, max_value=31, step=1,
                             key="compat_b_day", value=8)
-        st.checkbox("B 方知道精確出生時間", key="compat_b_time_known")
+        st.checkbox(_tr("compat.time_known_b"), key="compat_b_time_known")
         if st.session_state.get("compat_b_time_known"):
             cbh, cbm = st.columns(2)
             with cbh:
-                st.number_input("B 時（24H）", min_value=0, max_value=23,
+                st.number_input(_tr("compat.birth_hour_b"), min_value=0, max_value=23,
                                 step=1, key="compat_b_hour", value=9)
             with cbm:
-                st.number_input("B 分", min_value=0, max_value=59,
+                st.number_input(_tr("compat.birth_minute_b"), min_value=0, max_value=59,
                                 step=1, key="compat_b_minute", value=45)
         cb6, cb7 = st.columns(2)
         with cb6:
-            st.text_input("B 出生城市 *", key="compat_b_city", placeholder="例：高雄")
+            st.text_input(_tr("compat.birth_city_b"), key="compat_b_city", placeholder="e.g. Kaohsiung")
         with cb7:
-            st.text_input("B 出生國家", key="compat_b_country", value=DEFAULT_COUNTRY)
-        st.selectbox("B 血型", ["Unknown", "A", "B", "O", "AB"],
+            st.text_input(_tr("compat.birth_country_b"), key="compat_b_country", value=DEFAULT_COUNTRY)
+        st.selectbox(_tr("compat.blood_type_b"), ["Unknown", "A", "B", "O", "AB"],
                      key="compat_b_blood")
 
-        if st.button("確認 B 方資料", key="compat_b_confirm"):
+        if st.button(_tr("compat.confirm_b"), key="compat_b_confirm"):
             try:
                 _b_name = st.session_state.get("compat_b_name", "").strip()
                 if not _b_name:
-                    st.error("請填寫 B 方姓名")
+                    st.error(_tr("compat.name_required_b"))
                 else:
                     _b_time = None
                     _b_time_known = bool(st.session_state.get("compat_b_time_known"))
@@ -2019,7 +2569,7 @@ elif page == PAGE_COMPATIBILITY:
                         )
                     _b_gender_map = {"男": "male", "女": "female", "其他": "other", "不填寫": "unknown"}
                     _b_gender_val = _b_gender_map.get(st.session_state.get("compat_b_gender", "不填寫"), "unknown")
-                    _b_city = st.session_state.get("compat_b_city", "台北").strip() or "台北"
+                    _b_city = st.session_state.get("compat_b_city", "Taipei").strip() or "Taipei"
                     _b_country = st.session_state.get("compat_b_country", DEFAULT_COUNTRY).strip() or DEFAULT_COUNTRY
                     _loc_b = lookup_location(_b_city)
                     st.session_state["compat_b_profile"] = BirthProfile(
@@ -2041,22 +2591,22 @@ elif page == PAGE_COMPATIBILITY:
                         birth_timezone_offset=8.0,
                         birth_time_is_known=_b_time_known,
                     )
-                    st.success(f"B 方已確認：{_b_name}")
+                    st.success(_tr("compat.confirmed_b", name=_b_name))
             except Exception as _e:
-                st.error(f"B 方資料錯誤：{_e}")
+                st.error(_tr("compat.error_b", error=str(_e)))
 
     if st.session_state.get("compat_b_profile"):
         _pb = st.session_state["compat_b_profile"]
-        st.info(f"✅ B 方：{_pb.name}（{_pb.birth_date}，{_pb.birth_city}）")
+        st.info(_tr("compat.loaded_b", name=_pb.name, date=str(_pb.birth_date), city=getattr(_pb, "birth_city", "")))
 
     # ── Demo couple buttons (developer/demo mode only) ────────────────────────
     if SHOW_DEMO_DATA and not SAMPLE_COUPLES and DEVELOPER_MODE:
         st.info("Demo profiles are not included in this release package.")
     if SHOW_DEMO_DATA and SAMPLE_COUPLES:
         st.divider()
-        st.subheader("⚡ 快速體驗")
-        st.caption("直接載入範例資料，體驗合盤分析流程。")
-        _DEMO_RT_MAP = {"romantic": "情侶 / 伴侶", "business": "合作夥伴", "parent_child": "親子"}
+        st.subheader(_tr("compat.demo_section"))
+        st.caption(_tr("compat.demo_caption"))
+        _DEMO_RT_MAP = {"romantic": _tr("compat.type_romantic"), "business": _tr("compat.type_business"), "parent_child": _tr("compat.type_parent_child")}
         _DEMO_ICONS = ["💑", "🤝", "👨‍👩‍👧"]
         _demo_cols = st.columns(len(SAMPLE_COUPLES))
         for _di, (_dcol, _couple) in enumerate(zip(_demo_cols, SAMPLE_COUPLES)):
@@ -2101,7 +2651,7 @@ elif page == PAGE_COMPATIBILITY:
                 st.session_state["compatibility_report"] = _cr
                 st.success(_tr("compatibility.done"))
             except Exception as _err:
-                st.error(f"合盤計算錯誤：{_err}")
+                st.error(f"Compatibility error: {_err}")
 
     # ── Results ───────────────────────────────────────────────────────────────
     _cr = st.session_state.get("compatibility_report")
@@ -2154,6 +2704,38 @@ elif page == PAGE_COMPATIBILITY:
             st.subheader("溝通建議")
             for i, a in enumerate(_cr.synthesis.practical_advice, 1):
                 st.markdown(f"{i}. {a}")
+
+            _syn_precise = _cr.synthesis
+            if getattr(_syn_precise, "precision_summary", ""):
+                st.divider()
+                st.subheader("🔎 精準分析摘要")
+                st.markdown(_syn_precise.precision_summary)
+            if getattr(_syn_precise, "score_drivers", None):
+                with st.expander("分數形成依據", expanded=True):
+                    for _driver in _syn_precise.score_drivers:
+                        st.markdown(f"- {_driver}")
+            if getattr(_syn_precise, "dimension_evidence", None):
+                _dim_titles = {
+                    "emotional": "情緒與安全感",
+                    "communication": "溝通與理解",
+                    "attraction": "吸引力與親密節奏",
+                    "stability": "穩定性與承諾",
+                    "conflict": "衝突與修復",
+                    "growth": "成長與合作",
+                }
+                with st.expander("各維度具體證據", expanded=False):
+                    for _dim, _items in _syn_precise.dimension_evidence.items():
+                        st.markdown(f"**{_dim_titles.get(_dim, _dim)}**")
+                        for _item in _items:
+                            st.markdown(f"- {_item}")
+            if getattr(_syn_precise, "priority_actions", None):
+                st.subheader("🎯 優先改善順序")
+                for _idx, _action in enumerate(_syn_precise.priority_actions, 1):
+                    st.markdown(f"{_idx}. {_action}")
+            if getattr(_syn_precise, "uncertainty_notes", None):
+                with st.expander("資料限制與可信度", expanded=False):
+                    for _note in _syn_precise.uncertainty_notes:
+                        st.markdown(f"- {_note}")
 
         with tab_emo_comm:
             _syn = _cr.synthesis
@@ -2502,67 +3084,91 @@ elif page == PAGE_COMPATIBILITY:
                          label_visibility="collapsed")
 
         with tab_export_tab:
-            st.subheader("📤 匯出合盤報告")
-            st.caption("選擇適合用途的匯出格式：")
-            ex1, ex2, ex3 = st.columns(3)
+            _compat_export_labels = {
+                "zh-TW": ("📤 匯出合盤報告", "選擇適合用途的匯出格式：", "下載"),
+                "en": ("📤 Export Compatibility Report", "Choose an export format:", "Download"),
+                "ja": ("📤 相性レポートを出力", "用途に合う形式を選択してください：", "ダウンロード"),
+                "th": ("📤 ส่งออกรายงานความเข้ากันได้", "เลือกรูปแบบการส่งออก:", "ดาวน์โหลด"),
+                "es": ("📤 Exportar informe de compatibilidad", "Elige un formato:", "Descargar"),
+                "ar": ("📤 تصدير تقرير التوافق", "اختر صيغة التصدير:", "تنزيل"),
+            }
+            _compat_export_title, _compat_export_caption, _compat_download = _compat_export_labels.get(
+                _compat_tr_lang, _compat_export_labels["en"]
+            )
+            st.subheader(_compat_export_title)
+            st.caption(_compat_export_caption)
+            _compat_report_lang = st.selectbox(
+                _tr("report.language_selector"),
+                options=_REPORT_LANGUAGE_CODES,
+                format_func=lambda code: (
+                    _tr("report.language_auto") if code == "auto"
+                    else _REPORT_LANGUAGE_SELF_NAMES[code]
+                ),
+                key="compat_report_language",
+            )
+            _compat_export_language = (
+                _compat_tr_lang if _compat_report_lang == "auto"
+                else _compat_report_lang
+            )
+            ex1, ex2, ex3, ex4 = st.columns(4)
+            # Compatibility export labels include: 下載 PDF / Download PDF / ダウンロード PDF
             _rt_str = _cr.relationship_type.value
             with ex1:
-                st.caption("📝 **Markdown** — 適合二次編輯與純文字使用")
-                _md_bytes = _cr.markdown_body.encode("utf-8")
+                _md_text = export_compat_to_markdown(_cr, language=_compat_export_language)
                 st.download_button(
-                    label="📝 下載 Markdown",
-                    data=_md_bytes,
+                    label=f"📝 {_compat_download} Markdown",
+                    data=_md_text.encode("utf-8"),
                     file_name=make_compat_filename(
-                        _cr.person_a_profile.name,
-                        _cr.person_b_profile.name,
-                        "md",
-                        _rt_str,
+                        _cr.person_a_profile.name, _cr.person_b_profile.name, "md", _rt_str
                     ),
                     mime="text/markdown",
                     use_container_width=True,
                 )
             with ex2:
-                st.caption("🌐 **HTML** — 適合展示與列印")
                 try:
-                    _html_str = export_compat_to_html(_cr)
+                    _html_str = export_compat_to_html(_cr, language=_compat_export_language)
                     st.download_button(
-                        label="🌐 下載 HTML",
+                        label=f"🌐 {_compat_download} HTML",
                         data=_html_str.encode("utf-8"),
                         file_name=make_compat_filename(
-                            _cr.person_a_profile.name,
-                            _cr.person_b_profile.name,
-                            "html",
-                            _rt_str,
+                            _cr.person_a_profile.name, _cr.person_b_profile.name, "html", _rt_str
                         ),
                         mime="text/html",
                         use_container_width=True,
                     )
                 except Exception as _he:
-                    st.button("🌐 HTML（錯誤）", disabled=True, use_container_width=True)
+                    st.button("🌐 HTML", disabled=True, use_container_width=True)
                     st.warning(str(_he))
             with ex3:
-                st.caption("📘 **Word** — 適合交付與排版")
-                if _DocxExporter().is_available():
-                    try:
-                        _docx_bytes = export_compat_to_docx(_cr)
-                        st.download_button(
-                            label="📘 下載 Word",
-                            data=_docx_bytes,
-                            file_name=make_compat_filename(
-                                _cr.person_a_profile.name,
-                                _cr.person_b_profile.name,
-                                "docx",
-                                _rt_str,
-                            ),
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            use_container_width=True,
-                        )
-                    except Exception as _de:
-                        st.button("📘 Word（錯誤）", disabled=True, use_container_width=True)
-                        st.warning(str(_de))
-                else:
-                    st.button("📘 Word（未安裝）", disabled=True, use_container_width=True)
-                    st.info("pip install python-docx")
+                try:
+                    _docx_bytes = export_compat_to_docx(_cr, language=_compat_export_language)
+                    st.download_button(
+                        label=f"📘 {_compat_download} Word",
+                        data=_docx_bytes,
+                        file_name=make_compat_filename(
+                            _cr.person_a_profile.name, _cr.person_b_profile.name, "docx", _rt_str
+                        ),
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True,
+                    )
+                except Exception as _de:
+                    st.button("📘 Word", disabled=True, use_container_width=True)
+                    st.warning(str(_de))
+            with ex4:
+                try:
+                    _pdf_bytes = export_compat_to_pdf(_cr, language=_compat_export_language)
+                    st.download_button(
+                        label=f"📕 {_compat_download} PDF",
+                        data=_pdf_bytes,
+                        file_name=make_compat_filename(
+                            _cr.person_a_profile.name, _cr.person_b_profile.name, "pdf", _rt_str
+                        ),
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception as _pe:
+                    st.button("📕 PDF", disabled=True, use_container_width=True)
+                    st.warning(str(_pe))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3184,7 +3790,7 @@ elif page == PAGE_SETTINGS:
         st.metric(_tr("settings.version"), f"v{APP_VERSION}")
         st.write(f"**{_tr('settings.db_path')}**：`{DB_PATH}`")
     with si2:
-        sweph_status = "已設定 ✅" if SWISSEPH_DATA_PATH else "未設定（Moshier 內建）⚠️"
+        sweph_status = "Set ✅" if SWISSEPH_DATA_PATH else "Not set (Moshier built-in) ⚠️"
         st.write(f"**Swiss Ephemeris**：{sweph_status}")
 
     # ── Supported features ────────────────────────────────────────────────────

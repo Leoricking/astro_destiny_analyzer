@@ -23,7 +23,7 @@ import pathlib
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT = pathlib.Path(_SCRIPT_DIR).parent
 
-APP_VERSION = "2.0.5"
+APP_VERSION = "2.0.6"
 DIST_NAME = "AstroDestinyAnalyzer"
 DIST_DIR = _ROOT / "dist" / DIST_NAME
 RELEASE_DIR = _ROOT / "release"
@@ -81,6 +81,7 @@ _COLLECT_ALL_THIRD_PARTY = [
     "blinker",
     "click",
     "cachetools",
+    "reportlab",
 ]
 
 _COPY_METADATA = [
@@ -91,6 +92,7 @@ _COPY_METADATA = [
     "blinker",
     "click",
     "cachetools",
+    "reportlab",
 ]
 
 # ── Project packages to collect as compiled bytecode (no .py source exposed) ──
@@ -110,7 +112,10 @@ _COLLECT_SUBMODULES = [
     "i18n.locales.es",
     "i18n.locales.ar",
     "i18n.rtl",
+    "i18n.audit",
+    "i18n.render_registry",
     "ui.i18n_helpers",
+    "location",
 ]
 
 

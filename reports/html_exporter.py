@@ -183,9 +183,15 @@ def _build_pre_body(meta: dict) -> str:
 
 
 class HtmlExporter:
-    def export(self, report: FullReport) -> str:
+    def export(self, report: FullReport, language: str = "zh-TW") -> str:
+        from reports.localized_renderer import normalize_report_language, report_html_meta, report_text, render_localized_markdown
+        language = normalize_report_language(language)
         meta = build_report_meta(report)
-        markdown_text = render_report(report, version=_cfg.APP_VERSION)
+        markdown_text = (
+            render_report(report, version=_cfg.APP_VERSION)
+            if language == "zh-TW"
+            else render_localized_markdown(report, language=language, version=_cfg.APP_VERSION)
+        )
 
         if _MD_AVAILABLE:
             try:
@@ -199,12 +205,13 @@ class HtmlExporter:
             html_body = f"<pre>{_h(markdown_text)}</pre>"
 
         pre_body = _build_pre_body(meta)
-        title = _h(f"{meta['name']} 命盤整合分析報告")
+        localized = report_text(language)
+        title = _h(f"{meta['name']} — {localized['title']}")
         footer_txt = _h(f"{_cfg.REPORT_WATERMARK} · v{_cfg.APP_VERSION} ｜ {meta['created_at']}")
 
         return (
             '<!DOCTYPE html>\n'
-            '<html lang="zh-TW">\n'
+            f'<html lang="{report_html_meta(language)["html_lang"]}" dir="{report_html_meta(language)["dir"]}">\n'
             '<head>\n'
             '  <meta charset="UTF-8" />\n'
             '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n'
@@ -221,7 +228,7 @@ class HtmlExporter:
             '</html>\n'
         )
 
-    def save(self, report: FullReport, path: str) -> None:
-        content = self.export(report)
+    def save(self, report: FullReport, path: str, language: str = "zh-TW") -> None:
+        content = self.export(report, language=language)
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)

@@ -146,6 +146,13 @@ class CompatibilitySynthesis(BaseModel):
     long_term_potential: str = ""
     practical_advice: List[str] = Field(default_factory=list)
     thirty_day_practice: List[str] = Field(default_factory=list)
+    # V2.0.6 precision upgrade: explicit evidence and priority actions.
+    # These fields are additive and keep backward compatibility with older reports.
+    dimension_evidence: Dict[str, List[str]] = Field(default_factory=dict)
+    score_drivers: List[str] = Field(default_factory=list)
+    priority_actions: List[str] = Field(default_factory=list)
+    uncertainty_notes: List[str] = Field(default_factory=list)
+    precision_summary: str = ""
     warning_note: str = ""
 
 

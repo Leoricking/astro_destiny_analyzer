@@ -250,6 +250,41 @@ def build_compatibility_markdown(report: "CompatibilityReport") -> str:
             "",
         ]
 
+    # ── Precision evidence and decision priorities ─────────────────────────────
+    if syn.precision_summary:
+        lines += [
+            "## 精準分析摘要",
+            "",
+            syn.precision_summary,
+            "",
+        ]
+    if syn.score_drivers:
+        lines += ["### 分數形成依據", ""]
+        lines += [f"- {item}" for item in syn.score_drivers]
+        lines += [""]
+    if syn.dimension_evidence:
+        lines += ["### 各維度具體證據", ""]
+        _dimension_titles = {
+            "emotional": "情緒與安全感",
+            "communication": "溝通與理解",
+            "attraction": "吸引力與親密節奏",
+            "stability": "穩定性與承諾",
+            "conflict": "衝突與修復",
+            "growth": "成長與合作",
+        }
+        for dim, evidence in syn.dimension_evidence.items():
+            lines += [f"#### {_dimension_titles.get(dim, dim)}", ""]
+            lines += [f"- {item}" for item in evidence]
+            lines += [""]
+    if syn.priority_actions:
+        lines += ["### 優先改善順序", ""]
+        lines += [f"{i}. {item}" for i, item in enumerate(syn.priority_actions, 1)]
+        lines += [""]
+    if syn.uncertainty_notes:
+        lines += ["### 資料限制與可信度", ""]
+        lines += [f"- {item}" for item in syn.uncertainty_notes]
+        lines += [""]
+
     # ── Relationship Type Positioning ─────────────────────────────────────────
     lines += [
         f"## 關係定位總論（{rt_label}）",

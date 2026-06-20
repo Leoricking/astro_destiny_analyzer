@@ -1,9 +1,9 @@
 Astro Destiny Analyzer
-Version: 2.0.5
-Release: Full UI Localization & RTL Support
+Version: 2.0.6
+Release: Translation Integrity & Smart Birth Location
 Build Profiles: customer | consultant | developer | protected_trial
 Default Mode: Customer Mode
-Generated: 2026-05-29
+Generated: 2026-06-14
 
 Features:
 - Natal chart analysis (Western Astrology / BaZi / Zi Wei Dou Shu / Numerology)
@@ -18,6 +18,8 @@ Features:
 - Three-way mode governance: Customer / Consultant / Developer
 - HTML / Word / Markdown export
 - Optional PDF export via WeasyPrint
+- Smart Birth Location: ISO country selectbox, city search, IANA timezone, historical DST UTC offset
+- All public_content / free_report / compatibility / settings pages fully localized (6 languages)
 
 Build Profiles:
 - customer: standard customer delivery (no dev tools, no tests)
